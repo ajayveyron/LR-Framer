@@ -1,0 +1,13 @@
+.next
+.next-rpc-test
+.next-webpack
+node_modules
+.env
+.env.local
+.env.production
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+coverage
+.DS_Store
