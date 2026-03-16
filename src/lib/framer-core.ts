@@ -30,6 +30,7 @@ import { logError, logEvent } from "./logger.ts";
 
 const LAST_EDITED_AT_KEY = "lr:lastEditedAt";
 const LAST_EDITED_BY_KEY = "lr:lastEditedBy";
+const CREATED_AT_KEY = "lr:createdAt";
 const SOURCE_VERSION_KEY = "lr:sourceVersion";
 const BRIDGE_EXTERNAL_ID_KEY = "lr:bridgeExternalId";
 
@@ -340,12 +341,14 @@ async function getMetadataWithFields(
 }
 
 async function getItemAuditData(item: CollectionItem) {
-  const [lastUpdated, lastUpdatedBy] = await Promise.all([
+  const [createdAt, lastUpdated, lastUpdatedBy] = await Promise.all([
+    item.getPluginData(CREATED_AT_KEY),
     item.getPluginData(LAST_EDITED_AT_KEY),
     item.getPluginData(LAST_EDITED_BY_KEY),
   ]);
 
   return {
+    createdAt: createdAt ?? null,
     lastUpdated: lastUpdated ?? null,
     lastUpdatedBy: lastUpdatedBy ?? null,
   };
@@ -377,6 +380,7 @@ async function serializePost(
     draft: item.draft,
     title: titleFieldId ? formatDisplayValue(titleValue) || item.slug : item.slug,
     date: typeof dateValue === "string" ? dateValue : null,
+    createdAt: auditData.createdAt,
     lastUpdated: auditData.lastUpdated,
     lastUpdatedBy: auditData.lastUpdatedBy,
     fieldValues,
@@ -390,6 +394,7 @@ function serializeSummary(record: BlogPostRecord): BlogPostSummary {
     draft: record.draft,
     title: record.title,
     date: record.date,
+    createdAt: record.createdAt,
     lastUpdated: record.lastUpdated,
     lastUpdatedBy: record.lastUpdatedBy,
   };
@@ -835,6 +840,7 @@ export async function createBlogPost(
     }
 
     await Promise.all([
+      persisted.setPluginData(CREATED_AT_KEY, new Date().toISOString()),
       persisted.setPluginData(LAST_EDITED_AT_KEY, new Date().toISOString()),
       persisted.setPluginData(LAST_EDITED_BY_KEY, actor),
     ]);
@@ -910,6 +916,7 @@ export async function updateBlogPost(
 export async function syncBridgePosts(
   inputs: BridgeSyncInput[],
   actor: string,
+  publishRequested = false,
 ): Promise<BridgeSyncResponse> {
   if (inputs.length === 0) {
     return { results: [] };
@@ -929,6 +936,7 @@ export async function syncBridgePosts(
       items,
       inputs,
       actor,
+      publishRequested,
     );
   });
 }
@@ -967,6 +975,7 @@ async function syncBridgePostsWithLoadedContext(
   items: CollectionItem[],
   inputs: BridgeSyncInput[],
   actor: string,
+  publishRequested = false,
 ): Promise<BridgeSyncResponse> {
   logEvent("info", "framer.bridge.sync.started", {
     actor,
@@ -985,6 +994,7 @@ async function syncBridgePostsWithLoadedContext(
     framerItemId?: string;
     matchedBy: BridgeSyncResult["matchedBy"];
     sourceVersion?: string | null;
+    draft: boolean;
     slug: string;
   }> = [];
 
@@ -1020,6 +1030,7 @@ async function syncBridgePostsWithLoadedContext(
         index,
         action: "created",
         externalId: input.externalId,
+        draft: input.draft,
         matchedBy,
         sourceVersion: input.sourceVersion,
         slug: input.slug,
@@ -1115,6 +1126,7 @@ async function syncBridgePostsWithLoadedContext(
       action: "updated",
       externalId: input.externalId,
       framerItemId: existing.id,
+      draft: input.draft,
       matchedBy,
       sourceVersion: input.sourceVersion,
       slug: input.slug,
@@ -1127,7 +1139,7 @@ async function syncBridgePostsWithLoadedContext(
     const persistedItems = await collection.getItems();
 
     for (const entry of changedEntries) {
-      const persisted = entry.framerItemId
+      let persisted = entry.framerItemId
         ? persistedItems.find((item) => item.id === entry.framerItemId)
         : persistedItems.find(
             (item) => normalizeLabel(item.slug) === normalizeLabel(entry.slug),
@@ -1140,7 +1152,29 @@ async function syncBridgePostsWithLoadedContext(
         );
       }
 
+      if (persisted.draft !== entry.draft) {
+        const updated = await persisted.setAttributes({ draft: entry.draft });
+        if (!updated) {
+          throw new AppError(
+            `The synced blog post "${entry.slug}" could not be updated to the requested draft state.`,
+            500,
+          );
+        }
+
+        persisted = updated;
+
+        if (persisted.draft !== entry.draft) {
+          throw new AppError(
+            `Framer did not apply draft=${entry.draft} for "${entry.slug}".`,
+            502,
+          );
+        }
+      }
+
       await Promise.all([
+        entry.action === "created"
+          ? persisted.setPluginData(CREATED_AT_KEY, new Date().toISOString())
+          : Promise.resolve(),
         persisted.setPluginData(LAST_EDITED_AT_KEY, new Date().toISOString()),
         persisted.setPluginData(LAST_EDITED_BY_KEY, actor),
         persisted.setPluginData(BRIDGE_EXTERNAL_ID_KEY, entry.externalId),
@@ -1158,7 +1192,7 @@ async function syncBridgePostsWithLoadedContext(
       );
     }
 
-    publish = await maybePublishChanges(framer, true, {
+    publish = await maybePublishChanges(framer, publishRequested, {
       actor,
       changedCount: changedEntries.length,
       inputCount: inputs.length,

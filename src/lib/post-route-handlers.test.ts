@@ -44,6 +44,7 @@ test("handleCreatePost returns created response with injected dependencies", asy
           draft: input.draft,
           title: String(input.fieldValues.title),
           date: null,
+          createdAt: null,
           lastUpdated: null,
           lastUpdatedBy: null,
           fieldValues: input.fieldValues,

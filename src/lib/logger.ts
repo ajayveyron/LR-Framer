@@ -1,5 +1,12 @@
 type LogLevel = "info" | "warn" | "error";
 
+const logWriterByLevel: Record<LogLevel, (message?: unknown, ...optionalParams: unknown[]) => void> =
+  {
+    info: console.log.bind(console),
+    warn: console.warn.bind(console),
+    error: console.error.bind(console),
+  };
+
 function serializeError(error: unknown) {
   if (error instanceof Error) {
     return {
@@ -19,7 +26,7 @@ export function logEvent(
   event: string,
   metadata: Record<string, unknown> = {},
 ) {
-  console.error(
+  logWriterByLevel[level](
     JSON.stringify({
       ts: new Date().toISOString(),
       level,

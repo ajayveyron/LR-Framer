@@ -211,15 +211,53 @@ export function buildPostInputSchema(
     slug: z
       .string()
       .trim()
-      .min(1, "Slug is required.")
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and hyphens only."),
+      .transform((value) => {
+        if (value.length > 0) {
+          return value;
+        }
+        // Slug is empty — will be derived from title in parsePostInput
+        return "";
+      })
+      .refine(
+        (value) => value === "" || /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value),
+        "Use lowercase letters, numbers, and hyphens only.",
+      ),
     fieldValues: z.object(fieldShape).strict(),
   }).strict();
+}
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export function parsePostInput(
   metadata: BlogCollectionMetadata,
   payload: unknown,
 ): ValidatedPostInput {
-  return buildPostInputSchema(metadata).parse(payload) as ValidatedPostInput;
+  const parsed = buildPostInputSchema(metadata).parse(payload) as ValidatedPostInput;
+
+  if (!parsed.slug) {
+    const titleFieldId = metadata.logicalFields.title;
+    const titleValue = titleFieldId ? parsed.fieldValues[titleFieldId] : undefined;
+
+    if (typeof titleValue === "string" && titleValue.trim().length > 0) {
+      parsed.slug = slugify(titleValue);
+    }
+
+    if (!parsed.slug) {
+      throw new z.ZodError([
+        {
+          code: z.ZodIssueCode.custom,
+          message: "Slug is required when no title is provided.",
+          path: ["slug"],
+        },
+      ]);
+    }
+  }
+
+  return parsed;
 }

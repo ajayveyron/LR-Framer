@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import type {
   BlogCollectionMetadata,
   BlogPostRecord,
@@ -169,11 +170,7 @@ function renderCellContent(
 ) {
   if (columnKey === "title") {
     return (
-      <Link
-        aria-label={`Edit ${post.title}`}
-        className="table-row-link table-title-cell"
-        href={`/posts/${post.id}`}
-      >
+      <div className="table-row-link cursor-pointer table-title-cell">
         <span className="doc-glyph" aria-hidden="true">
           <svg
             fill="none"
@@ -199,7 +196,7 @@ function renderCellContent(
           </svg>
         </span>
         <span className="table-value">{post.title}</span>
-      </Link>
+      </div>
     );
   }
 
@@ -221,10 +218,20 @@ function renderCellContent(
     }
   }
 
-  return <span className="table-value">{getCellValue(post, metadata, columnKey)}</span>;
+  return (
+    <span className="table-value">
+      {getCellValue(post, metadata, columnKey)}
+    </span>
+  );
 }
 
-export function BlogTable({ activePostId = null, columns, metadata, posts }: BlogTableProps) {
+export function BlogTable({
+  activePostId = null,
+  columns,
+  metadata,
+  posts,
+}: BlogTableProps) {
+  const router = useRouter();
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() =>
     Object.fromEntries(
       columns.map((column) => [
@@ -250,16 +257,25 @@ export function BlogTable({ activePostId = null, columns, metadata, posts }: Blo
     );
   }
 
-  const tableMinWidth =
-    columns.reduce(
-      (sum, column) =>
-        sum + (columnWidths[column.key] ?? getColumnLimits(metadata, column.key).defaultWidth),
-      0,
-    );
+  const tableMinWidth = columns.reduce(
+    (sum, column) =>
+      sum +
+      (columnWidths[column.key] ??
+        getColumnLimits(metadata, column.key).defaultWidth),
+    0,
+  );
 
   const groupedPosts = [
-    { key: "drafts", label: "Drafts", posts: posts.filter((post) => post.draft) },
-    { key: "published", label: "Published", posts: posts.filter((post) => !post.draft) },
+    {
+      key: "drafts",
+      label: "Drafts",
+      posts: posts.filter((post) => post.draft),
+    },
+    {
+      key: "published",
+      label: "Published",
+      posts: posts.filter((post) => !post.draft),
+    },
   ].filter((group) => group.posts.length > 0);
 
   return (
@@ -277,13 +293,18 @@ export function BlogTable({ activePostId = null, columns, metadata, posts }: Blo
         <thead>
           <tr>
             {columns.map((column) => (
-              <th className={column.key === "slug" ? "mono" : undefined} key={column.key}>
+              <th
+                className={column.key === "slug" ? "mono" : undefined}
+                key={column.key}
+              >
                 <div className="table-head-cell">
                   <span>{column.label}</span>
                   <button
                     aria-label={`Resize ${column.label} column`}
                     className={`column-resizer ${
-                      draggingColumn === column.key ? "column-resizer-active" : ""
+                      draggingColumn === column.key
+                        ? "column-resizer-active"
+                        : ""
                     }`}
                     onPointerDown={(event) => {
                       event.preventDefault();
@@ -312,9 +333,15 @@ export function BlogTable({ activePostId = null, columns, metadata, posts }: Blo
                       const stopDragging = () => {
                         setDraggingColumn(null);
                         document.body.classList.remove("table-resizing");
-                        window.removeEventListener("pointermove", handlePointerMove);
+                        window.removeEventListener(
+                          "pointermove",
+                          handlePointerMove,
+                        );
                         window.removeEventListener("pointerup", stopDragging);
-                        window.removeEventListener("pointercancel", stopDragging);
+                        window.removeEventListener(
+                          "pointercancel",
+                          stopDragging,
+                        );
                       };
 
                       window.addEventListener("pointermove", handlePointerMove);
@@ -336,20 +363,35 @@ export function BlogTable({ activePostId = null, columns, metadata, posts }: Blo
               </tr>
               {group.posts.map((post) => (
                 <tr
+                  aria-label={`Edit ${post.title}`}
                   className={`table-row ${post.id === activePostId ? "table-row-active" : ""}`}
                   key={post.id}
+                  onClick={() => {
+                    router.push(`/posts/${post.id}`, { scroll: false });
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    router.push(`/posts/${post.id}`, { scroll: false });
+                  }}
+                  role="link"
+                  tabIndex={0}
                 >
                   {columns.map((column) => {
                     if (column.key === "status") {
                       return (
                         <td key={column.key}>
-                          <span
+                          <Badge
                             className={`status-chip ${
                               post.draft ? "status-draft" : "status-published"
                             }`}
+                            variant="outline"
                           >
                             {post.draft ? "Draft" : "Live"}
-                          </span>
+                          </Badge>
                         </td>
                       );
                     }

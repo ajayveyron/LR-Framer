@@ -62,6 +62,7 @@ export interface BlogPostSummary {
   draft: boolean;
   title: string;
   date: string | null;
+  createdAt: string | null;
   lastUpdated: string | null;
   lastUpdatedBy: string | null;
 }

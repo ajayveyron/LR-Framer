@@ -1,11 +1,7 @@
+@import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
-
-@tailwind base;
 
 @custom-variant dark (&:is(.dark *));
-@tailwind components;
-@tailwind utilities;
 
 :root {
   --bg: #000000;
@@ -419,12 +415,19 @@ th {
 }
 
 .table-row {
+  cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
 }
 
 .table-row td {
+  cursor: inherit;
   color: rgba(255, 255, 255, 0.44);
   transition: color 120ms ease;
+}
+
+.table-row:focus-visible {
+  outline: 2px solid rgba(13, 153, 255, 0.72);
+  outline-offset: -2px;
 }
 
 .table-row:hover {
@@ -1099,7 +1102,19 @@ th {
 }
 
 .workspace-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.workspace-page-select {
+  min-width: 128px;
+}
+
+.workspace-pagination-label {
+  min-width: fit-content;
 }
 
 .workspace-drawer-layer {
@@ -1121,10 +1136,14 @@ th {
 }
 
 .workspace-drawer-panel {
-  position: relative;
-  z-index: 1;
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 60;
   width: min(56vw, 980px);
-  height: 100%;
+  max-width: calc(100vw - 16px);
+  height: auto;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 24px;
   overflow: hidden;
@@ -1133,10 +1152,53 @@ th {
   pointer-events: auto;
 }
 
+.workspace-drawer-panel[data-state="open"] {
+  animation: workspace-drawer-slide-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.workspace-drawer-panel[data-state="closed"] {
+  animation: workspace-drawer-slide-out 140ms ease-in;
+}
+
+.workspace-drawer-content {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.workspace-drawer-content > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .editor-drawer {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+@keyframes workspace-drawer-slide-in {
+  from {
+    opacity: 0;
+    transform: translate3d(36px, 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes workspace-drawer-slide-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate3d(24px, 0, 0);
+  }
 }
 
 .editor-header {
@@ -1258,11 +1320,13 @@ th {
 
 .editor-input,
 .editor-select,
+.editor-select-trigger,
 .editor-textarea,
 .field input,
 .field select,
 .field textarea {
   width: 100%;
+  height: auto;
   min-height: 58px;
   padding: 16px 18px;
   border-radius: 18px;
@@ -1275,6 +1339,10 @@ th {
 .editor-input-title {
   font-size: 24px;
   line-height: 1.2;
+}
+
+.editor-select-trigger {
+  justify-content: space-between;
 }
 
 .editor-textarea,
@@ -1341,6 +1409,19 @@ th {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.editor-reference-list {
+  display: grid;
+  gap: 10px;
+}
+
+.editor-reference-option {
+  justify-content: space-between;
+}
+
+.editor-reference-copy {
+  min-width: 0;
 }
 
 .editor-upload-button {
@@ -1463,6 +1544,13 @@ th {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .workspace-drawer-panel[data-state="open"],
+  .workspace-drawer-panel[data-state="closed"] {
+    animation: none;
+  }
+}
+
 @media (max-width: 900px) {
   .shell {
     padding: 0;
@@ -1480,6 +1568,10 @@ th {
 
   .workspace-drawer-panel {
     width: min(100vw, 100%);
+    top: 0;
+    right: 0;
+    bottom: 0;
+    max-width: 100vw;
     border-radius: 0;
   }
 

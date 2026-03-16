@@ -40,7 +40,7 @@ Recommended:
 Optional Notion bridge:
 
 - `NOTION_API_KEY`
-- `NOTION_DATA_SOURCE_ID`
+- `NOTION_DATA_SOURCE_ID` must be the actual Notion data source ID, not the surrounding database ID
 - `NOTION_WEBHOOK_SECRET`
 - `NOTION_STATUS_PROPERTY_NAME` defaults to `Status`
 - `NOTION_APPROVED_STATUS_VALUE` defaults to `Approved`
@@ -61,7 +61,7 @@ NOTION_STATUS_PROPERTY_NAME=Status
 NOTION_APPROVED_STATUS_VALUE=Approved
 NOTION_SLUG_PROPERTY_NAME=Slug
 NOTION_FRAMER_ITEM_ID_PROPERTY_NAME=Framer Item ID
-NOTION_FIELD_MAP={"author":"Writer","date":"Publish Date"}
+NOTION_FIELD_MAP={"author":"Writer","date":"Publish Date","createdAt":"CMS Created At","lastUpdated":"CMS Updated At"}
 ```
 
 ## Local development
@@ -105,11 +105,12 @@ This mode keeps the dashboard intact and adds a backend bridge for approved Noti
 
 1. Create a Notion integration and copy its API key into `NOTION_API_KEY`.
 2. Share the target Notion data source with that integration.
-3. Copy the data source ID into `NOTION_DATA_SOURCE_ID`.
+3. Copy the data source ID into `NOTION_DATA_SOURCE_ID`. Do not use the parent database ID.
 4. Add these properties in Notion:
    - `Status` as a status/select property
    - `Slug` as a text or formula property
    - `Framer Item ID` as a rich text property
+   - optional writable date properties such as `CMS Created At` and `CMS Updated At` if you want Framer item audit timestamps mirrored into Notion
 5. Keep the page title in the data source title property.
 6. Put the article body in the page content itself. The bridge fetches the page as markdown and maps it into the Framer body field.
 
@@ -117,10 +118,11 @@ This mode keeps the dashboard intact and adds a backend bridge for approved Noti
 
 - The bridge reuses the same Framer collection metadata lookup used by the dashboard.
 - It matches Notion properties to Framer fields by logical meaning first (`title`, `body`, `author`, `date`, `slug`) and then by field name.
+- When importing Framer posts into Notion, `NOTION_FIELD_MAP` can also target `createdAt`, `lastUpdated`, and `lastUpdatedBy`.
 - If your names do not line up, set `NOTION_FIELD_MAP`. Example:
 
 ```env
-NOTION_FIELD_MAP={"author":"Writer","date":"Publish Date","slug":"Permalink"}
+NOTION_FIELD_MAP={"author":"Writer","date":"Publish Date","slug":"Permalink","createdAt":"CMS Created At","lastUpdated":"CMS Updated At"}
 ```
 
 ### Webhook flow
@@ -192,6 +194,7 @@ curl -X POST http://localhost:3000/api/notion/import \
 - The Framer item ID is written back into the `Framer Item ID` Notion property when possible.
 - Existing Framer posts can be imported into Notion and matched back to existing pages by Framer item ID or slug.
 - Newly created Notion pages from Framer are seeded with the approved status when the Framer post is not a draft. Existing page statuses are preserved.
+- Framer item audit timestamps can be mirrored into writable Notion properties via `NOTION_FIELD_MAP`.
 - If anything changed, Framer publishes a new site deployment.
 
 ## Deployment
@@ -221,5 +224,5 @@ Use Node.js 22+ because `framer-api@0.1.2` requires it.
 - There is no delete UI and there are no explicit delete API routes, but the Notion bridge can remove bridge-managed Framer items when a page leaves the approved state.
 - The dashboard only touches the configured collection.
 - For unsupported Framer field types, the UI shows the value as read-only.
-- The “Last updated” column is tracked for edits made through this dashboard via Framer item plugin data.
+- The “Last updated” column is tracked for edits made through this dashboard via Framer item plugin data. New items also record a plugin-backed `createdAt` timestamp for Framer-to-Notion exports.
 - The Notion bridge is optional. If it is not configured, the dashboard still works normally.

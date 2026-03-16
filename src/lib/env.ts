@@ -14,6 +14,7 @@ const notionBridgeEnvSchema = z.object({
   NOTION_APPROVED_STATUS_VALUE: z.string().min(1).default("Approved"),
   NOTION_SLUG_PROPERTY_NAME: z.string().min(1).default("Slug"),
   NOTION_FRAMER_ITEM_ID_PROPERTY_NAME: z.string().min(1).default("Framer Item ID"),
+  NOTION_RESPONSE_PROPERTY_NAME: z.string().min(1).default("Response"),
   NOTION_FIELD_MAP: z.string().optional(),
 });
 
@@ -30,6 +31,7 @@ export interface ServerEnv {
   NOTION_APPROVED_STATUS_VALUE: string;
   NOTION_SLUG_PROPERTY_NAME: string;
   NOTION_FRAMER_ITEM_ID_PROPERTY_NAME: string;
+  NOTION_RESPONSE_PROPERTY_NAME: string;
   NOTION_FIELD_MAP?: string;
 }
 
@@ -161,6 +163,7 @@ export function getServerEnv(): ServerEnv {
     NOTION_APPROVED_STATUS_VALUE: parsed.NOTION_APPROVED_STATUS_VALUE,
     NOTION_SLUG_PROPERTY_NAME: parsed.NOTION_SLUG_PROPERTY_NAME,
     NOTION_FRAMER_ITEM_ID_PROPERTY_NAME: parsed.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME,
+    NOTION_RESPONSE_PROPERTY_NAME: parsed.NOTION_RESPONSE_PROPERTY_NAME,
     NOTION_FIELD_MAP: normalizeOptionalValue(parsed.NOTION_FIELD_MAP),
   };
   return cachedEnv;

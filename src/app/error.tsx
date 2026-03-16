@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+
 function formatErrorMessage(message: string) {
   try {
     const parsed = JSON.parse(message) as Array<{
@@ -35,9 +37,9 @@ export default function GlobalError({
         <pre className="warning-banner mono" style={{ whiteSpace: "pre-wrap" }}>
           {formatErrorMessage(error.message)}
         </pre>
-        <button className="button" onClick={reset} type="button">
+        <Button onClick={reset} type="button">
           Try again
-        </button>
+        </Button>
       </section>
     </main>
   );

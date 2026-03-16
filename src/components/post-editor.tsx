@@ -16,6 +16,27 @@ import { Controller, useForm, useWatch, type Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { useNotify } from "@/components/notification-provider";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import type {
   BlogCollectionMetadata,
   BlogPostRecord,
@@ -25,6 +46,7 @@ import type {
 import { buildPostInputSchema, type PostInputPayload } from "@/lib/post-schema";
 
 type FormValues = PostInputPayload;
+const EMPTY_SELECT_VALUE = "__none__";
 
 function looksLikeHtml(value: string) {
   return /<\/?[a-z][\s\S]*>/i.test(value);
@@ -144,8 +166,8 @@ function ReadOnlyField({
   return (
     <div className="editor-field editor-field-wide editor-field-readonly">
       <div className="editor-label-row">
-        <span>{field.name}</span>
-        <span className="required-badge">Read only</span>
+        <Label>{field.name}</Label>
+        <Badge className="required-badge" variant="outline">Read only</Badge>
       </div>
       <div className="warning-banner">
         {field.helpText ?? "This field type is visible but not editable in the dashboard."}
@@ -206,51 +228,61 @@ function RichTextInput({
   return (
     <div className="rich-text-shell">
       <div className="rich-text-toolbar">
-        <button
+        <Button
           onMouseDown={(event) => {
             event.preventDefault();
             applyCommand("bold");
           }}
+          size="xs"
           type="button"
+          variant="outline"
         >
           Bold
-        </button>
-        <button
+        </Button>
+        <Button
           onMouseDown={(event) => {
             event.preventDefault();
             applyCommand("italic");
           }}
+          size="xs"
           type="button"
+          variant="outline"
         >
           Italic
-        </button>
-        <button
+        </Button>
+        <Button
           onMouseDown={(event) => {
             event.preventDefault();
             applyCommand("formatBlock", "<h2>");
           }}
+          size="xs"
           type="button"
+          variant="outline"
         >
           H2
-        </button>
-        <button
+        </Button>
+        <Button
           onMouseDown={(event) => {
             event.preventDefault();
             applyCommand("insertUnorderedList");
           }}
+          size="xs"
           type="button"
+          variant="outline"
         >
           List
-        </button>
-        <button
+        </Button>
+        <Button
           onMouseDown={(event) => {
             event.preventDefault();
             applyCommand("formatBlock", "<blockquote>");
           }}
+          size="xs"
           type="button"
+          variant="outline"
         >
           Quote
-        </button>
+        </Button>
       </div>
       <div
         className="rich-text-editor"
@@ -285,8 +317,6 @@ export function PostEditor({
   const titleFieldId = metadata.logicalFields.title;
   const bodyFieldId = metadata.logicalFields.body;
   const [validationSchema] = useState(() => buildPostInputSchema(metadata));
-  const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
-  const lastActiveElementRef = useRef<HTMLElement | null>(null);
   const defaultValues: FormValues = {
     slug: post?.slug ?? "",
     fieldValues: Object.fromEntries(
@@ -485,34 +515,6 @@ export function PostEditor({
     submitValues(values);
   }
 
-  useEffect(() => {
-    if (!confirmOpen) {
-      return;
-    }
-
-    lastActiveElementRef.current = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
-    cancelButtonRef.current?.focus();
-
-    function handleKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setConfirmOpen(false);
-        setPendingValues(null);
-      }
-    }
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", handleKeyDown);
-      lastActiveElementRef.current?.focus();
-    };
-  }, [confirmOpen]);
-
   function renderField(field: DashboardFieldDefinition) {
     const errorMessage = getFieldErrorMessage(
       form.formState.errors.fieldValues,
@@ -522,46 +524,86 @@ export function PostEditor({
     const className = isLongTextField(field) || field.type === "array"
       ? "editor-field editor-field-wide"
       : "editor-field";
+    const inputId = `field-${field.id}`;
     const currentValue = watchedFieldValues?.[field.id] as
       | string
       | string[]
+      | boolean
       | undefined;
 
     if (field.type === "boolean") {
       return (
-        <label className={className} key={field.id}>
-          <span className="editor-label-row">
-            <span>{field.name}</span>
-            {field.required ? <span className="required-badge">Required</span> : null}
-          </span>
-          <span className="checkbox-row">
-            <input type="checkbox" {...form.register(path)} />
-            <span>Enabled</span>
-          </span>
+        <div className={className} key={field.id}>
+          <div className="editor-label-row">
+            <Label htmlFor={inputId}>{field.name}</Label>
+            {field.required ? (
+              <Badge className="required-badge" variant="outline">Required</Badge>
+            ) : null}
+          </div>
+          <Controller
+            control={form.control}
+            name={path}
+            render={({ field: controllerField }) => (
+              <div className="checkbox-row">
+                <div className="editor-reference-copy">
+                  <Label className="text-sm text-white/86" htmlFor={inputId}>Enabled</Label>
+                </div>
+                <Checkbox
+                  checked={controllerField.value === true}
+                  id={inputId}
+                  onCheckedChange={(checked) => {
+                    controllerField.onChange(checked === true);
+                  }}
+                />
+              </div>
+            )}
+          />
           {field.helpText ? <span className="helper-text">{field.helpText}</span> : null}
           {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
-        </label>
+        </div>
       );
     }
 
     if (field.type === "enum") {
       return (
-        <label className={className} key={field.id}>
-          <span className="editor-label-row">
-            <span>{field.name}</span>
-            {field.required ? <span className="required-badge">Required</span> : null}
-          </span>
-          <select className="editor-select" {...form.register(path)}>
-            <option value="">Select an option</option>
-            {field.options?.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+        <div className={className} key={field.id}>
+          <div className="editor-label-row">
+            <Label htmlFor={inputId}>{field.name}</Label>
+            {field.required ? (
+              <Badge className="required-badge" variant="outline">Required</Badge>
+            ) : null}
+          </div>
+          <Controller
+            control={form.control}
+            name={path}
+            render={({ field: controllerField }) => (
+              <Select
+                onValueChange={(value) => {
+                  controllerField.onChange(value === EMPTY_SELECT_VALUE ? "" : value);
+                }}
+                value={
+                  typeof controllerField.value === "string" && controllerField.value.length > 0
+                    ? controllerField.value
+                    : EMPTY_SELECT_VALUE
+                }
+              >
+                <SelectTrigger className="editor-select-trigger" id={inputId}>
+                  <SelectValue placeholder="Select an option" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={EMPTY_SELECT_VALUE}>Select an option</SelectItem>
+                  {field.options?.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
           {field.helpText ? <span className="helper-text">{field.helpText}</span> : null}
           {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
-        </label>
+        </div>
       );
     }
 
@@ -569,58 +611,119 @@ export function PostEditor({
       field.type === "collectionReference" ||
       field.type === "multiCollectionReference"
     ) {
-      return (
-        <label className={className} key={field.id}>
-          <span className="editor-label-row">
-            <span>{field.name}</span>
-            {field.required ? <span className="required-badge">Required</span> : null}
-          </span>
-          <select
-            className="editor-select"
-            multiple={field.type === "multiCollectionReference"}
-            onChange={(event) => {
-              if (field.type === "multiCollectionReference") {
-                form.setValue(
-                  path,
-                  Array.from(event.target.selectedOptions, (option) => option.value),
-                  { shouldValidate: true },
-                );
-                return;
-              }
+      const referenceOptions = field.referenceCollection?.options ?? [];
 
-              form.setValue(path, event.target.value, { shouldValidate: true });
-            }}
-            value={
-              field.type === "multiCollectionReference"
-                ? ((currentValue as string[] | undefined) ?? [])
-                : ((currentValue as string | undefined) ?? "")
-            }
-          >
-            {field.type === "collectionReference" ? (
-              <option value="">No selection</option>
+      if (field.type === "multiCollectionReference") {
+        const selectedValues = Array.isArray(currentValue) ? currentValue : [];
+
+        return (
+          <div className={`${className} editor-field-wide`} key={field.id}>
+            <div className="editor-label-row">
+              <Label>{field.name}</Label>
+              <div className="editor-toolbar-actions">
+                {field.required ? (
+                  <Badge className="required-badge" variant="outline">Required</Badge>
+                ) : null}
+                <Badge className="required-badge" variant="secondary">
+                  {selectedValues.length} selected
+                </Badge>
+              </div>
+            </div>
+            <div className="editor-reference-list">
+              {referenceOptions.map((option) => {
+                const optionId = `${inputId}-${option.slug}`;
+                const checked = selectedValues.includes(option.slug);
+
+                return (
+                  <div className="checkbox-row editor-reference-option" key={option.slug}>
+                    <div className="editor-reference-copy">
+                      <Label className="text-sm text-white/86" htmlFor={optionId}>
+                        {option.label}
+                      </Label>
+                      <div className="mono muted">{option.slug}</div>
+                    </div>
+                    <Checkbox
+                      checked={checked}
+                      id={optionId}
+                      onCheckedChange={(nextChecked) => {
+                        const nextValue = nextChecked === true
+                          ? [...selectedValues, option.slug]
+                          : selectedValues.filter((value) => value !== option.slug);
+
+                        form.setValue(path, nextValue, {
+                          shouldDirty: true,
+                          shouldTouch: true,
+                          shouldValidate: true,
+                        });
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <span className="helper-text">
+              Select the referenced items. Slugs and labels are resolved automatically
+              when saving.
+            </span>
+            {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
+          </div>
+        );
+      }
+
+      return (
+        <div className={className} key={field.id}>
+          <div className="editor-label-row">
+            <Label htmlFor={inputId}>{field.name}</Label>
+            {field.required ? (
+              <Badge className="required-badge" variant="outline">Required</Badge>
             ) : null}
-            {field.referenceCollection?.options.map((option) => (
-              <option key={option.slug} value={option.slug}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          </div>
+          <Controller
+            control={form.control}
+            name={path}
+            render={({ field: controllerField }) => (
+              <Select
+                onValueChange={(value) => {
+                  controllerField.onChange(value === EMPTY_SELECT_VALUE ? "" : value);
+                }}
+                value={
+                  typeof controllerField.value === "string" && controllerField.value.length > 0
+                    ? controllerField.value
+                    : EMPTY_SELECT_VALUE
+                }
+              >
+                <SelectTrigger className="editor-select-trigger" id={inputId}>
+                  <SelectValue placeholder="No selection" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={EMPTY_SELECT_VALUE}>No selection</SelectItem>
+                  {referenceOptions.map((option) => (
+                    <SelectItem key={option.slug} value={option.slug}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
           <span className="helper-text">
             Select the referenced item. Slugs and labels are resolved automatically when
             saving.
           </span>
           {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
-        </label>
+        </div>
       );
     }
 
     if (field.type === "formattedText") {
       return (
-        <label className={className} key={field.id}>
-          <span className="editor-label-row">
-            <span>{field.name}</span>
-            {field.required ? <span className="required-badge">Required</span> : null}
-          </span>
+        <div className={className} key={field.id}>
+          <div className="editor-label-row">
+            <Label>{field.name}</Label>
+            {field.required ? (
+              <Badge className="required-badge" variant="outline">Required</Badge>
+            ) : null}
+          </div>
           <Controller
             control={form.control}
             name={path}
@@ -638,20 +741,23 @@ export function PostEditor({
           />
           {field.helpText ? <span className="helper-text">{field.helpText}</span> : null}
           {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
-        </label>
+        </div>
       );
     }
 
     if (field.type === "image" || field.type === "file") {
       const assetUrl = typeof currentValue === "string" ? currentValue : "";
       const isUploading = pendingUploads[field.id] === true;
+      const uploadId = `${inputId}-upload`;
 
       return (
-        <label className={className} key={field.id}>
-          <span className="editor-label-row">
-            <span>{field.name}</span>
-            {field.required ? <span className="required-badge">Required</span> : null}
-          </span>
+        <div className={className} key={field.id}>
+          <div className="editor-label-row">
+            <Label htmlFor={inputId}>{field.name}</Label>
+            {field.required ? (
+              <Badge className="required-badge" variant="outline">Required</Badge>
+            ) : null}
+          </div>
           <div className="editor-asset-field">
             {assetUrl ? (
               <div className="editor-asset-preview">
@@ -686,27 +792,30 @@ export function PostEditor({
                 </div>
               </div>
             ) : (
-              <input
+              <Input
                 className="editor-input"
+                id={inputId}
                 placeholder={field.name}
                 {...form.register(path)}
               />
             )}
             <div className="editor-asset-actions">
-              <label className="button-secondary editor-upload-button">
-                <input
-                  accept={field.type === "image" ? "image/*" : undefined}
-                  hidden
-                  onChange={(event) => {
-                    void handleAssetUpload(field, path, event);
-                  }}
-                  type="file"
-                />
-                {isUploading ? "Uploading..." : assetUrl ? "Replace" : "Upload"}
-              </label>
+              <Button asChild className="editor-upload-button" size="sm" variant="outline">
+                <label htmlFor={uploadId}>
+                  <input
+                    accept={field.type === "image" ? "image/*" : undefined}
+                    hidden
+                    id={uploadId}
+                    onChange={(event) => {
+                      void handleAssetUpload(field, path, event);
+                    }}
+                    type="file"
+                  />
+                  {isUploading ? "Uploading..." : assetUrl ? "Replace" : "Upload"}
+                </label>
+              </Button>
               {assetUrl ? (
-                <button
-                  className="button-ghost"
+                <Button
                   onClick={() => {
                     form.setValue(path, "", {
                       shouldDirty: true,
@@ -714,46 +823,54 @@ export function PostEditor({
                       shouldValidate: true,
                     });
                   }}
+                  size="sm"
                   type="button"
+                  variant="ghost"
                 >
                   Remove
-                </button>
+                </Button>
               ) : null}
             </div>
           </div>
           {field.helpText ? <span className="helper-text">{field.helpText}</span> : null}
           {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
-        </label>
+        </div>
       );
     }
 
     if (isLongTextField(field)) {
       return (
-        <label className={className} key={field.id}>
-          <span className="editor-label-row">
-            <span>{field.name}</span>
-            {field.required ? <span className="required-badge">Required</span> : null}
-          </span>
-          <textarea
+        <div className={className} key={field.id}>
+          <div className="editor-label-row">
+            <Label htmlFor={inputId}>{field.name}</Label>
+            {field.required ? (
+              <Badge className="required-badge" variant="outline">Required</Badge>
+            ) : null}
+          </div>
+          <Textarea
             className="editor-textarea"
+            id={inputId}
             placeholder={field.name}
             rows={field.id === bodyField?.id ? 8 : 4}
             {...form.register(path)}
           />
           {field.helpText ? <span className="helper-text">{field.helpText}</span> : null}
           {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
-        </label>
+        </div>
       );
     }
 
     return (
-      <label className={className} key={field.id}>
-        <span className="editor-label-row">
-          <span>{field.name}</span>
-          {field.required ? <span className="required-badge">Required</span> : null}
-        </span>
-        <input
+      <div className={className} key={field.id}>
+        <div className="editor-label-row">
+          <Label htmlFor={inputId}>{field.name}</Label>
+          {field.required ? (
+            <Badge className="required-badge" variant="outline">Required</Badge>
+          ) : null}
+        </div>
+        <Input
           className={field.id === titleField?.id ? "editor-input editor-input-title" : "editor-input"}
+          id={inputId}
           placeholder={field.name}
           type={
             field.type === "number"
@@ -768,7 +885,7 @@ export function PostEditor({
         />
         {field.helpText ? <span className="helper-text">{field.helpText}</span> : null}
         {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
-      </label>
+      </div>
     );
   }
 
@@ -777,28 +894,30 @@ export function PostEditor({
       <div className="editor-header">
         <div className="editor-header-main">
           <div className="editor-nav">
-            <Link aria-label="Close editor" className="editor-icon-button" href="/">
-              <svg
-                fill="none"
-                height="18"
-                viewBox="0 0 18 18"
-                width="18"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M4.5 4.5L13.5 13.5"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeWidth="1.4"
-                />
-                <path
-                  d="M13.5 4.5L4.5 13.5"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeWidth="1.4"
-                />
-              </svg>
-            </Link>
+            <Button asChild className="editor-icon-button" size="icon-sm" variant="outline">
+              <Link aria-label="Close editor" href="/">
+                <svg
+                  fill="none"
+                  height="18"
+                  viewBox="0 0 18 18"
+                  width="18"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M4.5 4.5L13.5 13.5"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeWidth="1.4"
+                  />
+                  <path
+                    d="M13.5 4.5L4.5 13.5"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeWidth="1.4"
+                  />
+                </svg>
+              </Link>
+            </Button>
             <div className="editor-nav-divider" aria-hidden="true" />
             <div className="editor-nav-copy">
               <span className="eyebrow">
@@ -809,40 +928,49 @@ export function PostEditor({
           </div>
 
           <div className="editor-toolbar-actions">
-            <span
+            <Badge
               className={`editor-status-pill ${
                 form.formState.isDirty ? "editor-status-pill-alert" : "editor-status-pill-muted"
               }`}
+              variant="outline"
             >
               {statusLabel}
-            </span>
-            <button
-              className="button-secondary"
+            </Badge>
+            <Button
               disabled={pending || !form.formState.isDirty}
               onClick={resetForm}
+              size="sm"
               type="button"
+              variant="outline"
             >
               Reset
-            </button>
+            </Button>
             {mode === "create" ? (
-              <button className="button button-primary" disabled={pending} onClick={submitDraft} type="button">
+              <Button
+                className="bg-[#0d99ff] text-white hover:bg-[#24a3ff]"
+                disabled={pending}
+                onClick={submitDraft}
+                size="sm"
+                type="button"
+              >
                 {pending ? "Saving..." : "Create Draft"}
-              </button>
+              </Button>
             ) : (
-              <button
-                className="button button-primary"
+              <Button
+                className="bg-[#0d99ff] text-white hover:bg-[#24a3ff]"
                 disabled={pending}
                 onClick={openPublishConfirmation}
+                size="sm"
                 type="button"
               >
                 {pending ? "Publishing..." : "Publish"}
-              </button>
+              </Button>
             )}
           </div>
         </div>
       </div>
 
-      {serverError ? <div className="error-banner">{serverError}</div> : null}
+      {serverError ? <div className="error-banner" role="alert">{serverError}</div> : null}
 
       <form
         className="editor-form"
@@ -851,13 +979,14 @@ export function PostEditor({
         <div className="editor-field-list">
           {titleField ? renderField(titleField) : null}
 
-          <label className="editor-field">
-            <span className="editor-label-row">
-              <span>Slug</span>
-              <span className="required-badge">Required</span>
-            </span>
-            <input
+          <div className="editor-field">
+            <div className="editor-label-row">
+              <Label htmlFor="post-slug">Slug</Label>
+              <Badge className="required-badge" variant="outline">Required</Badge>
+            </div>
+            <Input
               className="editor-input"
+              id="post-slug"
               placeholder="my-new-post"
               {...form.register("slug")}
             />
@@ -884,7 +1013,7 @@ export function PostEditor({
             {form.formState.errors.slug ? (
               <span className="field-error">{form.formState.errors.slug.message}</span>
             ) : null}
-          </label>
+          </div>
 
           {nonContentFields.map((field) => renderField(field))}
           {bodyField && bodyField.id !== titleField?.id ? renderField(bodyField) : null}
@@ -912,41 +1041,45 @@ export function PostEditor({
         </div>
       </form>
 
-      {mode === "edit" && confirmOpen ? (
-        <div className="modal-backdrop" role="presentation">
-          <div
-            aria-modal="true"
-            aria-describedby="publish-confirm-description"
-            className="modal-card"
-            role="dialog"
-            aria-labelledby="publish-confirm-title"
-          >
-            <div className="stack" style={{ gap: 10 }}>
-              <h3 id="publish-confirm-title">Publish these changes?</h3>
-              <p className="muted" id="publish-confirm-description">
-                This will push your edits live in Framer immediately.
-              </p>
-            </div>
-            <div className="modal-actions">
-              <button
-                className="button-secondary"
-                disabled={pending}
-                ref={cancelButtonRef}
-                onClick={() => {
-                  setConfirmOpen(false);
-                  setPendingValues(null);
-                }}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button className="button" disabled={pending} onClick={confirmPublish} type="button">
-                {pending ? "Publishing..." : "Publish"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <Dialog
+        onOpenChange={(open) => {
+          setConfirmOpen(open);
+          if (!open) {
+            setPendingValues(null);
+          }
+        }}
+        open={mode === "edit" && confirmOpen}
+      >
+        <DialogContent className="modal-card" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle id="publish-confirm-title">Publish these changes?</DialogTitle>
+            <DialogDescription id="publish-confirm-description">
+              This will push your edits live in Framer immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="modal-actions -mx-0 -mb-0 rounded-none border-0 bg-transparent p-0">
+            <Button
+              disabled={pending}
+              onClick={() => {
+                setConfirmOpen(false);
+                setPendingValues(null);
+              }}
+              type="button"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-[#0d99ff] text-white hover:bg-[#24a3ff]"
+              disabled={pending}
+              onClick={confirmPublish}
+              type="button"
+            >
+              {pending ? "Publishing..." : "Publish"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

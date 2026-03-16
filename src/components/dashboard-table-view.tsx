@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   useDeferredValue,
   useEffect,
@@ -12,6 +12,22 @@ import {
 import { BlogTable } from "@/components/blog-table";
 import { ColumnControls } from "@/components/column-controls";
 import { PostEditor } from "@/components/post-editor";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import type { BlogCollectionMetadata, BlogPostRecord } from "@/lib/cms-types";
 
 const PAGE_SIZE = 20;
@@ -20,7 +36,13 @@ const COLUMN_STORAGE_EVENT = "lr:dashboard:columns:changed";
 
 function PlusIcon() {
   return (
-    <svg fill="none" height="16" viewBox="0 0 16 16" width="16" xmlns="http://www.w3.org/2000/svg">
+    <svg
+      fill="none"
+      height="16"
+      viewBox="0 0 16 16"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
       <rect
         fill="currentColor"
         fillOpacity="0.18"
@@ -32,15 +54,31 @@ function PlusIcon() {
         x="1.5"
         y="1.5"
       />
-      <path d="M8 4.75V11.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.2" />
-      <path d="M4.75 8H11.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.2" />
+      <path
+        d="M8 4.75V11.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M4.75 8H11.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.2"
+      />
     </svg>
   );
 }
 
 function SearchIcon() {
   return (
-    <svg fill="none" height="16" viewBox="0 0 16 16" width="16" xmlns="http://www.w3.org/2000/svg">
+    <svg
+      fill="none"
+      height="16"
+      viewBox="0 0 16 16"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
       <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.4" />
       <path
         d="M10.5 10.5L14 14"
@@ -103,14 +141,18 @@ function buildSearchText(
     if (Array.isArray(value)) {
       searchValues.push(
         value
-          .map((entry) => (typeof entry === "string" ? entry : JSON.stringify(entry)))
+          .map((entry) =>
+            typeof entry === "string" ? entry : JSON.stringify(entry),
+          )
           .join(" "),
       );
     }
   }
 
   return searchValues
-    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .filter(
+      (value): value is string => typeof value === "string" && value.length > 0,
+    )
     .join("\n")
     .toLowerCase();
 }
@@ -197,9 +239,12 @@ export function DashboardTableView({
   const fallbackColumnsRaw = JSON.stringify(initialColumns);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [searchIndex, setSearchIndex] = useState(() => buildSearchIndex(posts, metadata));
+  const [searchIndex, setSearchIndex] = useState(() =>
+    buildSearchIndex(posts, metadata),
+  );
   const deferredQuery = useDeferredValue(query);
   const pathname = usePathname();
+  const router = useRouter();
   const selectedColumnsRaw = useSyncExternalStore(
     (callback) => {
       window.addEventListener("storage", callback);
@@ -231,8 +276,8 @@ export function DashboardTableView({
 
   const filteredPosts = deferredQuery.trim()
     ? searchIndex
-      .filter((entry) => matchesSearch(entry.searchText, deferredQuery))
-      .map((entry) => entry.post)
+        .filter((entry) => matchesSearch(entry.searchText, deferredQuery))
+        .map((entry) => entry.post)
     : posts;
   const totalPages = Math.max(1, Math.ceil(filteredPosts.length / PAGE_SIZE));
   const currentPage = Math.min(totalPages, Math.max(1, page));
@@ -243,25 +288,33 @@ export function DashboardTableView({
   );
   const draftCount = filteredPosts.filter((post) => post.draft).length;
   const isDrawerRoute = pathname?.startsWith("/posts/") ?? false;
-  const activePostId = pathname?.startsWith("/posts/") && pathname !== "/posts/new"
-    ? pathname.slice("/posts/".length)
-    : null;
+  const activePostId =
+    pathname?.startsWith("/posts/") && pathname !== "/posts/new"
+      ? pathname.slice("/posts/".length)
+      : null;
   const activePost = activePostId
-    ? posts.find((post) => post.id === activePostId) ?? null
+    ? (posts.find((post) => post.id === activePostId) ?? null)
     : null;
   const isCreateRoute = pathname === "/posts/new";
+  const pageOptions = Array.from({ length: totalPages }, (_, index) => index + 1);
 
   return (
     <section className="workspace-shell">
       <div className="workspace-pane workspace-pane-collection">
         <div className="workspace-pane-chrome">
           <div className="workspace-actions">
-            <Link className="workspace-action workspace-action-primary" href="/posts/new">
-              <span className="workspace-action-icon" aria-hidden="true">
-                <PlusIcon />
-              </span>
-              <span>New Item</span>
-            </Link>
+            <Button
+              asChild
+              className="workspace-action workspace-action-primary"
+              size="sm"
+            >
+              <Link href="/posts/new">
+                <span className="workspace-action-icon" aria-hidden="true">
+                  <PlusIcon />
+                </span>
+                <span>New Item</span>
+              </Link>
+            </Button>
             <ColumnControls
               onColumnsChange={(nextColumns) => {
                 writeStoredColumns(nextColumns);
@@ -270,21 +323,24 @@ export function DashboardTableView({
               options={columnOptions}
               selectedColumns={selectedColumns}
             />
-            <div
+            <Badge
               className={`workspace-badge ${
-                bridgeStatus?.configured ? "workspace-badge-ready" : "workspace-badge-manual"
+                bridgeStatus?.configured
+                  ? "workspace-badge-ready"
+                  : "workspace-badge-manual"
               }`}
+              variant="outline"
             >
               <span className="workspace-badge-dot" aria-hidden="true" />
               {bridgeStatus?.configured ? "Bridge Ready" : "Manual Mode"}
-            </div>
+            </Badge>
           </div>
 
           <label className="workspace-search" htmlFor="dashboard-search">
             <span className="workspace-search-icon" aria-hidden="true">
               <SearchIcon />
             </span>
-            <input
+            <Input
               aria-label="Search posts"
               className="workspace-search-input"
               id="dashboard-search"
@@ -301,7 +357,8 @@ export function DashboardTableView({
             <div className="stack workspace-collection-copy">
               <span className="workspace-label">{metadata.collectionName}</span>
               <span className="muted">
-                {filteredPosts.length} result{filteredPosts.length === 1 ? "" : "s"}
+                {filteredPosts.length} result
+                {filteredPosts.length === 1 ? "" : "s"}
               </span>
             </div>
             <div className="workspace-summary">
@@ -329,40 +386,84 @@ export function DashboardTableView({
 
           {totalPages > 1 ? (
             <div className="pagination workspace-pagination-controls">
-              <button
-                className="button-secondary"
+              <Button
                 disabled={currentPage === 1}
                 onClick={() => setPage((value) => Math.max(1, value - 1))}
+                size="sm"
                 type="button"
+                variant="outline"
               >
                 Previous
-              </button>
-              <span className="muted">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                className="button-secondary"
+              </Button>
+              <Select
+                onValueChange={(value) => {
+                  setPage(Number(value));
+                }}
+                value={String(currentPage)}
+              >
+                <SelectTrigger
+                  aria-label="Select page"
+                  className="workspace-page-select"
+                  size="sm"
+                >
+                  <SelectValue placeholder={`Page ${currentPage}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {pageOptions.map((pageNumber) => (
+                    <SelectItem key={pageNumber} value={String(pageNumber)}>
+                      Page {pageNumber}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="muted workspace-pagination-label">of {totalPages}</span>
+              <Button
                 disabled={currentPage === totalPages}
-                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                onClick={() =>
+                  setPage((value) => Math.min(totalPages, value + 1))
+                }
+                size="sm"
                 type="button"
+                variant="outline"
               >
                 Next
-              </button>
+              </Button>
             </div>
           ) : null}
         </div>
       </div>
 
-      {isDrawerRoute ? (
-        <div className="workspace-drawer-layer">
-          <Link
-            aria-label="Close editor"
-            className="workspace-drawer-dismiss"
-            href="/"
-          />
-          <section className="workspace-drawer-panel">
+      <Sheet
+        onOpenChange={(open) => {
+          if (!open) {
+            router.push("/", { scroll: false });
+          }
+        }}
+        open={isDrawerRoute}
+      >
+        <SheetContent
+          className="workspace-drawer-panel gap-0 p-0 sm:max-w-none"
+          showCloseButton={false}
+          side="right"
+        >
+          <SheetTitle className="sr-only">
+            {isCreateRoute
+              ? "Create post"
+              : activePost
+                ? `Edit ${activePost.title}`
+                : "Post editor"}
+          </SheetTitle>
+          <SheetDescription className="sr-only">
+            Review and edit the selected CMS entry in a side drawer.
+          </SheetDescription>
+          <div className="workspace-drawer-content">
             {isCreateRoute ? (
-              <PostEditor key="new" metadata={metadata} mode="create" post={null} />
+              <PostEditor
+                key="new"
+                metadata={metadata}
+                mode="create"
+                post={null}
+              />
             ) : activePost ? (
               <PostEditor
                 key={activePost.id}
@@ -375,17 +476,17 @@ export function DashboardTableView({
                 <span className="eyebrow">Unavailable</span>
                 <h2>This item is not in the preloaded set.</h2>
                 <p className="muted">
-                  The dashboard is currently preloading only the most recent items so the
-                  drawer opens instantly.
+                  The dashboard is currently preloading only the most recent
+                  items so the drawer opens instantly.
                 </p>
-                <Link className="button-secondary" href="/">
-                  Close
-                </Link>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/">Close</Link>
+                </Button>
               </div>
             )}
-          </section>
-        </div>
-      ) : null}
+          </div>
+        </SheetContent>
+      </Sheet>
     </section>
   );
 }

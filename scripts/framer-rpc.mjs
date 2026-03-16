@@ -58,10 +58,12 @@ async function execute(action, payload) {
   }
 }
 
+const RPC_BOUNDARY = "__FRAMER_RPC_RESPONSE__";
+
 try {
   const request = await readPayload();
   const result = await execute(request.action, request.payload ?? {});
-  process.stdout.write(JSON.stringify({ ok: true, result }));
+  process.stdout.write(`\n${RPC_BOUNDARY}${JSON.stringify({ ok: true, result })}${RPC_BOUNDARY}\n`);
 } catch (error) {
   process.stderr.write(JSON.stringify({ ok: false, error: serializeError(error) }));
   process.exitCode = 1;

@@ -5,8 +5,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type {
   BlogCollectionMetadata,
   BlogPostRecord,
-  BridgeRemovalInput,
-  BridgeSyncInput,
+  BridgeSyncResult,
   DashboardFieldDefinition,
   DashboardFieldValue,
 } from "@/lib/cms-types";
@@ -17,11 +16,29 @@ import {
   isNotionBridgeConfigured,
 } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { logError, logEvent } from "@/lib/logger";
 import {
+  getBlogMetadata,
   getDashboardOverview,
   removeBridgePosts,
+  syncBridgePosts,
   syncBridgePostsFromRaw,
 } from "@/lib/framer";
+import {
+  buildBridgeSyncInput,
+  extractPropertyValue,
+  getBridgePageIdentifiers,
+  getPropertyByName,
+  getPropertyByPatterns,
+  getStatusValue,
+  isActivePage,
+  isApprovedPage,
+  LOGICAL_FIELD_PATTERNS,
+  normalizeLabel,
+  type NotionPage,
+  type NotionProperty,
+  syncNotionPageToFramer,
+} from "@/lib/notion-bridge-core";
 import { extractPageIdFromPayload } from "@/lib/notion-payload";
 
 const NOTION_API_BASE_URL = "https://api.notion.com/v1";
@@ -29,96 +46,13 @@ const NOTION_API_VERSION = "2025-09-03";
 const NOTION_MARKDOWN_WRITE_VERSION = "2026-03-11";
 const NOTION_MARKDOWN_CONCURRENCY = 5;
 const NOTION_RICH_TEXT_CHUNK_SIZE = 2_000;
+const DATA_SOURCE_CACHE_TTL_MS = 5 * 60 * 1_000;
 
-const LOGICAL_FIELD_PATTERNS = {
-  title: ["title", "headline", "name", "post title"],
-  body: ["body", "content", "post body", "article body", "copy", "markdown"],
-  author: ["author", "writer", "byline"],
-  date: ["date", "publish date", "published date", "published", "publication date"],
-  slug: ["slug", "url slug", "permalink"],
+const FRAMER_AUDIT_PROPERTY_PATTERNS = {
+  createdAt: ["framer created at", "cms created at", "created at"],
+  lastUpdated: ["framer updated at", "cms updated at", "last updated", "updated at"],
+  lastUpdatedBy: ["framer updated by", "cms updated by", "last updated by", "updated by"],
 } as const;
-
-type NotionPropertyType =
-  | "checkbox"
-  | "created_time"
-  | "date"
-  | "email"
-  | "files"
-  | "formula"
-  | "last_edited_time"
-  | "multi_select"
-  | "number"
-  | "phone_number"
-  | "rich_text"
-  | "select"
-  | "status"
-  | "title"
-  | "unique_id"
-  | "url";
-
-type NotionRichText = {
-  plain_text?: string;
-  text?: {
-    content?: string;
-  };
-};
-
-type NotionProperty = {
-  id: string;
-  type: NotionPropertyType | string;
-  checkbox?: boolean;
-  created_time?: string;
-  date?: {
-    start?: string | null;
-  } | null;
-  email?: string | null;
-  files?: Array<{
-    name?: string;
-    type: "external" | "file";
-    external?: {
-      url?: string;
-    };
-    file?: {
-      url?: string;
-    };
-  }>;
-  formula?: {
-    type?: string;
-    string?: string | null;
-    number?: number | null;
-    boolean?: boolean | null;
-    date?: {
-      start?: string | null;
-    } | null;
-  } | null;
-  last_edited_time?: string;
-  multi_select?: Array<{ name?: string | null }>;
-  number?: number | null;
-  phone_number?: string | null;
-  rich_text?: NotionRichText[];
-  select?: {
-    name?: string | null;
-  } | null;
-  status?: {
-    name?: string | null;
-  } | null;
-  title?: NotionRichText[];
-  unique_id?: {
-    number?: number | null;
-    prefix?: string | null;
-  } | null;
-  url?: string | null;
-};
-
-type NotionPage = {
-  object: "page";
-  id: string;
-  archived?: boolean;
-  in_trash?: boolean;
-  last_edited_time?: string;
-  url?: string;
-  properties: Record<string, NotionProperty>;
-};
 
 type NotionDataSourceProperty = {
   id: string;
@@ -137,11 +71,6 @@ type NotionQueryResponse = {
   next_cursor: string | null;
 };
 
-type RawSyncCandidate = {
-  page: NotionPage;
-  markdownBody: string;
-};
-
 type NotionPropertyPayload = Record<string, unknown>;
 
 type NotionPropertyUpdate = {
@@ -158,6 +87,49 @@ type FramerImportResult = {
   action: "created" | "updated" | "unchanged";
   matchedBy: "framerItemId" | "slug" | "none";
 };
+
+type NotionDataSourceWithMetadata = NotionDataSource & { _isLegacyDatabase?: boolean };
+
+type NotionDataSourceCacheEntry = {
+  configuredId: string;
+  expiresAt: number;
+  value: NotionDataSourceWithMetadata;
+};
+
+type DataSourceResolutionMethod =
+  | "configuredDataSource"
+  | "configuredDatabase"
+  | "configuredLegacyDatabase"
+  | "searchParentDatabase"
+  | "searchOnlyResult";
+
+let cachedDataSource: NotionDataSourceCacheEntry | null = null;
+
+function readCachedDataSource(configuredId: string) {
+  if (
+    cachedDataSource &&
+    cachedDataSource.configuredId === configuredId &&
+    cachedDataSource.expiresAt > Date.now()
+  ) {
+    return cachedDataSource.value;
+  }
+
+  cachedDataSource = null;
+  return null;
+}
+
+function writeCachedDataSource(
+  configuredId: string,
+  value: NotionDataSourceWithMetadata,
+) {
+  cachedDataSource = {
+    configuredId,
+    expiresAt: Date.now() + DATA_SOURCE_CACHE_TTL_MS,
+    value,
+  };
+
+  return value;
+}
 
 async function mapWithConcurrency<T, TResult>(
   items: T[],
@@ -199,7 +171,21 @@ export function getNotionBridgeStatus() {
     approvedStatusValue: env.NOTION_APPROVED_STATUS_VALUE,
     slugPropertyName: env.NOTION_SLUG_PROPERTY_NAME,
     framerItemIdPropertyName: env.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME,
+    responsePropertyName: env.NOTION_RESPONSE_PROPERTY_NAME,
     fieldMap: getNotionFieldMap(),
+  };
+}
+
+function getNotionBridgeConfig() {
+  const env = getServerEnv();
+
+  return {
+    approvedStatusValue: env.NOTION_APPROVED_STATUS_VALUE,
+    fieldMap: getNotionFieldMap(),
+    framerItemIdPropertyName: env.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME,
+    responsePropertyName: env.NOTION_RESPONSE_PROPERTY_NAME,
+    slugPropertyName: env.NOTION_SLUG_PROPERTY_NAME,
+    statusPropertyName: env.NOTION_STATUS_PROPERTY_NAME,
   };
 }
 
@@ -266,255 +252,6 @@ function assertNotionBridgeConfigured() {
   );
 }
 
-function normalizeLabel(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function extractTextValue(chunks: NotionRichText[] | undefined) {
-  return (chunks ?? [])
-    .map((chunk) => chunk.plain_text ?? chunk.text?.content ?? "")
-    .join("")
-    .trim();
-}
-
-function extractFileUrl(property: NotionProperty) {
-  const firstFile = property.files?.[0];
-  if (!firstFile) {
-    return null;
-  }
-
-  return firstFile.type === "external"
-    ? firstFile.external?.url ?? null
-    : firstFile.file?.url ?? null;
-}
-
-function extractStableFileValue(property: NotionProperty) {
-  const firstFile = property.files?.[0];
-  if (!firstFile) {
-    return null;
-  }
-
-  return firstFile.type === "external"
-    ? firstFile.external?.url ?? null
-    : firstFile.name ?? firstFile.file?.url ?? null;
-}
-
-function extractFormulaValue(property: NotionProperty) {
-  const formula = property.formula;
-  if (!formula) {
-    return null;
-  }
-
-  switch (formula.type) {
-    case "string":
-      return formula.string ?? null;
-    case "number":
-      return formula.number ?? null;
-    case "boolean":
-      return formula.boolean ?? null;
-    case "date":
-      return formula.date?.start ?? null;
-    default:
-      return null;
-  }
-}
-
-function extractPropertyValue(property: NotionProperty): DashboardFieldValue {
-  switch (property.type) {
-    case "title":
-      return extractTextValue(property.title);
-    case "rich_text":
-      return extractTextValue(property.rich_text);
-    case "status":
-      return property.status?.name ?? null;
-    case "select":
-      return property.select?.name ?? null;
-    case "multi_select":
-      return (property.multi_select ?? [])
-        .map((option) => option.name ?? "")
-        .filter((option) => option.length > 0);
-    case "number":
-      return property.number ?? null;
-    case "checkbox":
-      return Boolean(property.checkbox);
-    case "date":
-      return property.date?.start ?? null;
-    case "url":
-      return property.url ?? null;
-    case "email":
-      return property.email ?? null;
-    case "phone_number":
-      return property.phone_number ?? null;
-    case "files":
-      return extractFileUrl(property);
-    case "formula":
-      return extractFormulaValue(property);
-    case "created_time":
-      return property.created_time ?? null;
-    case "last_edited_time":
-      return property.last_edited_time ?? null;
-    case "unique_id": {
-      const prefix = property.unique_id?.prefix ?? "";
-      const number = property.unique_id?.number;
-      return number === null || number === undefined ? null : `${prefix}${number}`;
-    }
-    default:
-      return null;
-  }
-}
-
-function extractStablePropertyValue(property: NotionProperty): DashboardFieldValue {
-  if (property.type === "files") {
-    return extractStableFileValue(property);
-  }
-
-  return extractPropertyValue(property);
-}
-
-function buildSourceVersion(page: NotionPage, markdownBody: string) {
-  const ignoredPropertyName = normalizeLabel(
-    getServerEnv().NOTION_FRAMER_ITEM_ID_PROPERTY_NAME,
-  );
-  const properties = Object.entries(page.properties)
-    .filter(([propertyName]) => normalizeLabel(propertyName) !== ignoredPropertyName)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([propertyName, property]) => [
-      propertyName,
-      extractStablePropertyValue(property),
-    ]);
-
-  return createHash("sha256")
-    .update(
-      JSON.stringify({
-        properties,
-        markdownBody: markdownBody.trim(),
-      }),
-    )
-    .digest("hex");
-}
-
-function getPropertyByName<T extends { type: string }>(
-  properties: Record<string, T>,
-  name: string,
-) {
-  const normalizedName = normalizeLabel(name);
-  return Object.entries(properties).find(
-    ([propertyName]) => normalizeLabel(propertyName) === normalizedName,
-  );
-}
-
-function getPropertyByPatterns<T extends { type: string }>(
-  properties: Record<string, T>,
-  patterns: readonly string[],
-) {
-  return Object.entries(properties).find(([propertyName]) =>
-    patterns.includes(normalizeLabel(propertyName)),
-  );
-}
-
-function getMappedPropertyEntry(
-  properties: Record<string, NotionProperty>,
-  field: DashboardFieldDefinition,
-  logicalKey: keyof typeof LOGICAL_FIELD_PATTERNS | undefined,
-) {
-  const fieldMap = getNotionFieldMap();
-  const configuredName =
-    fieldMap[field.id] ??
-    fieldMap[field.name] ??
-    (logicalKey ? fieldMap[logicalKey] : undefined);
-
-  if (configuredName) {
-    return getPropertyByName(properties, configuredName);
-  }
-
-  if (logicalKey) {
-    const logicalMatch = getPropertyByPatterns(
-      properties,
-      LOGICAL_FIELD_PATTERNS[logicalKey],
-    );
-    if (logicalMatch) {
-      return logicalMatch;
-    }
-  }
-
-  return getPropertyByName(properties, field.name);
-}
-
-function coerceValueForField(
-  field: DashboardFieldDefinition,
-  value: DashboardFieldValue,
-) {
-  if (value === null || value === undefined) {
-    if (field.type === "boolean") {
-      return false;
-    }
-
-    if (field.type === "multiCollectionReference") {
-      return [];
-    }
-
-    return null;
-  }
-
-  switch (field.type) {
-    case "string":
-    case "formattedText":
-    case "link":
-    case "image":
-    case "file":
-    case "color":
-    case "collectionReference":
-      if (Array.isArray(value)) {
-        return value.length > 0 ? String(value[0]) : "";
-      }
-      return String(value);
-    case "number":
-      if (typeof value === "number") {
-        return value;
-      }
-      if (typeof value === "string" && value.trim().length > 0) {
-        const parsed = Number(value);
-        return Number.isFinite(parsed) ? parsed : null;
-      }
-      return null;
-    case "boolean":
-      if (typeof value === "boolean") {
-        return value;
-      }
-      if (typeof value === "string") {
-        return value.toLowerCase() === "true";
-      }
-      return Boolean(value);
-    case "date":
-      if (typeof value !== "string" || value.length === 0) {
-        return null;
-      }
-      return field.displayTime ? value : value.slice(0, 10);
-    case "enum":
-      return Array.isArray(value)
-        ? value.length > 0
-          ? String(value[0])
-          : ""
-        : String(value);
-    case "multiCollectionReference":
-      return Array.isArray(value)
-        ? value.map((entry) => String(entry))
-        : value
-          ? [String(value)]
-          : [];
-    default:
-      return value;
-  }
-}
-
 async function notionRequest<T>(
   path: string,
   init: RequestInit = {},
@@ -560,7 +297,168 @@ async function notionRequest<T>(
 
 async function getDataSource() {
   const env = getServerEnv();
-  return notionRequest<NotionDataSource>(`/data_sources/${env.NOTION_DATA_SOURCE_ID}`);
+  const configuredId = env.NOTION_DATA_SOURCE_ID ?? "";
+  if (!configuredId) {
+    throw new AppError("NOTION_DATA_SOURCE_ID is required to resolve the Notion data source.", 503);
+  }
+  const cached = readCachedDataSource(configuredId);
+
+  if (cached) {
+    return cached;
+  }
+
+  const diagnostics: Array<{ strategy: string; error: string }> = [];
+  const resolveWithCache = (
+    value: NotionDataSourceWithMetadata,
+    method: DataSourceResolutionMethod,
+    metadata: Record<string, unknown> = {},
+  ) => {
+    const resolved = writeCachedDataSource(configuredId, value);
+
+    if (method !== "configuredDataSource") {
+      logEvent("warn", "notion.getDataSource.fallbackResolved", {
+        configuredId,
+        resolvedDataSourceId: resolved.id,
+        resolvedBy: method,
+        diagnostics,
+        ...metadata,
+      });
+    }
+
+    return resolved;
+  };
+
+  try {
+    return resolveWithCache(
+      await notionRequest<NotionDataSource>(`/data_sources/${configuredId}`),
+      "configuredDataSource",
+    );
+  } catch (dsError) {
+    diagnostics.push({
+      strategy: "configuredDataSource",
+      error: dsError instanceof Error ? dsError.message : String(dsError),
+    });
+  }
+
+  type NotionDatabaseResponse = {
+    id: string;
+    object?: string;
+    properties?: Record<string, { id: string; name?: string; type: string }>;
+    data_sources?: Array<{ id: string; name?: string }>;
+  };
+
+  try {
+    const database = await notionRequest<NotionDatabaseResponse>(`/databases/${configuredId}`);
+    const firstDataSource = database.data_sources?.[0];
+
+    if (firstDataSource) {
+      return resolveWithCache(
+        await notionRequest<NotionDataSource>(`/data_sources/${firstDataSource.id}`),
+        "configuredDatabase",
+      );
+    }
+
+    if (database.properties) {
+      const reshapedProperties: Record<string, NotionDataSourceProperty> = {};
+      for (const [name, prop] of Object.entries(database.properties)) {
+        reshapedProperties[name] = { id: prop.id, name: prop.name ?? name, type: prop.type };
+      }
+
+      return resolveWithCache(
+        {
+          id: database.id,
+          properties: reshapedProperties,
+          _isLegacyDatabase: true,
+        },
+        "configuredLegacyDatabase",
+        {
+          propertyCount: Object.keys(database.properties).length,
+        },
+      );
+    }
+  } catch (dbError) {
+    diagnostics.push({
+      strategy: "configuredDatabase",
+      error: dbError instanceof Error ? dbError.message : String(dbError),
+    });
+  }
+
+  try {
+    const legacyDb = await notionRequest<NotionDatabaseResponse>(
+      `/databases/${configuredId}`,
+      {},
+      { notionVersion: "2022-06-28" },
+    );
+
+    if (legacyDb.properties) {
+      const reshapedProperties: Record<string, NotionDataSourceProperty> = {};
+      for (const [name, prop] of Object.entries(legacyDb.properties)) {
+        reshapedProperties[name] = { id: prop.id, name: prop.name ?? name, type: prop.type };
+      }
+
+      return resolveWithCache(
+        {
+          id: legacyDb.id,
+          properties: reshapedProperties,
+          _isLegacyDatabase: true,
+        },
+        "configuredLegacyDatabase",
+        {
+          propertyCount: Object.keys(legacyDb.properties).length,
+        },
+      );
+    }
+  } catch (legacyError) {
+    diagnostics.push({
+      strategy: "configuredLegacyDatabase",
+      error: legacyError instanceof Error ? legacyError.message : String(legacyError),
+    });
+  }
+
+  try {
+    type SearchResponse = {
+      results: Array<{ id: string; object: string; parent?: Record<string, unknown> }>;
+    };
+    const searchResult = await notionRequest<SearchResponse>("/search", {
+      method: "POST",
+      body: JSON.stringify({
+        filter: { value: "data_source", property: "object" },
+        page_size: 20,
+      }),
+    });
+    const matchByParent = searchResult.results.find((ds) => {
+      const parentDbId = (ds.parent as { database_id?: string })?.database_id;
+      return parentDbId === configuredId;
+    });
+    const resolved =
+      matchByParent ?? (searchResult.results.length === 1 ? searchResult.results[0] : null);
+
+    if (resolved) {
+      return resolveWithCache(
+        await notionRequest<NotionDataSource>(`/data_sources/${resolved.id}`),
+        matchByParent ? "searchParentDatabase" : "searchOnlyResult",
+        {
+          searchResultCount: searchResult.results.length,
+        },
+      );
+    }
+
+    diagnostics.push({
+      strategy: "search",
+      error: `search returned ${searchResult.results.length} accessible data sources`,
+    });
+  } catch (searchError) {
+    diagnostics.push({
+      strategy: "search",
+      error: searchError instanceof Error ? searchError.message : String(searchError),
+    });
+  }
+
+  throw new AppError(
+    `Could not resolve NOTION_DATA_SOURCE_ID "${configuredId}" as a data source or database. ` +
+    `Update it to the actual Notion data source ID to avoid fallback resolution.`,
+    400,
+  );
 }
 
 function getStatusFilterProperty(dataSource: NotionDataSource) {
@@ -604,20 +502,20 @@ function getStatusFilterProperty(dataSource: NotionDataSource) {
   }
 }
 
-function isActivePage(page: NotionPage) {
-  return !page.archived && !page.in_trash;
-}
-
 async function queryDataSourcePages(
-  dataSource: NotionDataSource,
+  dataSource: NotionDataSource & { _isLegacyDatabase?: boolean },
   filter?: Record<string, unknown>,
 ) {
+  const isLegacy = (dataSource as { _isLegacyDatabase?: boolean })._isLegacyDatabase;
+  const queryPath = isLegacy
+    ? `/databases/${dataSource.id}/query`
+    : `/data_sources/${dataSource.id}/query`;
   const pages: NotionPage[] = [];
   let nextCursor: string | null = null;
 
   do {
     const payload: NotionQueryResponse = await notionRequest<NotionQueryResponse>(
-      `/data_sources/${dataSource.id}/query`,
+      queryPath,
       {
         method: "POST",
         body: JSON.stringify({
@@ -689,153 +587,160 @@ async function getPageMarkdown(pageId: string) {
   return (await response.text()).trim();
 }
 
-function getTitleValue(properties: Record<string, NotionProperty>) {
-  const titleEntry =
-    Object.entries(properties).find(([, property]) => property.type === "title") ??
-    getPropertyByPatterns(properties, LOGICAL_FIELD_PATTERNS.title);
-
-  if (!titleEntry) {
-    throw new AppError("The Notion page does not expose a title property.", 400);
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
   }
 
-  const title = extractPropertyValue(titleEntry[1]);
-  if (typeof title !== "string" || title.trim().length === 0) {
-    throw new AppError("The Notion page title is empty.", 400);
-  }
-
-  return title.trim();
+  return typeof error === "string" ? error : "Unexpected bridge error.";
 }
 
-function getStatusValue(properties: Record<string, NotionProperty>) {
-  const env = getServerEnv();
-  const statusProperty = properties[env.NOTION_STATUS_PROPERTY_NAME];
-  return statusProperty ? extractPropertyValue(statusProperty) : null;
+function buildFailedResponseMessage(error: unknown) {
+  return `Failed at ${new Date().toISOString()}: ${getErrorMessage(error)}`;
 }
 
-function isApprovedPage(page: NotionPage) {
-  const env = getServerEnv();
-  const statusValue = getStatusValue(page.properties);
-
-  if (typeof statusValue === "boolean") {
-    return statusValue === (env.NOTION_APPROVED_STATUS_VALUE.toLowerCase() === "true");
-  }
-
-  return normalizeLabel(String(statusValue ?? "")) ===
-    normalizeLabel(env.NOTION_APPROVED_STATUS_VALUE);
+function buildRemovedResponseMessage(result: BridgeSyncResult) {
+  return `Success at ${new Date().toISOString()}: removed linked Framer post "${result.post.slug}" (${result.framerItemId}).`;
 }
 
-function buildFieldValues(
-  metadata: BlogCollectionMetadata,
-  properties: Record<string, NotionProperty>,
-  markdownBody: string,
+function buildSkippedResponseMessage(reason: string) {
+  return `Skipped at ${new Date().toISOString()}: ${reason}`;
+}
+
+function buildSyncedResponseMessage(
+  result: BridgeSyncResult,
+  options?: { draftedBecauseUnapproved?: boolean },
 ) {
-  const fieldValues: Record<string, DashboardFieldValue> = {};
+  const timestamp = new Date().toISOString();
 
-  for (const field of metadata.fields) {
-    if (!field.supported) {
-      continue;
-    }
-
-    if (field.logicalKey === "body" && markdownBody.length > 0) {
-      fieldValues[field.id] = markdownBody;
-      continue;
-    }
-
-    const propertyEntry = getMappedPropertyEntry(
-      properties,
-      field,
-      field.logicalKey as keyof typeof LOGICAL_FIELD_PATTERNS | undefined,
-    );
-    if (!propertyEntry) {
-      continue;
-    }
-
-    const extractedValue = extractPropertyValue(propertyEntry[1]);
-    if (field.type === "boolean" && extractedValue === null) {
-      continue;
-    }
-
-    fieldValues[field.id] = coerceValueForField(field, extractedValue);
+  if (options?.draftedBecauseUnapproved) {
+    return `Success at ${timestamp}: synced "${result.post.slug}" to Framer as a draft because the page is not approved (${result.framerItemId}, action ${result.action}).`;
   }
 
-  return fieldValues;
+  switch (result.action) {
+    case "created":
+      return `Success at ${timestamp}: created ${result.post.draft ? "draft" : "published"} Framer post "${result.post.slug}" (${result.framerItemId}).`;
+    case "updated":
+      return `Success at ${timestamp}: updated ${result.post.draft ? "draft" : "published"} Framer post "${result.post.slug}" (${result.framerItemId}).`;
+    case "unchanged":
+      return `Success at ${timestamp}: no content changes for "${result.post.slug}"; linked Framer post is ${result.framerItemId}.`;
+    case "deleted":
+      return buildRemovedResponseMessage(result);
+    default:
+      return `Success at ${timestamp}: synced "${result.post.slug}" (${result.framerItemId}).`;
+  }
 }
 
-function buildBridgeSyncInput(
-  metadata: BlogCollectionMetadata,
+async function resolveResponseProperty(
   page: NotionPage,
-  markdownBody: string,
-): BridgeSyncInput {
-  const title = getTitleValue(page.properties);
-  const { framerItemId, slug } = getBridgePageIdentifiers(page, title);
-  if (!slug) {
-    throw new AppError(
-      `The Notion page "${title}" could not produce a valid slug.`,
-      400,
-    );
+): Promise<{
+  currentValue: DashboardFieldValue;
+  propertyName: string;
+  propertyType: string;
+} | null> {
+  const configuredName = getServerEnv().NOTION_RESPONSE_PROPERTY_NAME;
+  const pageEntry = getPropertyByName(page.properties, configuredName);
+
+  if (pageEntry) {
+    return {
+      currentValue: extractPropertyValue(pageEntry[1]),
+      propertyName: pageEntry[0],
+      propertyType: pageEntry[1].type,
+    };
   }
 
-  return {
-    externalId: page.id,
-    framerItemId,
-    sourceVersion: buildSourceVersion(page, markdownBody),
-    slug,
-    draft: false,
-    fieldValues: buildFieldValues(metadata, page.properties, markdownBody),
-  };
-}
+  const dataSource = await getDataSource().catch(() => null);
+  const dataSourceEntry = dataSource
+    ? getPropertyByName(dataSource.properties, configuredName)
+    : null;
 
-function getOptionalTitleValue(properties: Record<string, NotionProperty>) {
-  try {
-    return getTitleValue(properties);
-  } catch {
+  if (!dataSourceEntry) {
     return null;
   }
-}
-
-function getBridgePageIdentifiers(
-  page: NotionPage,
-  fallbackTitle = getOptionalTitleValue(page.properties),
-): {
-  framerItemId: string | null;
-  slug: string | null;
-} {
-  const env = getServerEnv();
-  const slugProperty =
-    getPropertyByName(page.properties, env.NOTION_SLUG_PROPERTY_NAME) ??
-    getPropertyByPatterns(page.properties, LOGICAL_FIELD_PATTERNS.slug);
-  const framerItemIdProperty = getPropertyByName(
-    page.properties,
-    env.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME,
-  );
-  const slugValue = slugProperty ? extractPropertyValue(slugProperty[1]) : null;
-  const framerItemIdValue = framerItemIdProperty
-    ? extractPropertyValue(framerItemIdProperty[1])
-    : null;
-  const slug =
-    typeof slugValue === "string" && slugValue.trim().length > 0
-      ? slugify(slugValue)
-      : fallbackTitle
-        ? slugify(fallbackTitle)
-        : null;
 
   return {
-    framerItemId:
-      typeof framerItemIdValue === "string" && framerItemIdValue.trim().length > 0
-        ? framerItemIdValue.trim()
-        : null,
-    slug,
+    currentValue: null,
+    propertyName: dataSourceEntry[0],
+    propertyType: dataSourceEntry[1].type,
   };
 }
 
-function buildBridgeRemovalInput(page: NotionPage): BridgeRemovalInput {
-  const { framerItemId, slug } = getBridgePageIdentifiers(page);
+async function updateResponseOnPage(page: NotionPage, message: string) {
+  const resolvedProperty = await resolveResponseProperty(page);
+  if (!resolvedProperty) {
+    logEvent("warn", "notion.sync.response.missingProperty", {
+      configuredPropertyName: getServerEnv().NOTION_RESPONSE_PROPERTY_NAME,
+      pageId: page.id,
+      propertyNames: Object.keys(page.properties),
+    });
+    return false;
+  }
 
-  return {
-    externalId: page.id,
-    framerItemId,
-    slug,
-  };
+  const { currentValue, propertyName, propertyType } = resolvedProperty;
+
+  if (currentValue === message) {
+    logEvent("info", "notion.sync.response.unchanged", {
+      pageId: page.id,
+      propertyName,
+    });
+    return false;
+  }
+
+  if (propertyType === "rich_text") {
+    await notionRequest(`/pages/${page.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        properties: {
+          [propertyName]: {
+            rich_text: toNotionRichText(message),
+          },
+        },
+      }),
+    });
+    logEvent("info", "notion.sync.response.updated", {
+      pageId: page.id,
+      propertyName,
+      propertyType,
+    });
+    return true;
+  }
+
+  if (propertyType === "title") {
+    await notionRequest(`/pages/${page.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        properties: {
+          [propertyName]: {
+            title: toNotionRichText(message),
+          },
+        },
+      }),
+    });
+    logEvent("info", "notion.sync.response.updated", {
+      pageId: page.id,
+      propertyName,
+      propertyType,
+    });
+    return true;
+  }
+
+  logEvent("warn", "notion.sync.response.unsupportedPropertyType", {
+    pageId: page.id,
+    propertyName,
+    propertyType,
+  });
+  return false;
+}
+
+async function recordResponseOnPage(page: NotionPage, message: string) {
+  try {
+    await updateResponseOnPage(page, message);
+  } catch (error) {
+    logError("notion.sync.response.failed", error, {
+      pageId: page.id,
+      propertyName: getServerEnv().NOTION_RESPONSE_PROPERTY_NAME,
+    });
+  }
 }
 
 async function updateFramerItemIdOnPage(
@@ -1312,6 +1217,20 @@ function getMappedDataSourceProperty(
   return getPropertyByName(properties, field.name);
 }
 
+function getMappedAuditDataSourceProperty(
+  properties: Record<string, NotionDataSourceProperty>,
+  key: keyof typeof FRAMER_AUDIT_PROPERTY_PATTERNS,
+) {
+  const fieldMap = getNotionFieldMap();
+  const configuredName = fieldMap[key];
+
+  if (configuredName) {
+    return getPropertyByName(properties, configuredName);
+  }
+
+  return getPropertyByPatterns(properties, FRAMER_AUDIT_PROPERTY_PATTERNS[key]);
+}
+
 function buildNotionPropertiesForPost(
   metadata: BlogCollectionMetadata,
   dataSource: NotionDataSource,
@@ -1386,6 +1305,14 @@ function buildNotionPropertiesForPost(
   }
   usedPropertyNames.add(framerItemIdPropertyName);
 
+  const responseProperty = getPropertyByName(
+    dataSource.properties,
+    env.NOTION_RESPONSE_PROPERTY_NAME,
+  );
+  if (responseProperty) {
+    usedPropertyNames.add(responseProperty[0]);
+  }
+
   const statusProperty = getPropertyByName(
     dataSource.properties,
     env.NOTION_STATUS_PROPERTY_NAME,
@@ -1408,6 +1335,41 @@ function buildNotionPropertiesForPost(
         properties[propertyName] = statusUpdate.payload;
       }
     }
+    usedPropertyNames.add(propertyName);
+  }
+
+  for (const [key, value] of [
+    ["createdAt", post.createdAt],
+    ["lastUpdated", post.lastUpdated],
+    ["lastUpdatedBy", post.lastUpdatedBy],
+  ] as const) {
+    if (!hasDashboardValue(value)) {
+      continue;
+    }
+
+    const propertyEntry = getMappedAuditDataSourceProperty(dataSource.properties, key);
+    if (!propertyEntry) {
+      continue;
+    }
+
+    const [propertyName, property] = propertyEntry;
+    if (usedPropertyNames.has(propertyName)) {
+      continue;
+    }
+
+    const update = buildNotionPropertyUpdate(property, value);
+    if (!update) {
+      continue;
+    }
+
+    const currentValue = existingPage?.properties[propertyName];
+    if (
+      !currentValue ||
+      !areValuesEqual(extractPropertyValue(currentValue), update.comparisonValue)
+    ) {
+      properties[propertyName] = update.payload;
+    }
+
     usedPropertyNames.add(propertyName);
   }
 
@@ -1460,9 +1422,10 @@ function getPostBodyMarkdown(
 function indexPagesByBridgeIdentity(pages: NotionPage[]) {
   const byFramerItemId = new Map<string, NotionPage>();
   const bySlug = new Map<string, NotionPage>();
+  const bridgeConfig = getNotionBridgeConfig();
 
   for (const page of pages) {
-    const identifiers = getBridgePageIdentifiers(page);
+    const identifiers = getBridgePageIdentifiers(page, bridgeConfig);
     if (identifiers.framerItemId && !byFramerItemId.has(identifiers.framerItemId)) {
       byFramerItemId.set(identifiers.framerItemId, page);
     }
@@ -1510,17 +1473,18 @@ function matchPageForFramerPost(
 }
 
 async function createPageFromFramerPost(
-  dataSource: NotionDataSource,
+  dataSource: NotionDataSource & { _isLegacyDatabase?: boolean },
   properties: Record<string, NotionPropertyPayload>,
   markdownBody: string,
 ) {
+  const parentPayload = (dataSource as { _isLegacyDatabase?: boolean })._isLegacyDatabase
+    ? { type: "database_id", database_id: dataSource.id }
+    : { type: "data_source_id", data_source_id: dataSource.id };
+
   return notionRequest<NotionPage>("/pages", {
     method: "POST",
     body: JSON.stringify({
-      parent: {
-        type: "data_source_id",
-        data_source_id: dataSource.id,
-      },
+      parent: parentPayload,
       properties,
       ...(markdownBody
         ? {
@@ -1662,92 +1626,111 @@ export async function syncApprovedNotionPages(options?: { pageId?: string }) {
   assertNotionBridgeConfigured();
 
   const pageId = options?.pageId?.trim();
+  const bridgeConfig = getNotionBridgeConfig();
 
   if (pageId) {
     const page = await getPage(pageId);
-    if (!isActivePage(page) || !isApprovedPage(page)) {
-      const cleanupResult = await removeBridgePosts(
-        [buildBridgeRemovalInput(page)],
-        "notion-bridge",
+    const env = getServerEnv();
+    const statusPropertyName = env.NOTION_STATUS_PROPERTY_NAME;
+    const approvedStatusValue = env.NOTION_APPROVED_STATUS_VALUE;
+    const propertyNames = Object.keys(page.properties);
+    const statusValue = getStatusValue(page.properties, bridgeConfig);
+    const active = isActivePage(page);
+    const approved = isApprovedPage(page, bridgeConfig);
+
+    logEvent("info", "notion.sync.page.diagnosis", {
+      pageId,
+      active,
+      approved,
+      archived: page.archived ?? false,
+      inTrash: page.in_trash ?? false,
+      configuredStatusProperty: statusPropertyName,
+      configuredApprovedValue: approvedStatusValue,
+      actualStatusValue: statusValue,
+      statusPropertyFound: statusPropertyName in page.properties,
+      allPropertyNames: propertyNames,
+    });
+
+    if (!approved) {
+      logEvent("info", "notion.sync.page.draftingUnapproved", {
+        pageId,
+        actualStatusValue: statusValue,
+      });
+    }
+
+    try {
+      const result = await syncNotionPageToFramer(
+        await getBlogMetadata(),
+        page,
+        active ? await getPageMarkdown(page.id) : "",
+        bridgeConfig,
+        {
+          backfillFramerItemId: updateFramerItemIdOnPage,
+          removeBridgePosts,
+          syncBridgePosts,
+        },
       );
+      const pageResult = result.results[0];
 
-      return {
-        mode: "page",
-        syncedPages: 0,
-        removedPages: cleanupResult.results.length,
-        skippedPages:
-          cleanupResult.results.length > 0
-            ? []
-            : [
-                {
-                  pageId,
-                  reason: "The requested page is not approved.",
-                },
-              ],
-        backfilledFramerItemIds: 0,
-        results: cleanupResult.results,
-        publish: cleanupResult.publish,
-      };
-    }
-
-    const { candidates, pageMap } = await buildSyncCandidates([page]);
-    const syncResult = await syncBridgePostsFromRaw(
-      candidates,
-      "notion-bridge",
-      (metadata, candidate) =>
-        buildBridgeSyncInput(metadata, candidate.page, candidate.markdownBody),
-    );
-    let backfilledFramerItemIds = 0;
-
-    for (const result of syncResult.results) {
-      const sourcePage = pageMap.get(result.externalId);
-      if (!sourcePage) {
-        continue;
+      if (pageResult) {
+        await recordResponseOnPage(
+          page,
+          pageResult.action === "deleted"
+            ? buildRemovedResponseMessage(pageResult)
+            : buildSyncedResponseMessage(pageResult, {
+                draftedBecauseUnapproved: active && !approved,
+              }),
+        );
+      } else if (!active) {
+        await recordResponseOnPage(
+          page,
+          buildSkippedResponseMessage("The page is archived or trashed."),
+        );
       }
 
-      if (await updateFramerItemIdOnPage(sourcePage, result.framerItemId)) {
-        backfilledFramerItemIds += 1;
-      }
+      return result;
+    } catch (error) {
+      await recordResponseOnPage(page, buildFailedResponseMessage(error));
+      throw error;
     }
-
-    return {
-      mode: "page",
-      syncedPages: syncResult.results.length,
-      removedPages: 0,
-      skippedPages: [],
-      backfilledFramerItemIds,
-      results: syncResult.results,
-      publish: syncResult.publish,
-    };
   }
 
   const approvedPages = await queryApprovedPages();
+
+  logEvent("info", "notion.sync.allApproved.diagnosis", {
+    approvedPageCount: approvedPages.length,
+    approvedPageIds: approvedPages.map((p) => p.id),
+  });
+
   const { candidates, pageMap } = await buildSyncCandidates(approvedPages);
   const syncResult = await syncBridgePostsFromRaw(
     candidates,
     "notion-bridge",
     (metadata, candidate) =>
-      buildBridgeSyncInput(metadata, candidate.page, candidate.markdownBody),
+      buildBridgeSyncInput(metadata, candidate.page, candidate.markdownBody, bridgeConfig),
+    true,
   );
-  let backfilledFramerItemIds = 0;
+  const backfillResults = await mapWithConcurrency(
+    syncResult.results,
+    NOTION_MARKDOWN_CONCURRENCY,
+    async (result) => {
+      const page = pageMap.get(result.externalId);
+      if (!page) {
+        return 0;
+      }
 
-  for (const result of syncResult.results) {
-    const page = pageMap.get(result.externalId);
-    if (!page) {
-      continue;
-    }
-
-    if (await updateFramerItemIdOnPage(page, result.framerItemId)) {
-      backfilledFramerItemIds += 1;
-    }
-  }
+      const backfilled = await updateFramerItemIdOnPage(page, result.framerItemId);
+      await recordResponseOnPage(page, buildSyncedResponseMessage(result));
+      return backfilled ? 1 : 0;
+    },
+  );
 
   return {
     mode: "allApproved",
     syncedPages: syncResult.results.length,
     removedPages: 0,
     skippedPages: [],
-    backfilledFramerItemIds,
+    backfilledFramerItemIds: backfillResults.reduce<number>((sum, value) => sum + value, 0),
     results: syncResult.results,
     publish: syncResult.publish,
   };
