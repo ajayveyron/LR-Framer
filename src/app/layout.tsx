@@ -12,8 +12,8 @@ const heading = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "LinkRunner Blog CMS",
-  description: "Internal LinkRunner dashboard for editing an unmanaged Framer CMS blog collection.",
+  title: "LinkRunner Framer CMS Bridge",
+  description: "Backend service for managing an unmanaged Framer CMS collection and optional Notion sync.",
 };
 
 export default function RootLayout({
