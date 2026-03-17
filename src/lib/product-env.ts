@@ -26,7 +26,9 @@ const productEnvSchema = z
       .min(16, "PRODUCT_ENCRYPTION_KEY must be at least 16 characters"),
   })
   .superRefine((env, ctx) => {
-    const derivedConvexUrl = deriveConvexUrlFromDeployKey(env.CONVEX_DEPLOY_KEY);
+    const derivedConvexUrl = deriveConvexUrlFromDeployKey(
+      env.CONVEX_DEPLOY_KEY,
+    );
     const providedConvexUrl = normalizeOptionalValue(env.NEXT_PUBLIC_CONVEX_URL);
 
     if (!providedConvexUrl && !derivedConvexUrl) {
@@ -106,8 +108,8 @@ export function getProductEnv(): ProductEnv {
 
   const parsed = productEnvSchema.parse(process.env);
   const resolvedConvexUrl =
-    normalizeOptionalValue(parsed.NEXT_PUBLIC_CONVEX_URL) ??
-    deriveConvexUrlFromDeployKey(parsed.CONVEX_DEPLOY_KEY);
+    deriveConvexUrlFromDeployKey(parsed.CONVEX_DEPLOY_KEY) ??
+    normalizeOptionalValue(parsed.NEXT_PUBLIC_CONVEX_URL);
 
   if (!resolvedConvexUrl) {
     throw new Error(
