@@ -7,9 +7,9 @@ import type {
   BridgeSyncResponse,
   UpsertBlogPostInput,
 } from "@/lib/cms-types";
-import { appConfig } from "@/lib/app-config";
 import {
   createBlogPost as createBlogPostCore,
+  deleteBlogPost as deleteBlogPostCore,
   getBlogMetadata as getBlogMetadataCore,
   getBlogPostById as getBlogPostByIdCore,
   getDashboardOverview as getDashboardOverviewCore,
@@ -19,6 +19,7 @@ import {
   syncBridgePosts as syncBridgePostsCore,
   updateBlogPost as updateBlogPostCore,
 } from "@/lib/framer-core";
+import { getFramerRuntimeContext } from "@/lib/framer-runtime";
 
 const METADATA_CACHE_TTL_MS = 30_000;
 
@@ -31,7 +32,8 @@ let cachedMetadata:
   | null = null;
 
 function getMetadataCacheKey() {
-  return `${appConfig.framer.projectId}::${appConfig.framer.collectionName}`;
+  const runtimeContext = getFramerRuntimeContext();
+  return `${runtimeContext.projectId}::${runtimeContext.collectionId ?? runtimeContext.collectionName}`;
 }
 
 function readMetadataCache() {
@@ -90,6 +92,10 @@ export async function updateBlogPost(
   actor: string,
 ) {
   return updateBlogPostCore(id, input, actor);
+}
+
+export async function deleteBlogPost(id: string, actor: string) {
+  return deleteBlogPostCore(id, actor);
 }
 
 export async function syncBridgePosts(

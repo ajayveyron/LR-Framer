@@ -1,21 +1,36 @@
 "use client";
-
-import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { Spinner } from "@phosphor-icons/react";
 import type {
   BlogCollectionMetadata,
   BlogPostRecord,
   DashboardFieldDefinition,
   DashboardFieldValue,
 } from "@/lib/cms-types";
+import type { SiteRole } from "@/lib/product-types";
+import { cn } from "@/lib/utils";
 
 type BlogTableProps = {
   activePostId?: string | null;
   columns: Array<{ key: string; label: string }>;
   metadata: BlogCollectionMetadata;
+  onOpenPost: (postId: string) => void;
   posts: BlogPostRecord[];
+  role: SiteRole;
+  loadingPosts?: Set<string>;
+  onHideColumn?: (columnKey: string) => void;
+  onReorderColumns?: (sourceIndex: number, destinationIndex: number) => void;
+  onDraftToggle?: (post: BlogPostRecord) => void;
+  onDelete?: (postId: string) => void;
 };
 
 type ColumnLimits = {
@@ -26,7 +41,7 @@ type ColumnLimits = {
 
 function formatDate(value: string | null) {
   if (!value) {
-    return "Not set";
+    return "-";
   }
 
   const date = new Date(value);
@@ -42,6 +57,21 @@ function formatDate(value: string | null) {
 
 function truncateValue(value: string) {
   return value.length > 120 ? `${value.slice(0, 117)}...` : value;
+}
+
+function stripHtmlPreview(value: string) {
+  return value
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<\/?[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function getFieldForColumn(
@@ -90,7 +120,7 @@ function getColumnLimits(
     case "link":
     case "image":
     case "file":
-      return { defaultWidth: 280, minWidth: 180, maxWidth: 520 };
+      return { defaultWidth: 120, minWidth: 80, maxWidth: 320 };
     case "array":
       return { defaultWidth: 160, minWidth: 130, maxWidth: 240 };
     default:
@@ -107,7 +137,7 @@ function formatFieldValue(
   value: DashboardFieldValue,
 ) {
   if (value === null || value === undefined || value === "") {
-    return "Not set";
+    return "-";
   }
 
   if (Array.isArray(value)) {
@@ -115,7 +145,7 @@ function formatFieldValue(
       return `${value.length} item${value.length === 1 ? "" : "s"}`;
     }
 
-    return value.length > 0 ? value.join(", ") : "Not set";
+    return value.length > 0 ? value.join(", ") : "-";
   }
 
   if (typeof value === "boolean") {
@@ -128,6 +158,11 @@ function formatFieldValue(
 
   if (field?.type === "date") {
     return formatDate(value);
+  }
+
+  if (field?.type === "formattedText") {
+    const plainText = stripHtmlPreview(value);
+    return plainText ? truncateValue(plainText) : "-";
   }
 
   return truncateValue(value);
@@ -155,7 +190,7 @@ function getCellValue(
   }
 
   if (!columnKey.startsWith("field:")) {
-    return "Not set";
+    return "-";
   }
 
   const fieldId = columnKey.slice("field:".length);
@@ -170,8 +205,11 @@ function renderCellContent(
 ) {
   if (columnKey === "title") {
     return (
-      <div className="table-row-link cursor-pointer table-title-cell">
-        <span className="doc-glyph" aria-hidden="true">
+      <div className="flex min-w-0 items-center gap-3 text-inherit">
+        <span
+          aria-hidden="true"
+          className="inline-flex size-4 shrink-0 items-center justify-center"
+        >
           <svg
             fill="none"
             height="16"
@@ -195,7 +233,9 @@ function renderCellContent(
             />
           </svg>
         </span>
-        <span className="table-value">{post.title}</span>
+        <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap align-bottom">
+          {post.title}
+        </span>
       </div>
     );
   }
@@ -210,7 +250,7 @@ function renderCellContent(
         // eslint-disable-next-line @next/next/no-img-element
         <img
           alt={field.name}
-          className="image-preview"
+          className="block h-8 w-[76px] max-w-none overflow-hidden rounded-lg border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] object-cover object-center"
           loading="lazy"
           src={value}
         />
@@ -219,7 +259,7 @@ function renderCellContent(
   }
 
   return (
-    <span className="table-value">
+    <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap align-bottom">
       {getCellValue(post, metadata, columnKey)}
     </span>
   );
@@ -229,9 +269,15 @@ export function BlogTable({
   activePostId = null,
   columns,
   metadata,
+  onOpenPost,
   posts,
+  role,
+  loadingPosts,
+  onHideColumn,
+  onReorderColumns,
+  onDraftToggle,
+  onDelete,
 }: BlogTableProps) {
-  const router = useRouter();
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() =>
     Object.fromEntries(
       columns.map((column) => [
@@ -241,18 +287,22 @@ export function BlogTable({
     ),
   );
   const [draggingColumn, setDraggingColumn] = useState<string | null>(null);
+  const [draggedColumnIndex, setDraggedColumnIndex] = useState<number | null>(null);
 
   useEffect(() => {
     return () => {
-      document.body.classList.remove("table-resizing");
+      document.body.style.removeProperty("cursor");
+      document.body.style.removeProperty("user-select");
     };
   }, []);
 
   if (posts.length === 0) {
     return (
-      <div className="empty-state">
-        <strong>No posts loaded yet.</strong>
-        <p className="muted">Add your first draft post.</p>
+      <div className="flex flex-col gap-2 px-6 py-14 text-center text-[color:var(--framer-fresco-panelDescription-color)]">
+        <strong className="text-[color:var(--framer-fresco-panelTitle-color)]">
+          No posts loaded yet.
+        </strong>
+        <p>Add your first draft post.</p>
       </div>
     );
   }
@@ -279,8 +329,11 @@ export function BlogTable({
   ].filter((group) => group.posts.length > 0);
 
   return (
-    <div className="table-wrap">
-      <table style={{ minWidth: tableMinWidth }}>
+    <div className="h-full overflow-auto">
+      <table
+        className="w-full border-collapse table-fixed"
+        style={{ minWidth: tableMinWidth }}
+      >
         <colgroup>
           {columns.map((column) => {
             const width =
@@ -292,121 +345,207 @@ export function BlogTable({
         </colgroup>
         <thead>
           <tr>
-            {columns.map((column) => (
-              <th
-                className={column.key === "slug" ? "mono" : undefined}
-                key={column.key}
-              >
-                <div className="table-head-cell">
-                  <span>{column.label}</span>
-                  <button
-                    aria-label={`Resize ${column.label} column`}
-                    className={`column-resizer ${
-                      draggingColumn === column.key
-                        ? "column-resizer-active"
-                        : ""
-                    }`}
-                    onPointerDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-
-                      const limits = getColumnLimits(metadata, column.key);
-                      const startWidth =
-                        columnWidths[column.key] ?? limits.defaultWidth;
-                      const startX = event.clientX;
-
-                      setDraggingColumn(column.key);
-                      document.body.classList.add("table-resizing");
-
-                      const handlePointerMove = (moveEvent: PointerEvent) => {
-                        const nextWidth = clampWidth(
-                          startWidth + moveEvent.clientX - startX,
-                          limits,
-                        );
-
-                        setColumnWidths((current) => ({
-                          ...current,
-                          [column.key]: nextWidth,
-                        }));
-                      };
-
-                      const stopDragging = () => {
-                        setDraggingColumn(null);
-                        document.body.classList.remove("table-resizing");
-                        window.removeEventListener(
-                          "pointermove",
-                          handlePointerMove,
-                        );
-                        window.removeEventListener("pointerup", stopDragging);
-                        window.removeEventListener(
-                          "pointercancel",
-                          stopDragging,
-                        );
-                      };
-
-                      window.addEventListener("pointermove", handlePointerMove);
-                      window.addEventListener("pointerup", stopDragging);
-                      window.addEventListener("pointercancel", stopDragging);
+            {columns.map((column, index) => (
+              <ContextMenu key={column.key}>
+                <ContextMenuTrigger asChild>
+                  <th
+                    className={cn(
+                      "sticky top-0 z-10 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-[22px] py-[18px] text-left text-xs font-semibold text-[color:var(--framer-fresco-panelSubtitle-color)]",
+                      column.key === "slug" && "font-mono",
+                      draggedColumnIndex === index && "opacity-50",
+                    )}
+                    draggable
+                    onDragStart={(event) => {
+                      if (draggingColumn) {
+                        event.preventDefault();
+                        return;
+                      }
+                      setDraggedColumnIndex(index);
+                      event.dataTransfer.effectAllowed = "move";
                     }}
-                    type="button"
-                  />
-                </div>
-              </th>
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (draggedColumnIndex !== null && draggedColumnIndex !== index) {
+                        onReorderColumns?.(draggedColumnIndex, index);
+                      }
+                      setDraggedColumnIndex(null);
+                    }}
+                    onDragEnd={() => setDraggedColumnIndex(null)}
+                  >
+                    <div className="relative flex min-h-5 items-center pr-2">
+                      <span>{column.label}</span>
+                      <button
+                        aria-label={`Resize ${column.label} column`}
+                        className={cn(
+                          "absolute top-[-14px] right-[-12px] h-[calc(100%+28px)] w-6 cursor-col-resize touch-none bg-transparent p-0 after:absolute after:top-[20%] after:bottom-[20%] after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-[var(--framer-fresco-panelDivider-color)] after:transition-colors hover:after:bg-[var(--framer-fresco-panelSubtitle-color)] focus-visible:outline-none focus-visible:after:bg-[var(--framer-fresco-panelSubtitle-color)]",
+                          draggingColumn === column.key &&
+                            "after:bg-[var(--framer-fresco-panelSubtitle-color)]",
+                        )}
+                        onPointerDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+
+                          const limits = getColumnLimits(metadata, column.key);
+                          const startWidth =
+                            columnWidths[column.key] ?? limits.defaultWidth;
+                          const startX = event.clientX;
+
+                          setDraggingColumn(column.key);
+                          document.body.style.cursor = "col-resize";
+                          document.body.style.userSelect = "none";
+
+                          const handlePointerMove = (moveEvent: PointerEvent) => {
+                            const nextWidth = clampWidth(
+                              startWidth + moveEvent.clientX - startX,
+                              limits,
+                            );
+
+                            setColumnWidths((current) => ({
+                              ...current,
+                              [column.key]: nextWidth,
+                            }));
+                          };
+
+                          const stopDragging = () => {
+                            setDraggingColumn(null);
+                            document.body.style.removeProperty("cursor");
+                            document.body.style.removeProperty("user-select");
+                            window.removeEventListener(
+                              "pointermove",
+                              handlePointerMove,
+                            );
+                            window.removeEventListener("pointerup", stopDragging);
+                            window.removeEventListener(
+                              "pointercancel",
+                              stopDragging,
+                            );
+                          };
+
+                          window.addEventListener("pointermove", handlePointerMove);
+                          window.addEventListener("pointerup", stopDragging);
+                          window.addEventListener("pointercancel", stopDragging);
+                        }}
+                        type="button"
+                      />
+                    </div>
+                  </th>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuItem onSelect={() => onHideColumn?.(column.key)}>
+                    Hide Column
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             ))}
           </tr>
         </thead>
         <tbody>
           {groupedPosts.map((group) => (
             <Fragment key={group.key}>
-              <tr className="table-group-row" key={`${group.key}-label`}>
-                <td colSpan={columns.length}>{group.label}</td>
+              <tr
+                className="bg-[var(--framer-app-surface-subtle-color)]"
+                key={`${group.key}-label`}
+              >
+                <td
+                  className="border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-4 text-[13px] font-bold text-[color:var(--framer-fresco-panelTitle-color)]"
+                  colSpan={columns.length}
+                >
+                  {group.label}
+                </td>
               </tr>
               {group.posts.map((post) => (
-                <tr
-                  aria-label={`Edit ${post.title}`}
-                  className={`table-row ${post.id === activePostId ? "table-row-active" : ""}`}
-                  key={post.id}
-                  onClick={() => {
-                    router.push(`/posts/${post.id}`, { scroll: false });
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") {
-                      return;
-                    }
+                <ContextMenu key={post.id}>
+                  <ContextMenuTrigger asChild>
+                    <tr
+                      aria-label={`Edit ${post.title}`}
+                      className={cn(
+                        "group cursor-pointer transition-all hover:bg-[var(--framer-app-surface-subtle-color)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--framer-fresco-tintDimmed-color)] focus-visible:ring-inset data-[active=true]:bg-[var(--framer-app-surface-muted-color)]",
+                        loadingPosts?.has(post.id) && "pointer-events-none opacity-50 duration-300"
+                      )}
+                      data-active={post.id === activePostId}
+                      onClick={() => {
+                        onOpenPost(post.id);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") {
+                          return;
+                        }
 
-                    event.preventDefault();
-                    router.push(`/posts/${post.id}`, { scroll: false });
-                  }}
-                  role="link"
-                  tabIndex={0}
-                >
-                  {columns.map((column) => {
-                    if (column.key === "status") {
-                      return (
-                        <td key={column.key}>
-                          <Badge
-                            className={`status-chip ${
-                              post.draft ? "status-draft" : "status-published"
-                            }`}
-                            variant="outline"
+                        event.preventDefault();
+                        onOpenPost(post.id);
+                      }}
+                      role="link"
+                      tabIndex={0}
+                    >
+                      {columns.map((column) => {
+                        if (column.key === "status") {
+                          const isLoading = loadingPosts?.has(post.id);
+                          return (
+                            <td
+                              className="border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-[18px] text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]"
+                              key={column.key}
+                            >
+                              <Badge
+                                className={cn(
+                                  "h-[26px] px-2.5 text-xs font-semibold data-[loading=true]:bg-transparent data-[loading=true]:opacity-80 transition-opacity",
+                                  post.draft
+                                    ? "framer-status-pill framer-status-pill-draft"
+                                    : "framer-status-pill framer-status-pill-live",
+                                )}
+                                data-loading={isLoading}
+                                variant="outline"
+                              >
+                                {isLoading && <Spinner className="mr-1.5 size-3.5 animate-spin" />}
+                                {post.draft ? "Draft" : "Live"}
+                              </Badge>
+                            </td>
+                          );
+                        }
+
+                        return (
+                            <td
+                              className={cn(
+                                "border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-[18px] text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]",
+                                column.key === "slug" && "font-mono",
+                              )}
+                            key={column.key}
+                            title={String(getCellValue(post, metadata, column.key))}
                           >
-                            {post.draft ? "Draft" : "Live"}
-                          </Badge>
-                        </td>
-                      );
-                    }
-
-                    return (
-                      <td
-                        className={column.key === "slug" ? "mono" : undefined}
-                        key={column.key}
-                        title={String(getCellValue(post, metadata, column.key))}
-                      >
-                        {renderCellContent(post, metadata, column.key)}
-                      </td>
-                    );
-                  })}
-                </tr>
+                            {renderCellContent(post, metadata, column.key)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem
+                      onSelect={() => {
+                        onDraftToggle?.(post);
+                      }}
+                    >
+                      {post.draft ? "Publish" : "Move to Drafts"}
+                    </ContextMenuItem>
+                    {role === "admin" && (
+                      <>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                          variant="destructive"
+                          onSelect={() => {
+                            if (window.confirm("Are you sure you want to delete this post?")) {
+                              onDelete?.(post.id);
+                            }
+                          }}
+                        >
+                          Delete
+                        </ContextMenuItem>
+                      </>
+                    )}
+                  </ContextMenuContent>
+                </ContextMenu>
               ))}
             </Fragment>
           ))}

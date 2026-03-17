@@ -1,18 +1,15 @@
 import { z } from "zod";
 
-const framerEnvSchema = z.object({
-  FRAMER_API_KEY: z.string().min(1, "FRAMER_API_KEY is required"),
-});
+import { AppError } from "@/lib/errors";
 
-const notionBridgeEnvSchema = z.object({
+const rawEnvSchema = z.object({
+  FRAMER_API_KEY: z.string().optional(),
   NOTION_API_KEY: z.string().optional(),
   NOTION_WEBHOOK_SECRET: z.string().optional(),
 });
 
-const rawEnvSchema = framerEnvSchema.merge(notionBridgeEnvSchema);
-
 export interface ServerEnv {
-  FRAMER_API_KEY: string;
+  FRAMER_API_KEY?: string;
   NOTION_API_KEY?: string;
   NOTION_WEBHOOK_SECRET?: string;
 }
@@ -34,12 +31,16 @@ function normalizeOptionalValue(value: string | undefined) {
 }
 
 export function getServerEnvIssues() {
-  const result = framerEnvSchema.safeParse(process.env);
-  if (result.success) {
+  if (process.env.FRAMER_API_KEY?.trim()) {
     return [];
   }
 
-  return mapIssues(result.error.issues);
+  return [
+    {
+      path: "FRAMER_API_KEY",
+      message: "FRAMER_API_KEY is required for the legacy bridge configuration.",
+    },
+  ];
 }
 
 export function getNotionBridgeEnvIssues() {
@@ -66,7 +67,7 @@ export function getNotionBridgeEnvIssues() {
     }
   }
 
-  const optionalSchemaResult = notionBridgeEnvSchema.safeParse(process.env);
+  const optionalSchemaResult = rawEnvSchema.safeParse(process.env);
   if (!optionalSchemaResult.success) {
     issues.push(...mapIssues(optionalSchemaResult.error.issues));
   }
@@ -88,9 +89,21 @@ export function getServerEnv(): ServerEnv {
 
   const parsed = rawEnvSchema.parse(process.env);
   cachedEnv = {
-    FRAMER_API_KEY: parsed.FRAMER_API_KEY,
+    FRAMER_API_KEY: normalizeOptionalValue(parsed.FRAMER_API_KEY),
     NOTION_API_KEY: normalizeOptionalValue(parsed.NOTION_API_KEY),
     NOTION_WEBHOOK_SECRET: normalizeOptionalValue(parsed.NOTION_WEBHOOK_SECRET),
   };
   return cachedEnv;
+}
+
+export function getLegacyFramerApiKey() {
+  const apiKey = getServerEnv().FRAMER_API_KEY;
+  if (apiKey) {
+    return apiKey;
+  }
+
+  throw new AppError(
+    "FRAMER_API_KEY is required for the legacy bridge configuration.",
+    503,
+  );
 }

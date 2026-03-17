@@ -9,11 +9,13 @@ import type {
 export interface PostInputPayload {
   slug: string;
   fieldValues: Record<string, unknown>;
+  draft?: boolean;
 }
 
 export interface ValidatedPostInput {
   slug: string;
   fieldValues: Record<string, DashboardFieldValue>;
+  draft?: boolean;
 }
 
 function normalizeLabel(value: string) {
@@ -222,6 +224,7 @@ export function buildPostInputSchema(
         (value) => value === "" || /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value),
         "Use lowercase letters, numbers, and hyphens only.",
       ),
+    draft: z.boolean().optional(),
     fieldValues: z.object(fieldShape).strict(),
   }).strict();
 }

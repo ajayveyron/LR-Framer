@@ -1,8 +1,12 @@
+import { redirect } from "next/navigation";
+
 export const dynamic = "force-dynamic";
 
 export default async function EditPostPage({
+  params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  return null;
+  const { id } = await params;
+  redirect(`/dashboard/posts/${id}`);
 }

@@ -8,6 +8,8 @@ import {
   useState,
 } from "react";
 
+import { cn } from "@/lib/utils";
+
 type NotificationTone = "success" | "error";
 
 interface NotificationItem {
@@ -50,10 +52,19 @@ export function NotificationProvider({
   return (
     <NotificationContext.Provider value={value}>
       {children}
-      <div className="notification-stack" aria-live="polite" aria-atomic="true">
+      <div
+        aria-atomic="true"
+        aria-live="polite"
+        className="fixed top-6 right-6 z-[1000] grid w-[min(360px,calc(100vw-32px))] gap-2.5"
+      >
         {items.map((item) => (
           <div
-            className={`notification notification-${item.tone}`}
+            className={cn(
+              "border px-4 py-3 text-sm shadow-lg backdrop-blur-xl",
+              item.tone === "success"
+                ? "framer-callout-success"
+                : "framer-callout-danger",
+            )}
             key={item.id}
             role="status"
           >

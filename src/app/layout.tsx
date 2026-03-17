@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Geist } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 
 import "@/app/globals.css";
+import { NotificationProvider } from "@/components/notification-provider";
 import { cn } from "@/lib/utils";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
@@ -12,19 +14,35 @@ const heading = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "LinkRunner Framer CMS Bridge",
-  description: "Backend service for managing an unmanaged Framer CMS collection and optional Notion sync.",
+  title: "FramerLink",
+  description:
+    "Hosted Framer CMS operations for one user-managed collection, with contributor access and preserved backend sync flows.",
 };
+
+function isClerkConfigured() {
+  return Boolean(
+    process.env.CLERK_SECRET_KEY?.trim() &&
+      process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim(),
+  );
+}
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const app = <NotificationProvider>{children}</NotificationProvider>;
+
+  const content = isClerkConfigured() ? (
+    <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up">
+      {app}
+    </ClerkProvider>
+  ) : app;
+
   return (
     <html lang="en" className={cn("dark font-sans", geist.variable)}>
       <body className={`${geist.variable} ${heading.variable}`}>
-        {children}
+        {content}
       </body>
     </html>
   );

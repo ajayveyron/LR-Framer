@@ -1,7 +1,4 @@
 "use client";
-
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
 import {
   useDeferredValue,
   useEffect,
@@ -11,6 +8,7 @@ import {
 
 import { BlogTable } from "@/components/blog-table";
 import { ColumnControls } from "@/components/column-controls";
+import { DashboardAccountLink } from "@/components/dashboard-account-link";
 import { PostEditor } from "@/components/post-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,10 +27,16 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import type { BlogCollectionMetadata, BlogPostRecord } from "@/lib/cms-types";
+import type { SiteRole } from "@/lib/product-types";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
 const COLUMN_STORAGE_KEY = "lr:dashboard:columns";
 const COLUMN_STORAGE_EVENT = "lr:dashboard:columns:changed";
+
+type DrawerState =
+  | { mode: "create" }
+  | { mode: "edit"; postId: string };
 
 function PlusIcon() {
   return (
@@ -167,6 +171,50 @@ function buildSearchIndex(
   }));
 }
 
+function sortPostsByRecency(posts: BlogPostRecord[]) {
+  return [...posts].sort((left, right) => {
+    if (left.draft !== right.draft) {
+      return left.draft ? -1 : 1;
+    }
+
+    const leftDate = Date.parse(left.date ?? left.lastUpdated ?? "") || 0;
+    const rightDate = Date.parse(right.date ?? right.lastUpdated ?? "") || 0;
+    return rightDate - leftDate;
+  });
+}
+
+function upsertCachedPost(posts: BlogPostRecord[], nextPost: BlogPostRecord) {
+  const remaining = posts.filter((post) => post.id !== nextPost.id);
+  return sortPostsByRecency([...remaining, nextPost]);
+}
+
+function getDrawerPath(drawerState: DrawerState | null) {
+  if (!drawerState) {
+    return "/dashboard";
+  }
+
+  if (drawerState.mode === "create") {
+    return "/dashboard/posts/new";
+  }
+
+  return `/dashboard/posts/${drawerState.postId}`;
+}
+
+function parseDrawerState(pathname: string): DrawerState | null {
+  if (pathname === "/dashboard/posts/new") {
+    return { mode: "create" };
+  }
+
+  if (pathname.startsWith("/dashboard/posts/")) {
+    return {
+      mode: "edit",
+      postId: pathname.slice("/dashboard/posts/".length),
+    };
+  }
+
+  return null;
+}
+
 function matchesSearch(searchText: string, rawQuery: string) {
   const query = rawQuery.trim().toLowerCase();
   if (!query) {
@@ -214,9 +262,11 @@ function writeStoredColumns(columns: string[]) {
 
 export function DashboardTableView({
   bridgeStatus,
+  initialDrawerState = null,
   initialColumns,
   metadata,
   posts,
+  role,
 }: {
   bridgeStatus?: {
     configured: boolean;
@@ -230,21 +280,27 @@ export function DashboardTableView({
     framerItemIdPropertyName: string;
     fieldMap: Record<string, string>;
   };
+  initialDrawerState?: DrawerState | null;
   initialColumns: string[];
   metadata: BlogCollectionMetadata;
   posts: BlogPostRecord[];
+  role: SiteRole;
 }) {
   const columnOptions = buildColumnOptions(metadata);
   const allowedColumnKeys = columnOptions.map((column) => column.key);
   const fallbackColumnsRaw = JSON.stringify(initialColumns);
+  const [cachedPosts, setCachedPosts] = useState(() => sortPostsByRecency(posts));
+  const [drawerState, setDrawerState] = useState<DrawerState | null>(
+    initialDrawerState,
+  );
+  const [loadingPosts, setLoadingPosts] = useState<Set<string>>(new Set());
+  const [editorRevision, setEditorRevision] = useState(0);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [searchIndex, setSearchIndex] = useState(() =>
     buildSearchIndex(posts, metadata),
   );
   const deferredQuery = useDeferredValue(query);
-  const pathname = usePathname();
-  const router = useRouter();
   const selectedColumnsRaw = useSyncExternalStore(
     (callback) => {
       window.addEventListener("storage", callback);
@@ -271,49 +327,110 @@ export function DashboardTableView({
   }, []);
 
   useEffect(() => {
-    setSearchIndex(buildSearchIndex(posts, metadata));
-  }, [metadata, posts]);
+    setCachedPosts(sortPostsByRecency(posts));
+  }, [posts]);
+
+  useEffect(() => {
+    setSearchIndex(buildSearchIndex(cachedPosts, metadata));
+  }, [cachedPosts, metadata]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setDrawerState(parseDrawerState(window.location.pathname));
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  function commitDrawerState(
+    nextDrawerState: DrawerState | null,
+    historyMode: "push" | "replace" = "push",
+  ) {
+    setDrawerState(nextDrawerState);
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const nextPath = getDrawerPath(nextDrawerState);
+    if (window.location.pathname === nextPath) {
+      return;
+    }
+
+    window.history[historyMode === "replace" ? "replaceState" : "pushState"](
+      null,
+      "",
+      nextPath,
+    );
+  }
+
+  function handleOpenCreate() {
+    commitDrawerState({ mode: "create" });
+  }
+
+  function handleOpenPost(postId: string) {
+    commitDrawerState({ mode: "edit", postId });
+  }
+
+  function handleCloseDrawer() {
+    commitDrawerState(null, "replace");
+  }
+
+  function handlePostSaved(
+    nextPost: BlogPostRecord,
+    saveMode: "create" | "edit",
+  ) {
+    setCachedPosts((current) => upsertCachedPost(current, nextPost));
+    setEditorRevision((current) => current + 1);
+    commitDrawerState(
+      { mode: "edit", postId: nextPost.id },
+      saveMode === "create" ? "replace" : "replace",
+    );
+  }
 
   const filteredPosts = deferredQuery.trim()
     ? searchIndex
         .filter((entry) => matchesSearch(entry.searchText, deferredQuery))
         .map((entry) => entry.post)
-    : posts;
+    : cachedPosts;
   const totalPages = Math.max(1, Math.ceil(filteredPosts.length / PAGE_SIZE));
   const currentPage = Math.min(totalPages, Math.max(1, page));
   const startIndex = (currentPage - 1) * PAGE_SIZE;
   const visiblePosts = filteredPosts.slice(startIndex, startIndex + PAGE_SIZE);
-  const activeColumns = columnOptions.filter((column) =>
-    selectedColumns.includes(column.key),
-  );
+  const activeColumns = selectedColumns
+    .map((key) => columnOptions.find((column) => column.key === key))
+    .filter((column): column is { key: string; label: string } => column !== undefined);
   const draftCount = filteredPosts.filter((post) => post.draft).length;
-  const isDrawerRoute = pathname?.startsWith("/posts/") ?? false;
+  const isDrawerRoute = drawerState !== null;
   const activePostId =
-    pathname?.startsWith("/posts/") && pathname !== "/posts/new"
-      ? pathname.slice("/posts/".length)
-      : null;
+    drawerState?.mode === "edit" ? drawerState.postId : null;
   const activePost = activePostId
-    ? (posts.find((post) => post.id === activePostId) ?? null)
+    ? (cachedPosts.find((post) => post.id === activePostId) ?? null)
     : null;
-  const isCreateRoute = pathname === "/posts/new";
+  const isCreateRoute = drawerState?.mode === "create";
   const pageOptions = Array.from({ length: totalPages }, (_, index) => index + 1);
 
   return (
-    <section className="workspace-shell">
-      <div className="workspace-pane workspace-pane-collection">
-        <div className="workspace-pane-chrome">
-          <div className="workspace-actions">
+    <section className="relative md:min-h-[calc(100vh-16px)]">
+      <div className="flex min-h-screen flex-col overflow-hidden bg-[var(--framer-fresco-panelBackground-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color)] md:min-h-[calc(100vh-16px)] md:border md:border-[var(--framer-fresco-panelDivider-color)]">
+        <div className="border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)]">
+          <div className="flex flex-wrap items-start gap-2.5 border-b border-[var(--framer-fresco-panelDivider-color)] p-4 md:items-center">
             <Button
-              asChild
-              className="workspace-action workspace-action-primary"
+              className="h-11 gap-2.5 px-4 text-sm font-semibold"
+              onClick={handleOpenCreate}
               size="sm"
+              type="button"
             >
-              <Link href="/posts/new">
-                <span className="workspace-action-icon" aria-hidden="true">
-                  <PlusIcon />
-                </span>
-                <span>New Item</span>
-              </Link>
+              <span
+                aria-hidden="true"
+                className="inline-flex items-center justify-center"
+              >
+                <PlusIcon />
+              </span>
+              <span>New Item</span>
             </Button>
             <ColumnControls
               onColumnsChange={(nextColumns) => {
@@ -323,26 +440,41 @@ export function DashboardTableView({
               options={columnOptions}
               selectedColumns={selectedColumns}
             />
-            <Badge
-              className={`workspace-badge ${
-                bridgeStatus?.configured
-                  ? "workspace-badge-ready"
-                  : "workspace-badge-manual"
-              }`}
-              variant="outline"
-            >
-              <span className="workspace-badge-dot" aria-hidden="true" />
-              {bridgeStatus?.configured ? "Bridge Ready" : "Manual Mode"}
-            </Badge>
+            <div className="ml-auto flex w-full flex-wrap items-center justify-between gap-2.5 md:w-auto md:justify-end">
+              {bridgeStatus ? (
+                <Badge
+                  className="flex h-11 items-center gap-2.5 rounded-full border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-4 text-[13px] font-semibold text-[color:var(--framer-fresco-panelDescription-color)]"
+                  variant="outline"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "inline-flex size-2 rounded-full",
+                      bridgeStatus.configured
+                        ? "framer-live-dot"
+                        : "bg-[var(--framer-fresco-panelSubtitle-color)]",
+                    )}
+                  />
+                  {bridgeStatus.configured ? "Bridge Ready" : "Manual Mode"}
+                </Badge>
+              ) : null}
+              <DashboardAccountLink />
+            </div>
           </div>
 
-          <label className="workspace-search" htmlFor="dashboard-search">
-            <span className="workspace-search-icon" aria-hidden="true">
+          <label
+            className="flex min-h-[74px] items-center gap-3 border-b border-[var(--framer-fresco-panelDivider-color)] px-5 text-[color:var(--framer-fresco-panelSubtitle-color)]"
+            htmlFor="dashboard-search"
+          >
+            <span
+              aria-hidden="true"
+              className="inline-flex items-center justify-center"
+            >
               <SearchIcon />
             </span>
             <Input
               aria-label="Search posts"
-              className="workspace-search-input"
+              className="h-auto border-0 bg-transparent px-0 py-0 text-lg text-[color:var(--framer-fresco-settingsText-color)] shadow-none placeholder:text-[color:var(--framer-fresco-panelSubtitle-color)] focus-visible:border-0 focus-visible:ring-0"
               id="dashboard-search"
               onChange={(event) => {
                 setQuery(event.target.value);
@@ -353,39 +485,99 @@ export function DashboardTableView({
             />
           </label>
 
-          <div className="workspace-collection-meta">
-            <div className="stack workspace-collection-copy">
-              <span className="workspace-label">{metadata.collectionName}</span>
-              <span className="muted">
+          <div className="flex flex-col gap-4 border-b border-[var(--framer-fresco-panelDivider-color)] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-1">
+              <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+                {metadata.collectionName}
+              </span>
+              <span className="text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
                 {filteredPosts.length} result
                 {filteredPosts.length === 1 ? "" : "s"}
               </span>
             </div>
-            <div className="workspace-summary">
+            <div className="inline-flex flex-wrap items-center gap-4 text-[13px] text-[color:var(--framer-fresco-panelDescription-color)]">
               <span>{draftCount} drafts</span>
               <span>{filteredPosts.length - draftCount} published</span>
             </div>
           </div>
         </div>
 
-        <section className="table-shell workspace-table-shell">
+        <section className="min-h-0 flex-1">
           <BlogTable
             activePostId={activePostId}
             columns={activeColumns}
             metadata={metadata}
+            onOpenPost={handleOpenPost}
             posts={visiblePosts}
+            role={role}
+            loadingPosts={loadingPosts}
+            onHideColumn={(columnKey) => {
+              const nextSelected = selectedColumns.filter((key) => key !== columnKey);
+              if (nextSelected.length > 0) {
+                writeStoredColumns(nextSelected);
+              }
+            }}
+            onReorderColumns={(sourceIndex, destinationIndex) => {
+              const nextColumns = [...selectedColumns];
+              const [reorderedItem] = nextColumns.splice(sourceIndex, 1);
+              nextColumns.splice(destinationIndex, 0, reorderedItem);
+              writeStoredColumns(nextColumns);
+            }}
+            onDraftToggle={async (post) => {
+              setLoadingPosts((prev) => new Set(prev).add(post.id));
+              try {
+                const response = await fetch(`/api/posts/${post.id}`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    slug: post.slug,
+                    draft: !post.draft,
+                    fieldValues: post.fieldValues,
+                  }),
+                });
+                if (response.ok) {
+                  const { post: nextPost } = await response.json();
+                  setCachedPosts((current) => upsertCachedPost(current, nextPost));
+                }
+              } catch (error) {
+                console.error("Failed to toggle draft status", error);
+              } finally {
+                setLoadingPosts((prev) => {
+                  const next = new Set(prev);
+                  next.delete(post.id);
+                  return next;
+                });
+              }
+            }}
+            onDelete={async (postId) => {
+              setLoadingPosts((prev) => new Set(prev).add(postId));
+              try {
+                const response = await fetch(`/api/posts/${postId}`, { method: "DELETE" });
+                if (response.ok) {
+                  setCachedPosts((current) => current.filter((post) => post.id !== postId));
+                }
+              } catch (error) {
+                console.error("Failed to delete post", error);
+              } finally {
+                setLoadingPosts((prev) => {
+                  const next = new Set(prev);
+                  next.delete(postId);
+                  return next;
+                });
+              }
+            }}
           />
         </section>
 
-        <div className="workspace-pagination">
-          <div className="page-count muted">
+        <div className="flex flex-col gap-4 border-t border-[var(--framer-fresco-panelDivider-color)] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
             {filteredPosts.length === 0
               ? "Showing 0 of 0"
               : `Showing ${startIndex + 1}-${startIndex + visiblePosts.length} of ${filteredPosts.length}`}
           </div>
 
           {totalPages > 1 ? (
-            <div className="pagination workspace-pagination-controls">
+            <div className="flex flex-wrap items-center gap-2.5 sm:justify-end">
               <Button
                 disabled={currentPage === 1}
                 onClick={() => setPage((value) => Math.max(1, value - 1))}
@@ -403,7 +595,7 @@ export function DashboardTableView({
               >
                 <SelectTrigger
                   aria-label="Select page"
-                  className="workspace-page-select"
+                  className="min-w-32 text-[color:var(--framer-fresco-settingsText-color)]"
                   size="sm"
                 >
                   <SelectValue placeholder={`Page ${currentPage}`} />
@@ -416,7 +608,9 @@ export function DashboardTableView({
                   ))}
                 </SelectContent>
               </Select>
-              <span className="muted workspace-pagination-label">of {totalPages}</span>
+              <span className="text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
+                of {totalPages}
+              </span>
               <Button
                 disabled={currentPage === totalPages}
                 onClick={() =>
@@ -436,13 +630,13 @@ export function DashboardTableView({
       <Sheet
         onOpenChange={(open) => {
           if (!open) {
-            router.push("/", { scroll: false });
+            handleCloseDrawer();
           }
         }}
         open={isDrawerRoute}
       >
         <SheetContent
-          className="workspace-drawer-panel gap-0 p-0 sm:max-w-none"
+          className="gap-0 overflow-hidden border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] p-0 text-[color:var(--framer-fresco-panelTitle-color)] shadow-[-40px_0_120px_rgba(0,0,0,0.55)] data-[side=right]:w-full data-[side=right]:sm:max-w-none md:data-[side=right]:top-2 md:data-[side=right]:right-2 md:data-[side=right]:bottom-2 md:data-[side=right]:w-[min(72vw,920px)] xl:data-[side=right]:w-[min(56vw,980px)]"
           showCloseButton={false}
           side="right"
         >
@@ -456,31 +650,42 @@ export function DashboardTableView({
           <SheetDescription className="sr-only">
             Review and edit the selected CMS entry in a side drawer.
           </SheetDescription>
-          <div className="workspace-drawer-content">
+          <div className="flex min-h-0 flex-1 [&>*]:min-w-0 [&>*]:flex-1">
             {isCreateRoute ? (
               <PostEditor
-                key="new"
+                key={`new:${editorRevision}`}
                 metadata={metadata}
                 mode="create"
+                onClose={handleCloseDrawer}
+                onPostSaved={handlePostSaved}
                 post={null}
               />
             ) : activePost ? (
               <PostEditor
-                key={activePost.id}
+                key={`${activePost.id}:${editorRevision}`}
                 metadata={metadata}
                 mode="edit"
+                onClose={handleCloseDrawer}
+                onPostSaved={handlePostSaved}
                 post={activePost}
               />
             ) : (
-              <div className="drawer-fallback">
-                <span className="eyebrow">Unavailable</span>
-                <h2>This item is not in the preloaded set.</h2>
-                <p className="muted">
-                  The dashboard is currently preloading only the most recent
-                  items so the drawer opens instantly.
+              <div className="flex h-full flex-col gap-3.5 p-7">
+                <span className="framer-kicker w-fit">Unavailable</span>
+                <h2 className="font-heading text-3xl leading-tight text-[color:var(--framer-fresco-panelTitle-color)]">
+                  This item is not in the preloaded set.
+                </h2>
+                <p className="text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]">
+                  The drawer keeps item data in memory, but this entry is not
+                  available in the current client cache.
                 </p>
-                <Button asChild size="sm" variant="outline">
-                  <Link href="/">Close</Link>
+                <Button
+                  onClick={handleCloseDrawer}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Close
                 </Button>
               </div>
             )}

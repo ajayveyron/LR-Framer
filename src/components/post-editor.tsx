@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   startTransition,
   type ChangeEvent,
@@ -14,6 +12,15 @@ import {
 } from "react";
 import { Controller, useForm, useWatch, type Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  TextB as BoldIcon,
+  TextItalic as ItalicIcon,
+  Code as Code2Icon,
+  Link as Link2Icon,
+  ListBullets as ListIcon,
+  ListNumbers as ListOrderedIcon,
+  Quotes as TextQuoteIcon,
+} from "@phosphor-icons/react";
 
 import { useNotify } from "@/components/notification-provider";
 import { Badge } from "@/components/ui/badge";
@@ -43,10 +50,59 @@ import type {
   DashboardFieldDefinition,
   DashboardFieldValue,
 } from "@/lib/cms-types";
+import { cn } from "@/lib/utils";
 import { buildPostInputSchema, type PostInputPayload } from "@/lib/post-schema";
 
 type FormValues = PostInputPayload;
 const EMPTY_SELECT_VALUE = "__none__";
+const fieldClassName = "flex flex-col gap-2";
+const wideFieldClassName = "max-w-none";
+const labelRowClassName = "flex items-center justify-between gap-2.5";
+const metaBadgeClassName =
+  "h-6 rounded-full border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]";
+const helperTextClassName =
+  "text-[13px] leading-[1.45] text-[color:var(--framer-fresco-panelSubtitle-color)]";
+const fieldErrorClassName =
+  "text-[13px] text-[color:var(--framer-app-danger-callout-text-color)]";
+const formControlClassName =
+  "framer-form-control h-auto min-h-[52px] rounded-2xl border px-4 py-3.5 font-sans text-[15px] leading-[1.45]";
+const titleControlClassName =
+  "min-h-[60px] text-[clamp(22px,1.8vw,28px)] leading-[1.15] tracking-[-0.035em]";
+const toolbarButtonClassName =
+  "framer-form-control h-10 min-h-10 rounded-xl border px-3.5 py-0 shadow-none";
+const toolbarActionGroupClassName =
+  "framer-toolbar-group flex flex-wrap items-center gap-1 rounded-xl";
+const toolbarActionButtonClassName =
+  "framer-toolbar-button size-9 rounded-[10px] border-transparent bg-transparent p-0";
+const primaryButtonClassName = "framer-primary-tint-action";
+const warningBannerClassName = "framer-callout-info";
+const editorContentClassName =
+  "framer-editor-prose min-h-[320px] overflow-x-auto px-[18px] py-[18px] outline-none";
+
+type RichTextBlockType = "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+
+type MarkdownShortcut =
+  | {
+      command: "formatBlock";
+      commandValue: string;
+      nextBlockType: RichTextBlockType;
+    }
+  | { command: "formatBlock"; commandValue: "<blockquote>" | "<pre>" }
+  | { command: "insertUnorderedList" | "insertOrderedList" };
+
+const richTextBlockOptions: Array<{
+  commandValue: string;
+  label: string;
+  value: RichTextBlockType;
+}> = [
+  { value: "p", label: "Paragraph", commandValue: "<p>" },
+  { value: "h1", label: "H1", commandValue: "<h1>" },
+  { value: "h2", label: "H2", commandValue: "<h2>" },
+  { value: "h3", label: "H3", commandValue: "<h3>" },
+  { value: "h4", label: "H4", commandValue: "<h4>" },
+  { value: "h5", label: "H5", commandValue: "<h5>" },
+  { value: "h6", label: "H6", commandValue: "<h6>" },
+];
 
 function looksLikeHtml(value: string) {
   return /<\/?[a-z][\s\S]*>/i.test(value);
@@ -81,6 +137,132 @@ function toEditorHtml(value: string) {
       return `<p>${lines || "<br />"}</p>`;
     })
     .join("");
+}
+
+function getActiveBlockType(
+  anchorNode: Node | null,
+  editor: HTMLDivElement,
+): RichTextBlockType {
+  let currentElement =
+    anchorNode instanceof Element ? anchorNode : anchorNode?.parentElement;
+
+  while (currentElement && currentElement !== editor) {
+    const tagName = currentElement.tagName.toLowerCase();
+    if (richTextBlockOptions.some((option) => option.value === tagName)) {
+      return tagName as RichTextBlockType;
+    }
+    currentElement = currentElement.parentElement;
+  }
+
+  return "p";
+}
+
+function getEditorBlockElement(
+  editor: HTMLDivElement,
+  anchorNode: Node | null,
+): HTMLElement | null {
+  let currentElement =
+    anchorNode instanceof Element ? anchorNode : anchorNode?.parentElement;
+
+  while (currentElement && currentElement !== editor) {
+    const tagName = currentElement.tagName.toLowerCase();
+    if (
+      [
+        "p",
+        "div",
+        "li",
+        "blockquote",
+        "pre",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+      ].includes(tagName)
+    ) {
+      return currentElement as HTMLElement;
+    }
+    currentElement = currentElement.parentElement;
+  }
+
+  return null;
+}
+
+function getEditorSelectionRange(editor: HTMLDivElement | null) {
+  const selection = document.getSelection();
+  if (!editor || !selection || selection.rangeCount === 0) {
+    return null;
+  }
+
+  const anchorNode = selection.anchorNode;
+  const focusNode = selection.focusNode;
+  if (
+    !anchorNode ||
+    !focusNode ||
+    !editor.contains(anchorNode) ||
+    !editor.contains(focusNode)
+  ) {
+    return null;
+  }
+
+  return selection.getRangeAt(0);
+}
+
+function getMarkdownShortcut(value: string): MarkdownShortcut | null {
+  if (/^#{1,6}$/.test(value)) {
+    const level = value.length as 1 | 2 | 3 | 4 | 5 | 6;
+    return {
+      command: "formatBlock",
+      commandValue: `<h${level}>`,
+      nextBlockType: `h${level}` as RichTextBlockType,
+    };
+  }
+
+  if (value === ">") {
+    return {
+      command: "formatBlock",
+      commandValue: "<blockquote>",
+    };
+  }
+
+  if (value === "```") {
+    return {
+      command: "formatBlock",
+      commandValue: "<pre>",
+    };
+  }
+
+  if (value === "-" || value === "*" || value === "+") {
+    return {
+      command: "insertUnorderedList",
+    };
+  }
+
+  if (/^\d+\.$/.test(value)) {
+    return {
+      command: "insertOrderedList",
+    };
+  }
+
+  return null;
+}
+
+function normalizeLinkUrl(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  if (
+    value.startsWith("/") ||
+    value.startsWith("#") ||
+    value.startsWith("mailto:") ||
+    value.startsWith("tel:")
+  ) {
+    return value;
+  }
+
+  return /^[a-z][a-z\d+.-]*:/i.test(value) ? value : `https://${value}`;
 }
 
 function slugify(value: string) {
@@ -152,8 +334,41 @@ function isLongTextField(field: DashboardFieldDefinition) {
     return true;
   }
 
-  return field.type === "string" &&
-    (field.logicalKey === "body" || /description|summary|excerpt/i.test(field.name));
+  return (
+    field.type === "string" &&
+    (field.logicalKey === "body" ||
+      /description|summary|excerpt/i.test(field.name))
+  );
+}
+
+function FieldLabel({
+  htmlFor,
+  name,
+  required = false,
+}: {
+  htmlFor?: string;
+  name: string;
+  required?: boolean;
+}) {
+  return (
+    <Label
+      className="text-[13px] font-bold tracking-[-0.01em] text-[color:var(--framer-fresco-panelTitle-color)]"
+      htmlFor={htmlFor}
+    >
+      {name}
+      {required ? (
+        <>
+          <span
+            aria-hidden="true"
+            className="ml-1 text-[color:var(--framer-fresco-warningTint-color)]"
+          >
+            *
+          </span>
+          <span className="sr-only"> required</span>
+        </>
+      ) : null}
+    </Label>
+  );
 }
 
 function ReadOnlyField({
@@ -164,15 +379,18 @@ function ReadOnlyField({
   value: DashboardFieldValue;
 }) {
   return (
-    <div className="editor-field editor-field-wide editor-field-readonly">
-      <div className="editor-label-row">
+    <div className={cn(fieldClassName, wideFieldClassName)}>
+      <div className={labelRowClassName}>
         <Label>{field.name}</Label>
-        <Badge className="required-badge" variant="outline">Read only</Badge>
+        <Badge className={metaBadgeClassName} variant="outline">
+          Read only
+        </Badge>
       </div>
-      <div className="warning-banner">
-        {field.helpText ?? "This field type is visible but not editable in the dashboard."}
+      <div className={warningBannerClassName}>
+        {field.helpText ??
+          "This field type is visible but not editable in the dashboard."}
       </div>
-      <div className="editor-readonly-value mono">
+      <div className="framer-subtle-panel px-4 py-3 text-sm text-[color:var(--framer-fresco-settingsText-color)]">
         {Array.isArray(value) ? value.join(", ") : String(value ?? "")}
       </div>
     </div>
@@ -189,6 +407,10 @@ function RichTextInput({
   value: string;
 }) {
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const selectionRef = useRef<Range | null>(null);
+  const [activeBlockType, setActiveBlockType] =
+    useState<RichTextBlockType>("p");
+  const [hasTextSelection, setHasTextSelection] = useState(false);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -202,17 +424,174 @@ function RichTextInput({
     }
   }, [value]);
 
+  useEffect(() => {
+    document.execCommand("styleWithCSS", false, "false");
+    document.execCommand("defaultParagraphSeparator", false, "p");
+  }, []);
+
   function syncValue() {
     onChange(editorRef.current?.innerHTML ?? "");
   }
 
+  function syncSelectionState() {
+    const editor = editorRef.current;
+    const range = getEditorSelectionRange(editor);
+    const selection = document.getSelection();
+
+    if (!editor || !range || !selection) {
+      selectionRef.current = null;
+      setHasTextSelection(false);
+      return;
+    }
+
+    const anchorNode = selection.anchorNode;
+    const nextHasTextSelection = !selection.isCollapsed;
+
+    selectionRef.current = nextHasTextSelection ? range.cloneRange() : null;
+    setHasTextSelection(nextHasTextSelection);
+    setActiveBlockType(getActiveBlockType(anchorNode, editor));
+  }
+
+  useEffect(() => {
+    function handleSelectionChange() {
+      syncSelectionState();
+    }
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+    };
+  }, []);
+
+  function restoreSelection() {
+    const editor = editorRef.current;
+    const selection = document.getSelection();
+
+    if (!editor) {
+      return;
+    }
+
+    editor.focus();
+
+    if (!selection || !selectionRef.current) {
+      return;
+    }
+
+    selection.removeAllRanges();
+    selection.addRange(selectionRef.current);
+  }
+
   function applyCommand(command: string, commandValue?: string) {
-    editorRef.current?.focus();
+    restoreSelection();
     document.execCommand(command, false, commandValue);
+    syncSelectionState();
+    syncValue();
+  }
+
+  function applyMarkdownShortcut() {
+    const editor = editorRef.current;
+    const selection = document.getSelection();
+    const range = getEditorSelectionRange(editor);
+
+    if (!editor || !selection || !range || !range.collapsed) {
+      return false;
+    }
+
+    const block = getEditorBlockElement(editor, range.startContainer);
+    if (!block) {
+      return false;
+    }
+
+    const prefixRange = document.createRange();
+    prefixRange.selectNodeContents(block);
+    prefixRange.setEnd(range.startContainer, range.startOffset);
+
+    const prefixText = prefixRange
+      .toString()
+      .replace(/\u00a0/g, " ")
+      .trim();
+    const shortcut = getMarkdownShortcut(prefixText);
+
+    if (!shortcut) {
+      return false;
+    }
+
+    prefixRange.deleteContents();
+
+    if (!block.firstChild) {
+      block.append(document.createElement("br"));
+    }
+
+    const caretRange = document.createRange();
+    if (block.firstChild) {
+      caretRange.setStart(block.firstChild, 0);
+    } else {
+      caretRange.setStart(block, 0);
+    }
+    caretRange.collapse(true);
+
+    selection.removeAllRanges();
+    selection.addRange(caretRange);
+
+    if (shortcut.command === "formatBlock") {
+      document.execCommand("formatBlock", false, shortcut.commandValue);
+      if ("nextBlockType" in shortcut) {
+        setActiveBlockType(shortcut.nextBlockType);
+      }
+    } else {
+      document.execCommand(shortcut.command, false);
+    }
+
+    syncSelectionState();
+    syncValue();
+    return true;
+  }
+
+  function applyBlockFormat(nextBlockType: RichTextBlockType) {
+    setActiveBlockType(nextBlockType);
+    const nextOption = richTextBlockOptions.find(
+      (option) => option.value === nextBlockType,
+    );
+    applyCommand("formatBlock", nextOption?.commandValue ?? "<p>");
+  }
+
+  function handleLink() {
+    const rawUrl = window.prompt("Enter a URL");
+    if (rawUrl === null) {
+      return;
+    }
+
+    const normalizedUrl = normalizeLinkUrl(rawUrl.trim());
+    if (!normalizedUrl) {
+      applyCommand("unlink");
+      return;
+    }
+
+    restoreSelection();
+    const selection = document.getSelection();
+    if (!selection?.isCollapsed) {
+      document.execCommand("createLink", false, normalizedUrl);
+    } else {
+      document.execCommand(
+        "insertHTML",
+        false,
+        `<a href="${escapeHtml(normalizedUrl)}">${escapeHtml(normalizedUrl)}</a>`,
+      );
+    }
+    syncSelectionState();
     syncValue();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === " " && applyMarkdownShortcut()) {
+      event.preventDefault();
+      return;
+    }
+
+    if (!hasTextSelection) {
+      return;
+    }
+
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "b") {
       event.preventDefault();
       applyCommand("bold");
@@ -222,75 +601,162 @@ function RichTextInput({
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "i") {
       event.preventDefault();
       applyCommand("italic");
+      return;
+    }
+
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      handleLink();
     }
   }
 
   return (
-    <div className="rich-text-shell">
-      <div className="rich-text-toolbar">
-        <Button
-          onMouseDown={(event) => {
-            event.preventDefault();
-            applyCommand("bold");
+    <div className="framer-elevated-panel overflow-hidden rounded-xl">
+      <div className="framer-toolbar-strip flex flex-wrap items-center gap-2 px-3 py-2.5">
+        <Select
+          disabled={!hasTextSelection}
+          onValueChange={(nextValue) => {
+            applyBlockFormat(nextValue as RichTextBlockType);
           }}
-          size="xs"
-          type="button"
-          variant="outline"
+          value={activeBlockType}
         >
-          Bold
-        </Button>
-        <Button
-          onMouseDown={(event) => {
-            event.preventDefault();
-            applyCommand("italic");
-          }}
-          size="xs"
-          type="button"
-          variant="outline"
-        >
-          Italic
-        </Button>
-        <Button
-          onMouseDown={(event) => {
-            event.preventDefault();
-            applyCommand("formatBlock", "<h2>");
-          }}
-          size="xs"
-          type="button"
-          variant="outline"
-        >
-          H2
-        </Button>
-        <Button
-          onMouseDown={(event) => {
-            event.preventDefault();
-            applyCommand("insertUnorderedList");
-          }}
-          size="xs"
-          type="button"
-          variant="outline"
-        >
-          List
-        </Button>
-        <Button
-          onMouseDown={(event) => {
-            event.preventDefault();
-            applyCommand("formatBlock", "<blockquote>");
-          }}
-          size="xs"
-          type="button"
-          variant="outline"
-        >
-          Quote
-        </Button>
+          <SelectTrigger
+            className={cn(
+              toolbarButtonClassName,
+              "min-w-[172px] justify-between text-left text-sm text-[color:var(--framer-fresco-settingsText-color)]",
+            )}
+            onMouseDown={(event) => {
+              event.preventDefault();
+            }}
+          >
+            <SelectValue placeholder="Paragraph" />
+          </SelectTrigger>
+          <SelectContent>
+            {richTextBlockOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className={toolbarActionGroupClassName}>
+          <Button
+            aria-label="Insert link"
+            className={toolbarActionButtonClassName}
+            disabled={!hasTextSelection}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              handleLink();
+            }}
+            size="xs"
+            title="Insert link"
+            type="button"
+            variant="ghost"
+          >
+            <Link2Icon className="size-4" />
+          </Button>
+          <Button
+            aria-label="Bold"
+            className={toolbarActionButtonClassName}
+            disabled={!hasTextSelection}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              applyCommand("bold");
+            }}
+            size="xs"
+            title="Bold"
+            type="button"
+            variant="ghost"
+          >
+            <BoldIcon className="size-4" />
+          </Button>
+          <Button
+            aria-label="Italic"
+            className={toolbarActionButtonClassName}
+            disabled={!hasTextSelection}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              applyCommand("italic");
+            }}
+            size="xs"
+            title="Italic"
+            type="button"
+            variant="ghost"
+          >
+            <ItalicIcon className="size-4" />
+          </Button>
+          <Button
+            aria-label="Quote"
+            className={toolbarActionButtonClassName}
+            disabled={!hasTextSelection}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              applyCommand("formatBlock", "<blockquote>");
+            }}
+            size="xs"
+            title="Quote"
+            type="button"
+            variant="ghost"
+          >
+            <TextQuoteIcon className="size-4" />
+          </Button>
+          <Button
+            aria-label="Code block"
+            className={toolbarActionButtonClassName}
+            disabled={!hasTextSelection}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              applyCommand("formatBlock", "<pre>");
+            }}
+            size="xs"
+            title="Code block"
+            type="button"
+            variant="ghost"
+          >
+            <Code2Icon className="size-4" />
+          </Button>
+          <Button
+            aria-label="Bulleted list"
+            className={toolbarActionButtonClassName}
+            disabled={!hasTextSelection}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              applyCommand("insertUnorderedList");
+            }}
+            size="xs"
+            title="Bulleted list"
+            type="button"
+            variant="ghost"
+          >
+            <ListIcon className="size-4" />
+          </Button>
+          <Button
+            aria-label="Numbered list"
+            className={toolbarActionButtonClassName}
+            disabled={!hasTextSelection}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              applyCommand("insertOrderedList");
+            }}
+            size="xs"
+            title="Numbered list"
+            type="button"
+            variant="ghost"
+          >
+            <ListOrderedIcon className="size-4" />
+          </Button>
+        </div>
       </div>
       <div
-        className="rich-text-editor"
+        className={editorContentClassName}
         contentEditable
         data-placeholder={placeholder}
         onBlur={syncValue}
         onInput={syncValue}
         onKeyDown={handleKeyDown}
+        onKeyUp={syncSelectionState}
+        onMouseUp={syncSelectionState}
         ref={editorRef}
         suppressContentEditableWarning
       />
@@ -301,18 +767,23 @@ function RichTextInput({
 export function PostEditor({
   metadata,
   mode,
+  onClose,
+  onPostSaved,
   post,
 }: {
   metadata: BlogCollectionMetadata;
   mode: "create" | "edit";
+  onClose: () => void;
+  onPostSaved: (post: BlogPostRecord, mode: "create" | "edit") => void;
   post: BlogPostRecord | null;
 }) {
-  const router = useRouter();
   const notify = useNotify();
   const [pending, startSaving] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
-  const [pendingUploads, setPendingUploads] = useState<Record<string, boolean>>({});
+  const [pendingUploads, setPendingUploads] = useState<Record<string, boolean>>(
+    {},
+  );
   const [serverError, setServerError] = useState<string | null>(null);
   const titleFieldId = metadata.logicalFields.title;
   const bodyFieldId = metadata.logicalFields.body;
@@ -335,11 +806,9 @@ export function PostEditor({
     control: form.control,
     name: "fieldValues",
   });
-  const slugValue = useWatch({
-    control: form.control,
-    name: "slug",
-  });
-  const titleValue = titleFieldId ? watchedFieldValues?.[titleFieldId] : undefined;
+  const titleValue = titleFieldId
+    ? watchedFieldValues?.[titleFieldId]
+    : undefined;
   const supportedFields = metadata.fields.filter((field) => field.supported);
   const readOnlyFields = metadata.fields.filter((field) => !field.supported);
   const titleField = titleFieldId
@@ -348,28 +817,29 @@ export function PostEditor({
   const bodyField = bodyFieldId
     ? supportedFields.find((field) => field.id === bodyFieldId)
     : undefined;
-  const remainingFields = supportedFields.filter((field) =>
-    field.id !== titleField?.id && field.id !== bodyField?.id
+  const remainingFields = supportedFields.filter(
+    (field) => field.id !== titleField?.id && field.id !== bodyField?.id,
   );
-  const nonContentFields = remainingFields.filter((field) =>
-    field.type !== "formattedText" && field.logicalKey !== "body"
+  const nonContentFields = remainingFields.filter(
+    (field) => field.type !== "formattedText" && field.logicalKey !== "body",
   );
-  const contentFields = remainingFields.filter((field) =>
-    field.type === "formattedText" || field.logicalKey === "body"
+  const contentFields = remainingFields.filter(
+    (field) => field.type === "formattedText" || field.logicalKey === "body",
   );
   const drawerTitle =
     typeof titleValue === "string" && titleValue.trim().length > 0
       ? titleValue.trim()
       : mode === "create"
         ? "Untitled Draft"
-        : post?.title ?? post?.slug ?? "Untitled Entry";
-  const statusLabel = mode === "create"
-    ? "New Draft"
-    : form.formState.isDirty
-      ? "Unsaved Changes"
-      : post?.draft
-        ? "Saved Draft"
-        : "Published";
+        : (post?.title ?? post?.slug ?? "Untitled Entry");
+  const statusLabel =
+    mode === "create"
+      ? "New Draft"
+      : form.formState.isDirty
+        ? "Unsaved Changes"
+        : post?.draft
+          ? "Saved Draft"
+          : "Published";
 
   const syncSlugFromTitle = useEffectEvent((value: unknown) => {
     if (
@@ -453,7 +923,8 @@ export function PostEditor({
     form.clearErrors();
 
     startSaving(async () => {
-      const endpoint = mode === "create" ? "/api/posts" : `/api/posts/${post?.id}`;
+      const endpoint =
+        mode === "create" ? "/api/posts" : `/api/posts/${post?.id}`;
       const response = await fetch(endpoint, {
         method: mode === "create" ? "POST" : "PUT",
         headers: {
@@ -471,7 +942,10 @@ export function PostEditor({
       if (!response.ok) {
         const message = data.error ?? "Save failed.";
         for (const fieldError of data.fieldErrors ?? []) {
-          if (fieldError.path === "slug" || fieldError.path.startsWith("fieldValues.")) {
+          if (
+            fieldError.path === "slug" ||
+            fieldError.path.startsWith("fieldValues.")
+          ) {
             form.setError(fieldError.path as Path<FormValues>, {
               type: "server",
               message: fieldError.message,
@@ -488,8 +962,12 @@ export function PostEditor({
       );
 
       startTransition(() => {
-        router.replace(`/posts/${data.post?.id ?? post?.id}`);
-        router.refresh();
+        if (data.post) {
+          onPostSaved(data.post, mode);
+          return;
+        }
+
+        onClose();
       });
     });
   }
@@ -521,9 +999,10 @@ export function PostEditor({
       field.id,
     );
     const path = `fieldValues.${field.id}` as const;
-    const className = isLongTextField(field) || field.type === "array"
-      ? "editor-field editor-field-wide"
-      : "editor-field";
+    const className = cn(
+      fieldClassName,
+      (isLongTextField(field) || field.type === "array") && wideFieldClassName,
+    );
     const inputId = `field-${field.id}`;
     const currentValue = watchedFieldValues?.[field.id] as
       | string
@@ -534,19 +1013,25 @@ export function PostEditor({
     if (field.type === "boolean") {
       return (
         <div className={className} key={field.id}>
-          <div className="editor-label-row">
-            <Label htmlFor={inputId}>{field.name}</Label>
-            {field.required ? (
-              <Badge className="required-badge" variant="outline">Required</Badge>
-            ) : null}
+          <div className={labelRowClassName}>
+            <FieldLabel
+              htmlFor={inputId}
+              name={field.name}
+              required={field.required}
+            />
           </div>
           <Controller
             control={form.control}
             name={path}
             render={({ field: controllerField }) => (
-              <div className="checkbox-row">
-                <div className="editor-reference-copy">
-                  <Label className="text-sm text-white/86" htmlFor={inputId}>Enabled</Label>
+              <div className="framer-subtle-panel flex min-h-[50px] items-center justify-between gap-3 px-3.5">
+                <div className="min-w-0">
+                  <Label
+                    className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]"
+                    htmlFor={inputId}
+                  >
+                    Enabled
+                  </Label>
                 </div>
                 <Checkbox
                   checked={controllerField.value === true}
@@ -558,8 +1043,12 @@ export function PostEditor({
               </div>
             )}
           />
-          {field.helpText ? <span className="helper-text">{field.helpText}</span> : null}
-          {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
+          {field.helpText ? (
+            <span className={helperTextClassName}>{field.helpText}</span>
+          ) : null}
+          {errorMessage ? (
+            <span className={fieldErrorClassName}>{errorMessage}</span>
+          ) : null}
         </div>
       );
     }
@@ -567,42 +1056,61 @@ export function PostEditor({
     if (field.type === "enum") {
       return (
         <div className={className} key={field.id}>
-          <div className="editor-label-row">
-            <Label htmlFor={inputId}>{field.name}</Label>
-            {field.required ? (
-              <Badge className="required-badge" variant="outline">Required</Badge>
-            ) : null}
+          <div className={labelRowClassName}>
+            <FieldLabel
+              htmlFor={inputId}
+              name={field.name}
+              required={field.required}
+            />
           </div>
           <Controller
             control={form.control}
             name={path}
-            render={({ field: controllerField }) => (
-              <Select
-                onValueChange={(value) => {
-                  controllerField.onChange(value === EMPTY_SELECT_VALUE ? "" : value);
-                }}
-                value={
-                  typeof controllerField.value === "string" && controllerField.value.length > 0
-                    ? controllerField.value
-                    : EMPTY_SELECT_VALUE
-                }
-              >
-                <SelectTrigger className="editor-select-trigger" id={inputId}>
-                  <SelectValue placeholder="Select an option" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={EMPTY_SELECT_VALUE}>Select an option</SelectItem>
-                  {field.options?.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            render={({ field: controllerField }) => {
+              const selectedValue =
+                typeof controllerField.value === "string" &&
+                controllerField.value.length > 0
+                  ? controllerField.value
+                  : field.required
+                    ? undefined
+                    : EMPTY_SELECT_VALUE;
+
+              return (
+                <Select
+                  onValueChange={(value) => {
+                    controllerField.onChange(
+                      !field.required && value === EMPTY_SELECT_VALUE
+                        ? ""
+                        : value,
+                    );
+                  }}
+                  value={selectedValue}
+                >
+                  <SelectTrigger className={formControlClassName} id={inputId}>
+                    <SelectValue placeholder="Select an option" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {field.required ? null : (
+                      <SelectItem value={EMPTY_SELECT_VALUE}>
+                        No selection
+                      </SelectItem>
+                    )}
+                    {field.options?.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              );
+            }}
           />
-          {field.helpText ? <span className="helper-text">{field.helpText}</span> : null}
-          {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
+          {field.helpText ? (
+            <span className={helperTextClassName}>{field.helpText}</span>
+          ) : null}
+          {errorMessage ? (
+            <span className={fieldErrorClassName}>{errorMessage}</span>
+          ) : null}
         </div>
       );
     }
@@ -617,38 +1125,46 @@ export function PostEditor({
         const selectedValues = Array.isArray(currentValue) ? currentValue : [];
 
         return (
-          <div className={`${className} editor-field-wide`} key={field.id}>
-            <div className="editor-label-row">
-              <Label>{field.name}</Label>
-              <div className="editor-toolbar-actions">
-                {field.required ? (
-                  <Badge className="required-badge" variant="outline">Required</Badge>
-                ) : null}
-                <Badge className="required-badge" variant="secondary">
+          <div className={cn(className, wideFieldClassName)} key={field.id}>
+            <div className={labelRowClassName}>
+              <FieldLabel name={field.name} required={field.required} />
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Badge className={metaBadgeClassName} variant="secondary">
                   {selectedValues.length} selected
                 </Badge>
               </div>
             </div>
-            <div className="editor-reference-list">
+            <div className="grid gap-2.5">
               {referenceOptions.map((option) => {
                 const optionId = `${inputId}-${option.slug}`;
                 const checked = selectedValues.includes(option.slug);
 
                 return (
-                  <div className="checkbox-row editor-reference-option" key={option.slug}>
-                    <div className="editor-reference-copy">
-                      <Label className="text-sm text-white/86" htmlFor={optionId}>
+                  <div
+                    className="framer-subtle-panel flex min-h-[50px] items-center justify-between gap-3 px-3.5"
+                    key={option.slug}
+                  >
+                    <div className="min-w-0">
+                      <Label
+                        className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]"
+                        htmlFor={optionId}
+                      >
                         {option.label}
                       </Label>
-                      <div className="mono muted">{option.slug}</div>
+                      <div className="text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
+                        {option.slug}
+                      </div>
                     </div>
                     <Checkbox
                       checked={checked}
                       id={optionId}
                       onCheckedChange={(nextChecked) => {
-                        const nextValue = nextChecked === true
-                          ? [...selectedValues, option.slug]
-                          : selectedValues.filter((value) => value !== option.slug);
+                        const nextValue =
+                          nextChecked === true
+                            ? [...selectedValues, option.slug]
+                            : selectedValues.filter(
+                                (value) => value !== option.slug,
+                              );
 
                         form.setValue(path, nextValue, {
                           shouldDirty: true,
@@ -661,56 +1177,79 @@ export function PostEditor({
                 );
               })}
             </div>
-            <span className="helper-text">
-              Select the referenced items. Slugs and labels are resolved automatically
-              when saving.
+            <span className={helperTextClassName}>
+              Select the referenced items. Slugs and labels are resolved
+              automatically when saving.
             </span>
-            {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
+            {errorMessage ? (
+              <span className={fieldErrorClassName}>{errorMessage}</span>
+            ) : null}
           </div>
         );
       }
 
       return (
         <div className={className} key={field.id}>
-          <div className="editor-label-row">
-            <Label htmlFor={inputId}>{field.name}</Label>
-            {field.required ? (
-              <Badge className="required-badge" variant="outline">Required</Badge>
-            ) : null}
+          <div className={labelRowClassName}>
+            <FieldLabel
+              htmlFor={inputId}
+              name={field.name}
+              required={field.required}
+            />
           </div>
           <Controller
             control={form.control}
             name={path}
-            render={({ field: controllerField }) => (
-              <Select
-                onValueChange={(value) => {
-                  controllerField.onChange(value === EMPTY_SELECT_VALUE ? "" : value);
-                }}
-                value={
-                  typeof controllerField.value === "string" && controllerField.value.length > 0
-                    ? controllerField.value
-                    : EMPTY_SELECT_VALUE
-                }
-              >
-                <SelectTrigger className="editor-select-trigger" id={inputId}>
-                  <SelectValue placeholder="No selection" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={EMPTY_SELECT_VALUE}>No selection</SelectItem>
-                  {referenceOptions.map((option) => (
-                    <SelectItem key={option.slug} value={option.slug}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            render={({ field: controllerField }) => {
+              const selectedValue =
+                typeof controllerField.value === "string" &&
+                controllerField.value.length > 0
+                  ? controllerField.value
+                  : field.required
+                    ? undefined
+                    : EMPTY_SELECT_VALUE;
+
+              return (
+                <Select
+                  onValueChange={(value) => {
+                    controllerField.onChange(
+                      !field.required && value === EMPTY_SELECT_VALUE
+                        ? ""
+                        : value,
+                    );
+                  }}
+                  value={selectedValue}
+                >
+                  <SelectTrigger className={formControlClassName} id={inputId}>
+                    <SelectValue
+                      placeholder={
+                        field.required ? "Select an item" : "No selection"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {field.required ? null : (
+                      <SelectItem value={EMPTY_SELECT_VALUE}>
+                        No selection
+                      </SelectItem>
+                    )}
+                    {referenceOptions.map((option) => (
+                      <SelectItem key={option.slug} value={option.slug}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              );
+            }}
           />
-          <span className="helper-text">
-            Select the referenced item. Slugs and labels are resolved automatically when
-            saving.
+          <span className={helperTextClassName}>
+            Select the referenced item. Slugs and labels are resolved
+            automatically when saving.
           </span>
-          {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
+          {errorMessage ? (
+            <span className={fieldErrorClassName}>{errorMessage}</span>
+          ) : null}
         </div>
       );
     }
@@ -718,11 +1257,8 @@ export function PostEditor({
     if (field.type === "formattedText") {
       return (
         <div className={className} key={field.id}>
-          <div className="editor-label-row">
-            <Label>{field.name}</Label>
-            {field.required ? (
-              <Badge className="required-badge" variant="outline">Required</Badge>
-            ) : null}
+          <div className={labelRowClassName}>
+            <FieldLabel name={field.name} required={field.required} />
           </div>
           <Controller
             control={form.control}
@@ -739,8 +1275,12 @@ export function PostEditor({
               />
             )}
           />
-          {field.helpText ? <span className="helper-text">{field.helpText}</span> : null}
-          {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
+          {field.helpText ? (
+            <span className={helperTextClassName}>{field.helpText}</span>
+          ) : null}
+          {errorMessage ? (
+            <span className={fieldErrorClassName}>{errorMessage}</span>
+          ) : null}
         </div>
       );
     }
@@ -752,20 +1292,28 @@ export function PostEditor({
 
       return (
         <div className={className} key={field.id}>
-          <div className="editor-label-row">
-            <Label htmlFor={inputId}>{field.name}</Label>
-            {field.required ? (
-              <Badge className="required-badge" variant="outline">Required</Badge>
-            ) : null}
+          <div className={labelRowClassName}>
+            <FieldLabel
+              htmlFor={inputId}
+              name={field.name}
+              required={field.required}
+            />
           </div>
-          <div className="editor-asset-field">
+          <div className="flex flex-col gap-3">
             {assetUrl ? (
-              <div className="editor-asset-preview">
+              <div className="framer-elevated-panel flex items-center gap-3.5 rounded-xl p-3.5">
                 {field.type === "image" ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img alt={field.name} src={assetUrl} />
+                  <img
+                    alt={field.name}
+                    className="h-[88px] w-32 shrink-0 rounded-xl border border-[var(--framer-fresco-panelDivider-color)] object-cover"
+                    src={assetUrl}
+                  />
                 ) : (
-                  <div className="editor-file-icon" aria-hidden="true">
+                  <div
+                    aria-hidden="true"
+                    className="inline-flex shrink-0 size-12 items-center justify-center rounded-xl bg-[var(--framer-app-surface-muted-color)] text-[color:var(--framer-fresco-settingsText-color)]"
+                  >
                     <svg
                       fill="none"
                       height="22"
@@ -780,60 +1328,98 @@ export function PostEditor({
                         stroke="currentColor"
                         strokeWidth="1.4"
                       />
-                      <path d="M12 2.75V7.25H16.5" stroke="currentColor" strokeWidth="1.4" />
+                      <path
+                        d="M12 2.75V7.25H16.5"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                      />
                     </svg>
                   </div>
                 )}
-                <div className="stack" style={{ gap: 2 }}>
-                  <strong>{getAssetLabel(assetUrl)}</strong>
-                  <span className="muted">
-                    {field.type === "image" ? "Image asset" : "File asset"}
-                  </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <strong className="truncate text-[color:var(--framer-fresco-panelTitle-color)]">
+                    {getAssetLabel(assetUrl)}
+                  </strong>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      asChild
+                      className="h-7 rounded-lg px-2.5 text-xs"
+                      size="sm"
+                      variant="outline"
+                    >
+                      <label htmlFor={uploadId}>
+                        <input
+                          accept={
+                            field.type === "image" ? "image/*" : undefined
+                          }
+                          hidden
+                          id={uploadId}
+                          onChange={(event) => {
+                            void handleAssetUpload(field, path, event);
+                          }}
+                          type="file"
+                        />
+                        {isUploading ? "Uploading..." : "Replace"}
+                      </label>
+                    </Button>
+                    {!field.required ? (
+                      <Button
+                        className="h-7 rounded-lg px-2.5 text-xs"
+                        onClick={() => {
+                          form.setValue(path, "", {
+                            shouldDirty: true,
+                            shouldTouch: true,
+                            shouldValidate: true,
+                          });
+                        }}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        Remove
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             ) : (
               <Input
-                className="editor-input"
+                className={formControlClassName}
                 id={inputId}
                 placeholder={field.name}
                 {...form.register(path)}
               />
             )}
-            <div className="editor-asset-actions">
-              <Button asChild className="editor-upload-button" size="sm" variant="outline">
-                <label htmlFor={uploadId}>
-                  <input
-                    accept={field.type === "image" ? "image/*" : undefined}
-                    hidden
-                    id={uploadId}
-                    onChange={(event) => {
-                      void handleAssetUpload(field, path, event);
-                    }}
-                    type="file"
-                  />
-                  {isUploading ? "Uploading..." : assetUrl ? "Replace" : "Upload"}
-                </label>
-              </Button>
-              {assetUrl ? (
+            {!assetUrl ? (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Button
-                  onClick={() => {
-                    form.setValue(path, "", {
-                      shouldDirty: true,
-                      shouldTouch: true,
-                      shouldValidate: true,
-                    });
-                  }}
+                  asChild
+                  className="h-10 rounded-xl px-3.5"
                   size="sm"
-                  type="button"
-                  variant="ghost"
+                  variant="outline"
                 >
-                  Remove
+                  <label htmlFor={uploadId}>
+                    <input
+                      accept={field.type === "image" ? "image/*" : undefined}
+                      hidden
+                      id={uploadId}
+                      onChange={(event) => {
+                        void handleAssetUpload(field, path, event);
+                      }}
+                      type="file"
+                    />
+                    {isUploading ? "Uploading..." : "Upload"}
+                  </label>
                 </Button>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
           </div>
-          {field.helpText ? <span className="helper-text">{field.helpText}</span> : null}
-          {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
+          {field.helpText ? (
+            <span className={helperTextClassName}>{field.helpText}</span>
+          ) : null}
+          {errorMessage ? (
+            <span className={fieldErrorClassName}>{errorMessage}</span>
+          ) : null}
         </div>
       );
     }
@@ -841,35 +1427,44 @@ export function PostEditor({
     if (isLongTextField(field)) {
       return (
         <div className={className} key={field.id}>
-          <div className="editor-label-row">
-            <Label htmlFor={inputId}>{field.name}</Label>
-            {field.required ? (
-              <Badge className="required-badge" variant="outline">Required</Badge>
-            ) : null}
+          <div className={labelRowClassName}>
+            <FieldLabel
+              htmlFor={inputId}
+              name={field.name}
+              required={field.required}
+            />
           </div>
           <Textarea
-            className="editor-textarea"
+            className={cn(formControlClassName, "min-h-[188px] resize-y")}
             id={inputId}
             placeholder={field.name}
             rows={field.id === bodyField?.id ? 8 : 4}
             {...form.register(path)}
           />
-          {field.helpText ? <span className="helper-text">{field.helpText}</span> : null}
-          {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
+          {field.helpText ? (
+            <span className={helperTextClassName}>{field.helpText}</span>
+          ) : null}
+          {errorMessage ? (
+            <span className={fieldErrorClassName}>{errorMessage}</span>
+          ) : null}
         </div>
       );
     }
 
     return (
       <div className={className} key={field.id}>
-        <div className="editor-label-row">
-          <Label htmlFor={inputId}>{field.name}</Label>
-          {field.required ? (
-            <Badge className="required-badge" variant="outline">Required</Badge>
-          ) : null}
+        <div className={labelRowClassName}>
+          <FieldLabel
+            htmlFor={inputId}
+            name={field.name}
+            required={field.required}
+          />
         </div>
         <Input
-          className={field.id === titleField?.id ? "editor-input editor-input-title" : "editor-input"}
+          className={cn(
+            formControlClassName,
+            field.id === titleField?.id && titleControlClassName,
+          )}
           id={inputId}
           placeholder={field.name}
           type={
@@ -883,55 +1478,69 @@ export function PostEditor({
           }
           {...form.register(path)}
         />
-        {field.helpText ? <span className="helper-text">{field.helpText}</span> : null}
-        {errorMessage ? <span className="field-error">{errorMessage}</span> : null}
+        {field.helpText ? (
+          <span className={helperTextClassName}>{field.helpText}</span>
+        ) : null}
+        {errorMessage ? (
+          <span className={fieldErrorClassName}>{errorMessage}</span>
+        ) : null}
       </div>
     );
   }
 
   return (
-    <section className="editor-drawer">
-      <div className="editor-header">
-        <div className="editor-header-main">
-          <div className="editor-nav">
-            <Button asChild className="editor-icon-button" size="icon-sm" variant="outline">
-              <Link aria-label="Close editor" href="/">
-                <svg
-                  fill="none"
-                  height="18"
-                  viewBox="0 0 18 18"
-                  width="18"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M4.5 4.5L13.5 13.5"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeWidth="1.4"
-                  />
-                  <path
-                    d="M13.5 4.5L4.5 13.5"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeWidth="1.4"
-                  />
-                </svg>
-              </Link>
+    <section className="flex h-full flex-col bg-[radial-gradient(circle_at_top_right,var(--framer-fresco-tintGradientStart-color),transparent_28%),linear-gradient(180deg,var(--framer-app-shell-start-color),var(--framer-app-shell-end-color))]">
+      <div className="sticky top-0 z-10 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-5 py-4 ">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 flex-1 items-center gap-4">
+            <Button
+              aria-label="Close editor"
+              className="framer-elevated-panel size-10 rounded-[13px] text-[color:var(--framer-fresco-settingsText-color)]"
+              onClick={onClose}
+              size="icon-sm"
+              type="button"
+              variant="outline"
+            >
+              <svg
+                fill="none"
+                height="18"
+                viewBox="0 0 18 18"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M4.5 4.5L13.5 13.5"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeWidth="1.4"
+                />
+                <path
+                  d="M13.5 4.5L4.5 13.5"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeWidth="1.4"
+                />
+              </svg>
             </Button>
-            <div className="editor-nav-divider" aria-hidden="true" />
-            <div className="editor-nav-copy">
-              <span className="eyebrow">
+            <div
+              aria-hidden="true"
+              className="hidden h-[34px] w-px bg-[var(--framer-fresco-panelDivider-color)] sm:block"
+            />
+            <div className="min-w-0 max-w-[720px]">
+              <span className="text-sm font-medium tracking-[0.12em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
                 {mode === "create" ? "Create Post" : "Edit Post"}
               </span>
-              <h2>{drawerTitle}</h2>
             </div>
           </div>
 
-          <div className="editor-toolbar-actions">
+          <div className="flex flex-wrap items-center gap-2.5 max-md:w-full">
             <Badge
-              className={`editor-status-pill ${
-                form.formState.isDirty ? "editor-status-pill-alert" : "editor-status-pill-muted"
-              }`}
+              className={cn(
+                "relative h-[34px] rounded-full border px-3 pl-6 text-[11px] font-bold uppercase tracking-[0.08em] before:absolute before:top-1/2 before:left-2.5 before:size-[7px] before:-translate-y-1/2 before:rounded-full before:bg-current",
+                form.formState.isDirty
+                  ? "framer-status-pill framer-status-pill-draft"
+                  : "framer-status-pill framer-status-pill-idle",
+              )}
               variant="outline"
             >
               {statusLabel}
@@ -939,7 +1548,7 @@ export function PostEditor({
             <Button
               disabled={pending || !form.formState.isDirty}
               onClick={resetForm}
-              size="sm"
+              size="lg"
               type="button"
               variant="outline"
             >
@@ -947,20 +1556,20 @@ export function PostEditor({
             </Button>
             {mode === "create" ? (
               <Button
-                className="bg-[#0d99ff] text-white hover:bg-[#24a3ff]"
+                className={primaryButtonClassName}
                 disabled={pending}
                 onClick={submitDraft}
-                size="sm"
+                size="lg"
                 type="button"
               >
                 {pending ? "Saving..." : "Create Draft"}
               </Button>
             ) : (
               <Button
-                className="bg-[#0d99ff] text-white hover:bg-[#24a3ff]"
+                className={primaryButtonClassName}
                 disabled={pending}
                 onClick={openPublishConfirmation}
-                size="sm"
+                size="lg"
                 type="button"
               >
                 {pending ? "Publishing..." : "Publish"}
@@ -970,64 +1579,56 @@ export function PostEditor({
         </div>
       </div>
 
-      {serverError ? <div className="error-banner" role="alert">{serverError}</div> : null}
+      {serverError ? (
+        <div className="framer-callout-danger mx-6 mt-4" role="alert">
+          {serverError}
+        </div>
+      ) : null}
 
       <form
-        className="editor-form"
-        onSubmit={mode === "create" ? submitDraft : (event) => event.preventDefault()}
+        className="flex flex-1 flex-col gap-[18px] overflow-auto px-[18px] pt-5 pb-8 md:px-6 md:pb-10"
+        onSubmit={
+          mode === "create" ? submitDraft : (event) => event.preventDefault()
+        }
       >
-        <div className="editor-field-list">
+        <div className="flex max-w-[840px] flex-col gap-[18px]">
           {titleField ? renderField(titleField) : null}
 
-          <div className="editor-field">
-            <div className="editor-label-row">
-              <Label htmlFor="post-slug">Slug</Label>
-              <Badge className="required-badge" variant="outline">Required</Badge>
+          <div className={fieldClassName}>
+            <div className={labelRowClassName}>
+              <FieldLabel htmlFor="post-slug" name="Slug" required />
             </div>
             <Input
-              className="editor-input"
+              className={formControlClassName}
               id="post-slug"
               placeholder="my-new-post"
               {...form.register("slug")}
             />
-            <div className="editor-slug-preview mono">
-              <span className="editor-slug-icon" aria-hidden="true">
-                <svg
-                  fill="none"
-                  height="14"
-                  viewBox="0 0 14 14"
-                  width="14"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
-                  <path d="M1.5 7H12.5" stroke="currentColor" strokeWidth="1.2" />
-                  <path
-                    d="M7 1.5C8.65685 3.08081 9.5 5.05025 9.5 7C9.5 8.94975 8.65685 10.9192 7 12.5C5.34315 10.9192 4.5 8.94975 4.5 7C4.5 5.05025 5.34315 3.08081 7 1.5Z"
-                    stroke="currentColor"
-                    strokeWidth="1.2"
-                  />
-                </svg>
-              </span>
-              <span>{slugValue ? `/blog/${slugValue}` : "/blog/your-slug"}</span>
-            </div>
             {form.formState.errors.slug ? (
-              <span className="field-error">{form.formState.errors.slug.message}</span>
+              <span className={fieldErrorClassName}>
+                {form.formState.errors.slug.message}
+              </span>
             ) : null}
           </div>
 
           {nonContentFields.map((field) => renderField(field))}
-          {bodyField && bodyField.id !== titleField?.id ? renderField(bodyField) : null}
+          {bodyField && bodyField.id !== titleField?.id
+            ? renderField(bodyField)
+            : null}
           {contentFields.map((field) => renderField(field))}
 
           {readOnlyFields.length > 0 ? (
-            <section className="editor-readonly-group">
-              <div className="stack" style={{ gap: 6 }}>
-                <span className="eyebrow">Read Only In Dashboard</span>
-                <p className="muted">
-                  These fields are still part of the Framer schema but are not editable here.
+            <section className="framer-subtle-panel mt-2 flex flex-col gap-4 p-[18px]">
+              <div className="flex flex-col gap-1.5">
+                <span className="framer-kicker w-fit">
+                  Read Only In Dashboard
+                </span>
+                <p className="text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]">
+                  These fields are still part of the Framer schema but are not
+                  editable here.
                 </p>
               </div>
-              <div className="editor-field-list">
+              <div className="flex max-w-[840px] flex-col gap-[18px]">
                 {readOnlyFields.map((field) => (
                   <ReadOnlyField
                     field={field}
@@ -1050,14 +1651,19 @@ export function PostEditor({
         }}
         open={mode === "edit" && confirmOpen}
       >
-        <DialogContent className="modal-card" showCloseButton={false}>
+        <DialogContent
+          className="framer-dialog-panel rounded-none border"
+          showCloseButton={false}
+        >
           <DialogHeader>
-            <DialogTitle id="publish-confirm-title">Publish these changes?</DialogTitle>
+            <DialogTitle id="publish-confirm-title">
+              Publish these changes?
+            </DialogTitle>
             <DialogDescription id="publish-confirm-description">
               This will push your edits live in Framer immediately.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="modal-actions -mx-0 -mb-0 rounded-none border-0 bg-transparent p-0">
+          <DialogFooter className="-mx-0 -mb-0 flex justify-end gap-2.5 rounded-none border-0 bg-transparent p-0">
             <Button
               disabled={pending}
               onClick={() => {
@@ -1070,7 +1676,7 @@ export function PostEditor({
               Cancel
             </Button>
             <Button
-              className="bg-[#0d99ff] text-white hover:bg-[#24a3ff]"
+              className={primaryButtonClassName}
               disabled={pending}
               onClick={confirmPublish}
               type="button"

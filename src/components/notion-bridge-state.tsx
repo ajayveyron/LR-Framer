@@ -1,5 +1,3 @@
-import type { CSSProperties } from "react";
-
 type NotionBridgeStateProps = {
   status?: {
     configured: boolean;
@@ -14,10 +12,6 @@ type NotionBridgeStateProps = {
     framerItemIdPropertyName: string;
     fieldMap: Record<string, string>;
   };
-};
-
-const preStyle: CSSProperties = {
-  whiteSpace: "pre-wrap",
 };
 
 const fallbackStatus = {
@@ -46,76 +40,97 @@ export function NotionBridgeState({ status }: NotionBridgeStateProps) {
   const resolvedStatus = status ?? fallbackStatus;
 
   return (
-    <section className="panel stack">
-      <div className="field-row">
-        <div>
-          <span className="eyebrow">Notion Bridge</span>
-          <h2 style={{ marginTop: 8 }}>
+    <section className="framer-card flex flex-col gap-4">
+      <div>
+        <span className="framer-kicker w-fit">Notion Bridge</span>
+        <h2 className="mt-2 font-heading text-[clamp(28px,4vw,40px)] leading-[1.06] tracking-[-0.04em] text-[color:var(--framer-fresco-panelTitle-color)]">
             {resolvedStatus.configured ? "Ready for webhook sync" : "Optional backend bridge"}
-          </h2>
-          <p className="muted" style={{ marginTop: 8 }}>
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]">
             The dashboard can still be used manually. When this bridge is configured,
             approved Notion items can be pushed into the same Framer collection,
             published automatically, removed again when they leave the approved state,
             and existing Framer posts can be backfilled into Notion for future editing.
-          </p>
-          <p className="muted" style={{ marginTop: 8 }}>
-            The Notion data source, property names, and field mapping are pinned in code for this
-            deployment. Only the bridge secrets live in <span className="mono">.env</span>.
-          </p>
-        </div>
+        </p>
+        <p className="mt-2 text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]">
+          The Notion data source, property names, and field mapping are pinned in code for this
+          deployment. Only the bridge secrets live in <span className="font-mono">.env</span>.
+        </p>
       </div>
 
-      <div className={resolvedStatus.configured ? "success-banner" : "warning-banner"}>
+      <div
+        className={
+          resolvedStatus.configured
+            ? "framer-callout-success"
+            : "framer-callout-info"
+        }
+      >
         {resolvedStatus.configured
           ? `Configured for data source ${truncateMiddle(resolvedStatus.dataSourceId ?? "")}.`
           : "Notion sync is not configured yet."}
       </div>
 
-      <div className="stack" style={{ gap: 10 }}>
-        <div className="field-row">
-          <strong>Webhook route</strong>
-          <span className="mono">{resolvedStatus.webhookPath}</span>
+      <div className="grid gap-2.5">
+        <div className="framer-subtle-panel flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <strong className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]">Webhook route</strong>
+          <span className="font-mono text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
+            {resolvedStatus.webhookPath}
+          </span>
         </div>
-        <div className="field-row">
-          <strong>Manual sync route</strong>
-          <span className="mono">{resolvedStatus.manualSyncPath}</span>
+        <div className="framer-subtle-panel flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <strong className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]">Manual sync route</strong>
+          <span className="font-mono text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
+            {resolvedStatus.manualSyncPath}
+          </span>
         </div>
-        <div className="field-row">
-          <strong>Framer import route</strong>
-          <span className="mono">{resolvedStatus.manualImportPath}</span>
+        <div className="framer-subtle-panel flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <strong className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]">Framer import route</strong>
+          <span className="font-mono text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
+            {resolvedStatus.manualImportPath}
+          </span>
         </div>
-        <div className="field-row">
-          <strong>Approval rule</strong>
-          <span className="mono">
+        <div className="framer-subtle-panel flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <strong className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]">Approval rule</strong>
+          <span className="font-mono text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
             {resolvedStatus.statusPropertyName} = {resolvedStatus.approvedStatusValue}
           </span>
         </div>
-        <div className="field-row">
-          <strong>Slug property</strong>
-          <span className="mono">{resolvedStatus.slugPropertyName}</span>
+        <div className="framer-subtle-panel flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <strong className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]">Slug property</strong>
+          <span className="font-mono text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
+            {resolvedStatus.slugPropertyName}
+          </span>
         </div>
-        <div className="field-row">
-          <strong>Framer item ID property</strong>
-          <span className="mono">{resolvedStatus.framerItemIdPropertyName}</span>
+        <div className="framer-subtle-panel flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <strong className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]">Framer item ID property</strong>
+          <span className="font-mono text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
+            {resolvedStatus.framerItemIdPropertyName}
+          </span>
         </div>
       </div>
 
       {Object.keys(resolvedStatus.fieldMap).length > 0 ? (
-        <pre className="warning-banner mono" style={preStyle}>
+        <pre className="framer-code-panel whitespace-pre-wrap">
           {JSON.stringify(resolvedStatus.fieldMap, null, 2)}
         </pre>
       ) : null}
 
       {!resolvedStatus.configured || resolvedStatus.issues.length > 0 ? (
-        <div className="stack" style={{ gap: 10 }}>
+        <div className="grid gap-2.5">
           {resolvedStatus.issues.map((issue) => (
-            <div className="field-row" key={`${issue.path}-${issue.message}`}>
-              <strong className="mono">{issue.path}</strong>
-              <span className="muted">{issue.message}</span>
+            <div
+              className="framer-subtle-panel flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+              key={`${issue.path}-${issue.message}`}
+            >
+              <strong className="font-mono text-sm text-[color:var(--framer-fresco-panelTitle-color)]">
+                {issue.path}
+              </strong>
+              <span className="text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
+                {issue.message}
+              </span>
             </div>
           ))}
-          <pre className="warning-banner mono" style={preStyle}>
+          <pre className="framer-code-panel whitespace-pre-wrap">
 {`NOTION_API_KEY=secret_xxx
 NOTION_WEBHOOK_SECRET=choose-a-long-random-secret`}
           </pre>
@@ -123,10 +138,10 @@ NOTION_WEBHOOK_SECRET=choose-a-long-random-secret`}
       ) : null}
 
       {resolvedStatus.configured ? (
-        <div className="warning-banner">
-          <span className="mono">POST {resolvedStatus.manualSyncPath}</span> pushes
+        <div className="framer-callout-info">
+          <span className="font-mono">POST {resolvedStatus.manualSyncPath}</span> pushes
           approved Notion pages into Framer.{" "}
-          <span className="mono">POST {resolvedStatus.manualImportPath}</span> backfills
+          <span className="font-mono">POST {resolvedStatus.manualImportPath}</span> backfills
           current Framer posts into Notion.
         </div>
       ) : null}

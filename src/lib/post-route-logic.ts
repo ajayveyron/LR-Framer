@@ -22,6 +22,7 @@ export interface PostRouteDependencies {
   getBlogMetadata: () => Promise<BlogCollectionMetadata>;
   getBlogPostById: (id: string) => Promise<BlogPostRecord>;
   listBlogPosts: () => Promise<BlogPostSummary[]>;
+  deleteBlogPost: (id: string, actor: string) => Promise<{ postId: string; publish?: PublishResponse }>;
   updateBlogPost: (
     id: string,
     input: UpsertBlogPostInput,
@@ -94,7 +95,7 @@ export async function handleUpdatePost(
     const body = parsePostInput(metadata, await request.json());
     const result = await dependencies.updateBlogPost(
       id,
-      { ...body, draft: false, publish: true },
+      { ...body, draft: body.draft ?? false, publish: true },
       "open-dashboard",
     );
 
@@ -108,6 +109,25 @@ export async function handleUpdatePost(
     return NextResponse.json(result);
   } catch (error) {
     logError("api.posts.update.failed", error, { postId: id });
+    return createErrorJsonResponse(error);
+  }
+}
+
+export async function handleDeletePost(
+  id: string,
+  dependencies: PostRouteDependencies,
+) {
+  try {
+    const result = await dependencies.deleteBlogPost(id, "open-dashboard");
+
+    logEvent("info", "api.posts.delete.succeeded", {
+      actor: "open-dashboard",
+      postId: id,
+    });
+
+    return NextResponse.json(result);
+  } catch (error) {
+    logError("api.posts.delete.failed", error, { postId: id });
     return createErrorJsonResponse(error);
   }
 }

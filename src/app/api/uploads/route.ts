@@ -4,6 +4,7 @@ import { createErrorJsonResponse } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { logError, logEvent } from "@/lib/logger";
 import { uploadBlogAsset } from "@/lib/framer-core";
+import { runWithCurrentSiteFramerContext } from "@/lib/product-framer";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,9 @@ export async function POST(request: Request) {
       throw new AppError("Upload kind must be \"image\" or \"file\".", 400);
     }
 
-    const asset = await uploadBlogAsset(kind, file);
+    const asset = await runWithCurrentSiteFramerContext(() =>
+      uploadBlogAsset(kind, file),
+    );
 
     logEvent("info", "api.upload.succeeded", {
       kind,

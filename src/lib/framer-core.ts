@@ -24,9 +24,8 @@ import type {
   ReferenceOption,
   UpsertBlogPostInput,
 } from "./cms-types.ts";
-import { appConfig } from "./app-config.ts";
-import { getServerEnv } from "./env.ts";
 import { AppError } from "./errors.ts";
+import { getFramerRuntimeContext } from "./framer-runtime.ts";
 import { logError, logEvent } from "./logger.ts";
 
 const LAST_EDITED_AT_KEY = "lr:lastEditedAt";
@@ -153,24 +152,27 @@ function indexCollectionItems(items: CollectionItem[]) {
 }
 
 async function withFramerProject<T>(callback: (framer: Framer) => Promise<T>) {
-  const env = getServerEnv();
+  const runtimeContext = getFramerRuntimeContext();
   return withConnection(
-    appConfig.framer.projectId,
+    runtimeContext.projectId,
     async (framer) => callback(framer),
-    env.FRAMER_API_KEY,
+    runtimeContext.apiKey,
   );
 }
 
 async function getBlogCollection(framer: Framer) {
-  const collection = (await framer.getCollections()).find(
-    (entry) =>
-      normalizeLabel(entry.name) ===
-      normalizeLabel(appConfig.framer.collectionName),
-  );
+  const runtimeContext = getFramerRuntimeContext();
+  const collection = runtimeContext.collectionId
+    ? await framer.getCollection(runtimeContext.collectionId)
+    : (await framer.getCollections()).find(
+        (entry) =>
+          normalizeLabel(entry.name) ===
+          normalizeLabel(runtimeContext.collectionName),
+      );
 
   if (!collection) {
     throw new AppError(
-      `Collection "${appConfig.framer.collectionName}" was not found in the Framer project.`,
+      `Collection "${runtimeContext.collectionName}" was not found in the Framer project.`,
       404,
     );
   }
@@ -909,6 +911,35 @@ export async function updateBlogPost(
     });
     return {
       post: await serializePost(persisted, metadata),
+      publish,
+    };
+  });
+}
+
+export async function deleteBlogPost(id: string, actor: string) {
+  return withFramerProject(async (framer) => {
+    const collection = await getBlogCollection(framer);
+    const [{ metadata }, items] = await Promise.all([
+      getMetadataWithFields(framer, collection),
+      collection.getItems(),
+    ]);
+    const itemIndex = indexCollectionItems(items);
+
+    const existing = itemIndex.byId.get(id);
+    if (!existing) {
+      throw new AppError("Blog post not found.", 404);
+    }
+
+    await collection.removeItems([id]);
+
+    const publish = await maybePublishChanges(framer, true, {
+      operation: "deleteBlogPost",
+      postId: existing.id,
+      slug: existing.slug,
+    });
+
+    return {
+      postId: id,
       publish,
     };
   });
