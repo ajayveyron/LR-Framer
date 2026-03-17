@@ -13,6 +13,7 @@ import {
 import { Controller, useForm, useWatch, type Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  AsteriskSimple as AsteriskIcon,
   TextB as BoldIcon,
   TextItalic as ItalicIcon,
   Code as Code2Icon,
@@ -65,19 +66,19 @@ const helperTextClassName =
 const fieldErrorClassName =
   "text-[13px] text-[color:var(--framer-app-danger-callout-text-color)]";
 const formControlClassName =
-  "framer-form-control h-auto min-h-[52px] rounded-2xl border px-4 py-3.5 font-sans text-[15px] leading-[1.45]";
+  "framer-form-control h-10 rounded-lg border px-3 py-2.5 font-sans text-sm leading-[1.4]";
 const titleControlClassName =
-  "min-h-[60px] text-[clamp(22px,1.8vw,28px)] leading-[1.15] tracking-[-0.035em]";
+  "h-12 text-[clamp(20px,1.7vw,26px)] leading-[1.1] tracking-[-0.03em]";
 const toolbarButtonClassName =
-  "framer-form-control h-10 min-h-10 rounded-xl border px-3.5 py-0 shadow-none";
+  "framer-form-control h-9 min-h-9 rounded-lg border px-3 py-0 shadow-none";
 const toolbarActionGroupClassName =
-  "framer-toolbar-group flex flex-wrap items-center gap-1 rounded-xl";
+  "framer-toolbar-group flex flex-wrap items-center gap-1 rounded-lg";
 const toolbarActionButtonClassName =
-  "framer-toolbar-button size-9 rounded-[10px] border-transparent bg-transparent p-0";
+  "framer-toolbar-button size-8 rounded-lg border-transparent bg-transparent p-0";
 const primaryButtonClassName = "framer-primary-tint-action";
 const warningBannerClassName = "framer-callout-info";
 const editorContentClassName =
-  "framer-editor-prose min-h-[320px] overflow-x-auto px-[18px] py-[18px] outline-none";
+  "framer-editor-prose min-h-[280px] overflow-x-auto px-4 py-4 outline-none";
 
 type RichTextBlockType = "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
@@ -360,9 +361,9 @@ function FieldLabel({
         <>
           <span
             aria-hidden="true"
-            className="ml-1 text-[color:var(--framer-fresco-warningTint-color)]"
+            className="inline-flex text-[color:var(--framer-fresco-errorTint-color)]"
           >
-            *
+            <AsteriskIcon className="size-2" weight="bold" />
           </span>
           <span className="sr-only"> required</span>
         </>
@@ -411,6 +412,12 @@ function RichTextInput({
   const [activeBlockType, setActiveBlockType] =
     useState<RichTextBlockType>("p");
   const [hasTextSelection, setHasTextSelection] = useState(false);
+  const [hoveredLink, setHoveredLink] = useState<{
+    element: HTMLAnchorElement;
+    href: string;
+    left: number;
+    top: number;
+  } | null>(null);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -450,6 +457,40 @@ function RichTextInput({
     selectionRef.current = nextHasTextSelection ? range.cloneRange() : null;
     setHasTextSelection(nextHasTextSelection);
     setActiveBlockType(getActiveBlockType(anchorNode, editor));
+  }
+
+  function updateHoveredLink(eventTarget: EventTarget | null) {
+    const editor = editorRef.current;
+    if (!editor || !(eventTarget instanceof Node)) {
+      setHoveredLink(null);
+      return;
+    }
+
+    const anchor =
+      eventTarget instanceof HTMLAnchorElement
+        ? eventTarget
+        : eventTarget.parentElement?.closest("a");
+
+    if (!(anchor instanceof HTMLAnchorElement) || !editor.contains(anchor)) {
+      setHoveredLink(null);
+      return;
+    }
+
+    const href = anchor.getAttribute("href") ?? "";
+    if (!href) {
+      setHoveredLink(null);
+      return;
+    }
+
+    const editorRect = editor.getBoundingClientRect();
+    const anchorRect = anchor.getBoundingClientRect();
+
+    setHoveredLink({
+      element: anchor,
+      href,
+      left: Math.max(12, anchorRect.left - editorRect.left),
+      top: Math.max(8, anchorRect.bottom - editorRect.top + 8),
+    });
   }
 
   useEffect(() => {
@@ -582,6 +623,24 @@ function RichTextInput({
     syncValue();
   }
 
+  function selectHoveredLink() {
+    if (!hoveredLink) {
+      return;
+    }
+
+    const range = document.createRange();
+    range.selectNodeContents(hoveredLink.element);
+    const selection = document.getSelection();
+    if (!selection) {
+      return;
+    }
+
+    selection.removeAllRanges();
+    selection.addRange(range);
+    selectionRef.current = range.cloneRange();
+    hoveredLink.element.focus();
+  }
+
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === " " && applyMarkdownShortcut()) {
       event.preventDefault();
@@ -611,8 +670,8 @@ function RichTextInput({
   }
 
   return (
-    <div className="framer-elevated-panel overflow-hidden rounded-xl">
-      <div className="framer-toolbar-strip flex flex-wrap items-center gap-2 px-3 py-2.5">
+    <div className="framer-elevated-panel relative overflow-hidden rounded-lg">
+      <div className="framer-toolbar-strip flex flex-wrap items-center gap-2 px-3 py-2">
         <Select
           disabled={!hasTextSelection}
           onValueChange={(nextValue) => {
@@ -756,10 +815,47 @@ function RichTextInput({
         onInput={syncValue}
         onKeyDown={handleKeyDown}
         onKeyUp={syncSelectionState}
+        onMouseLeave={() => setHoveredLink(null)}
+        onMouseMove={(event) => updateHoveredLink(event.target)}
         onMouseUp={syncSelectionState}
         ref={editorRef}
         suppressContentEditableWarning
       />
+      {hoveredLink ? (
+        <div
+          className="absolute z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 rounded-lg border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-menuBackground-color)] px-2.5 py-2 text-xs text-[color:var(--framer-fresco-menuText-color)] shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+          style={{ left: hoveredLink.left, top: hoveredLink.top }}
+        >
+          <span className="max-w-52 truncate text-[color:var(--framer-fresco-panelSubtitle-color)]">
+            {hoveredLink.href}
+          </span>
+          <Button
+            onMouseDown={(event) => {
+              event.preventDefault();
+              selectHoveredLink();
+              handleLink();
+            }}
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
+            Edit
+          </Button>
+          <Button
+            onMouseDown={(event) => {
+              event.preventDefault();
+              selectHoveredLink();
+              applyCommand("unlink");
+              setHoveredLink(null);
+            }}
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
+            Remove
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1024,7 +1120,7 @@ export function PostEditor({
             control={form.control}
             name={path}
             render={({ field: controllerField }) => (
-              <div className="framer-subtle-panel flex min-h-[50px] items-center justify-between gap-3 px-3.5">
+              <div className="framer-subtle-panel flex min-h-[42px] items-center justify-between gap-3 px-3">
                 <div className="min-w-0">
                   <Label
                     className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]"
@@ -1141,7 +1237,7 @@ export function PostEditor({
 
                 return (
                   <div
-                    className="framer-subtle-panel flex min-h-[50px] items-center justify-between gap-3 px-3.5"
+                    className="framer-subtle-panel flex min-h-[42px] items-center justify-between gap-3 px-3"
                     key={option.slug}
                   >
                     <div className="min-w-0">
@@ -1301,18 +1397,18 @@ export function PostEditor({
           </div>
           <div className="flex flex-col gap-3">
             {assetUrl ? (
-              <div className="framer-elevated-panel flex items-center gap-3.5 rounded-xl p-3.5">
+              <div className="framer-elevated-panel flex items-center gap-3 rounded-lg p-3">
                 {field.type === "image" ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     alt={field.name}
-                    className="h-[88px] w-32 shrink-0 rounded-xl border border-[var(--framer-fresco-panelDivider-color)] object-cover"
+                    className="h-[80px] w-28 shrink-0 rounded-lg border border-[var(--framer-fresco-panelDivider-color)] object-cover"
                     src={assetUrl}
                   />
                 ) : (
                   <div
                     aria-hidden="true"
-                    className="inline-flex shrink-0 size-12 items-center justify-center rounded-xl bg-[var(--framer-app-surface-muted-color)] text-[color:var(--framer-fresco-settingsText-color)]"
+                    className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-[var(--framer-app-surface-muted-color)] text-[color:var(--framer-fresco-settingsText-color)]"
                   >
                     <svg
                       fill="none"
@@ -1394,7 +1490,7 @@ export function PostEditor({
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Button
                   asChild
-                  className="h-10 rounded-xl px-3.5"
+                  className="h-9 rounded-lg px-3"
                   size="sm"
                   variant="outline"
                 >
@@ -1435,7 +1531,7 @@ export function PostEditor({
             />
           </div>
           <Textarea
-            className={cn(formControlClassName, "min-h-[188px] resize-y")}
+            className={cn(formControlClassName, "min-h-[160px] resize-y")}
             id={inputId}
             placeholder={field.name}
             rows={field.id === bodyField?.id ? 8 : 4}
@@ -1489,13 +1585,13 @@ export function PostEditor({
   }
 
   return (
-    <section className="flex h-full flex-col bg-[radial-gradient(circle_at_top_right,var(--framer-fresco-tintGradientStart-color),transparent_28%),linear-gradient(180deg,var(--framer-app-shell-start-color),var(--framer-app-shell-end-color))]">
+    <section className="flex h-full flex-col bg-[var(--framer-fresco-panelBackground-color)]">
       <div className="sticky top-0 z-10 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-5 py-4 ">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 flex-1 items-center gap-4">
             <Button
               aria-label="Close editor"
-              className="framer-elevated-panel size-10 rounded-[13px] text-[color:var(--framer-fresco-settingsText-color)]"
+              className="framer-elevated-panel size-10 rounded-lg text-[color:var(--framer-fresco-settingsText-color)]"
               onClick={onClose}
               size="icon-sm"
               type="button"
@@ -1545,15 +1641,17 @@ export function PostEditor({
             >
               {statusLabel}
             </Badge>
-            <Button
-              disabled={pending || !form.formState.isDirty}
-              onClick={resetForm}
-              size="lg"
-              type="button"
-              variant="outline"
-            >
-              Reset
-            </Button>
+            {form.formState.isDirty ? (
+              <Button
+                disabled={pending}
+                onClick={resetForm}
+                size="lg"
+                type="button"
+                variant="outline"
+              >
+                Reset
+              </Button>
+            ) : null}
             {mode === "create" ? (
               <Button
                 className={primaryButtonClassName}
@@ -1567,7 +1665,7 @@ export function PostEditor({
             ) : (
               <Button
                 className={primaryButtonClassName}
-                disabled={pending}
+                disabled={pending || !form.formState.isDirty}
                 onClick={openPublishConfirmation}
                 size="lg"
                 type="button"
@@ -1586,12 +1684,12 @@ export function PostEditor({
       ) : null}
 
       <form
-        className="flex flex-1 flex-col gap-[18px] overflow-auto px-[18px] pt-5 pb-8 md:px-6 md:pb-10"
+        className="flex flex-1 flex-col gap-4 overflow-auto px-4 pt-5 pb-8 md:px-6 md:pb-10"
         onSubmit={
           mode === "create" ? submitDraft : (event) => event.preventDefault()
         }
       >
-        <div className="flex max-w-[840px] flex-col gap-[18px]">
+        <div className="flex max-w-[840px] flex-col gap-4">
           {titleField ? renderField(titleField) : null}
 
           <div className={fieldClassName}>
@@ -1618,7 +1716,7 @@ export function PostEditor({
           {contentFields.map((field) => renderField(field))}
 
           {readOnlyFields.length > 0 ? (
-            <section className="framer-subtle-panel mt-2 flex flex-col gap-4 p-[18px]">
+            <section className="framer-subtle-panel mt-2 flex flex-col gap-4 p-4">
               <div className="flex flex-col gap-1.5">
                 <span className="framer-kicker w-fit">
                   Read Only In Dashboard
@@ -1628,7 +1726,7 @@ export function PostEditor({
                   editable here.
                 </p>
               </div>
-              <div className="flex max-w-[840px] flex-col gap-[18px]">
+              <div className="flex max-w-[840px] flex-col gap-4">
                 {readOnlyFields.map((field) => (
                   <ReadOnlyField
                     field={field}

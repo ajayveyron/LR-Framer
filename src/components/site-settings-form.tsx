@@ -16,13 +16,37 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import Link from "next/link";
 import type { FramerCollectionOption } from "@/lib/product-types";
 
 const fieldClassName = "grid gap-2";
 const helperTextClassName =
   "text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
 const formControlClassName =
-  "h-auto min-h-[52px] rounded-2xl border px-4 py-3.5 text-[15px] leading-[1.45]";
+  "h-10 rounded-lg border px-3 text-sm leading-[1.4]";
+const labelRowClassName = "flex items-center justify-between gap-3";
+const helpTriggerClassName =
+  "shrink-0 text-[11px] font-semibold tracking-[0.08em] underline decoration-dotted text-[color:var(--framer-fresco-panelSubtitle-color)] hover:text-[color:var(--framer-fresco-panelTitle-color)] transition-colors cursor-pointer";
+const helpDialogContentClassName =
+  "max-w-lg gap-5 rounded-[28px] border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-background-color)] p-6 shadow-2xl";
+const helpDialogTextClassName =
+  "text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
+const helpDialogListClassName =
+  "grid gap-3 pl-5 text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
+const helpCodeClassName =
+  "rounded-md bg-[var(--framer-app-surface-muted-color)] px-1.5 py-0.5 text-[13px] text-[color:var(--framer-fresco-panelTitle-color)]";
+
+const FRAMER_DOCS_URL =
+  "https://www.framer.com/developers/server-api-quick-start";
 
 function getCollectionLabel(
   collections: FramerCollectionOption[],
@@ -63,11 +87,10 @@ export function SiteSettingsForm({
 
   if (!canManage) {
     return (
-      <section className="framer-subtle-panel grid gap-4 p-5">
+      <section className="grid gap-4 border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <span className="framer-kicker">Workspace</span>
-            <h2 className="mt-3 font-heading text-3xl leading-tight text-[color:var(--framer-fresco-panelTitle-color)]">
+            <h2 className="text-xl font-semibold text-[color:var(--framer-fresco-panelTitle-color)]">
               Framer connection
             </h2>
           </div>
@@ -76,11 +99,7 @@ export function SiteSettingsForm({
             Read only
           </span>
         </div>
-        <p className={helperTextClassName}>
-          Contributors can see the active project and collection here, but only
-          admins can rotate the API key or change the CMS collection.
-        </p>
-        <dl className="grid gap-3 text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
+        <dl className="grid gap-3 mt-2 text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
           <div className="grid gap-1">
             <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
               Project
@@ -222,17 +241,11 @@ export function SiteSettingsForm({
   }
 
   return (
-    <section className="framer-subtle-panel grid gap-5 p-5">
+    <section className="grid gap-5 border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] p-5">
       <div>
-        <span className="framer-kicker">Workspace</span>
-        <h2 className="mt-3 font-heading text-3xl leading-tight text-[color:var(--framer-fresco-panelTitle-color)]">
+        <h2 className="text-xl font-semibold text-[color:var(--framer-fresco-panelTitle-color)]">
           Framer connection
         </h2>
-        <p className="mt-3 max-w-2xl text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]">
-          Rotate the server API key, repoint the project, or move this team to a
-          different user-managed CMS collection without going through onboarding
-          again.
-        </p>
       </div>
 
       <form
@@ -254,7 +267,60 @@ export function SiteSettingsForm({
         </div>
 
         <div className={fieldClassName}>
-          <Label htmlFor="settings-project-input">Framer project URL or ID</Label>
+          <div className={labelRowClassName}>
+            <Label htmlFor="settings-project-input">Framer project URL or ID</Label>
+            <Dialog>
+              <DialogTrigger asChild>
+                <div className={helpTriggerClassName}>How to find it</div>
+              </DialogTrigger>
+              <DialogContent className={helpDialogContentClassName}>
+                <DialogHeader className="pr-8">
+                  <DialogTitle className="font-heading text-2xl leading-tight text-[color:var(--framer-fresco-panelTitle-color)]">
+                    Find your Framer project URL or ID
+                  </DialogTitle>
+                  <DialogDescription className={helpDialogTextClassName}>
+                    FramerLink accepts either the full project URL or the raw
+                    project ID from the same Framer project.
+                  </DialogDescription>
+                </DialogHeader>
+                <ol className={helpDialogListClassName}>
+                  <li>
+                    Open the Framer project you want this team to manage.
+                  </li>
+                  <li>
+                    Copy the project link from the browser address bar or use
+                    Framer&apos;s Copy Project Link action.
+                  </li>
+                  <li>
+                    Paste the full URL here. If you prefer the raw ID, use the
+                    final segment from that project URL.
+                  </li>
+                </ol>
+                <p className={helpDialogTextClassName}>
+                  Example:{" "}
+                  <code className={helpCodeClassName}>
+                    https://framer.com/projects/My-Site--abc123
+                  </code>{" "}
+                  becomes{" "}
+                  <code className={helpCodeClassName}>abc123</code>.
+                </p>
+                <div className="flex items-center justify-between gap-3 border-t border-[var(--framer-fresco-panelDivider-color)] pt-4">
+                  <Link
+                    className="text-sm font-medium text-[color:var(--framer-fresco-tint-color)] underline underline-offset-3"
+                    href={FRAMER_DOCS_URL}
+                    target="_blank"
+                  >
+                    Open Framer docs
+                  </Link>
+                  <DialogClose asChild>
+                    <Button type="button" variant="outline">
+                      Close
+                    </Button>
+                  </DialogClose>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
           <Input
             autoCapitalize="none"
             autoComplete="off"
@@ -274,7 +340,52 @@ export function SiteSettingsForm({
         </div>
 
         <div className={fieldClassName}>
-          <Label htmlFor="settings-api-key">Framer Server API key</Label>
+          <div className={labelRowClassName}>
+            <Label htmlFor="settings-api-key">Framer Server API key</Label>
+            <Dialog>
+              <DialogTrigger asChild>
+                <div className={helpTriggerClassName}>How to get it</div>
+              </DialogTrigger>
+              <DialogContent className={helpDialogContentClassName}>
+                <DialogHeader className="pr-8">
+                  <DialogTitle className="font-heading text-2xl leading-tight text-[color:var(--framer-fresco-panelTitle-color)]">
+                    Get your Framer Server API key
+                  </DialogTitle>
+                  <DialogDescription className={helpDialogTextClassName}>
+                    Server API keys are created per project, so use the same
+                    Framer project you entered above.
+                  </DialogDescription>
+                </DialogHeader>
+                <ol className={helpDialogListClassName}>
+                  <li>Open that Framer project.</li>
+                  <li>Go to Site Settings, then open the General section.</li>
+                  <li>
+                    Create a Server API key for the project and copy it to a
+                    safe place.
+                  </li>
+                  <li>Paste the key here to validate the connection.</li>
+                </ol>
+                <p className={helpDialogTextClassName}>
+                  Treat this key like a password. Anyone with it can access the
+                  project through Framer&apos;s Server API.
+                </p>
+                <div className="flex items-center justify-between gap-3 border-t border-[var(--framer-fresco-panelDivider-color)] pt-4">
+                  <Link
+                    className="text-sm font-medium text-[color:var(--framer-fresco-tint-color)] underline underline-offset-3"
+                    href={FRAMER_DOCS_URL}
+                    target="_blank"
+                  >
+                    Open Framer docs
+                  </Link>
+                  <DialogClose asChild>
+                    <Button type="button" variant="outline">
+                      Close
+                    </Button>
+                  </DialogClose>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
           <Input
             autoCapitalize="none"
             autoComplete="new-password"
@@ -291,10 +402,6 @@ export function SiteSettingsForm({
             type="password"
             value={apiKey}
           />
-          <p className={helperTextClassName}>
-            Enter a new API key only when you want to rotate credentials. Leave
-            it empty to keep the existing key on the server.
-          </p>
         </div>
 
         <div className={fieldClassName}>
@@ -320,17 +427,13 @@ export function SiteSettingsForm({
               ))}
             </SelectContent>
           </Select>
-          <p className={helperTextClassName}>
-            Validate the connection after changing the project or key to refresh
-            the available user-managed collections from Framer.
-          </p>
         </div>
 
         {error ? <div className="framer-callout-danger">{error}</div> : null}
 
         <div className="flex flex-wrap gap-3">
           <Button
-            className="framer-primary-action h-11 px-4 text-sm font-semibold"
+            className="framer-primary-action h-10 px-4 text-sm font-semibold"
             disabled={isValidating}
             onClick={handleValidateConnection}
             type="button"
@@ -339,7 +442,7 @@ export function SiteSettingsForm({
             {isValidating ? "Validating..." : "Validate connection"}
           </Button>
           <Button
-            className="h-11 gap-2.5 px-4 text-sm font-semibold"
+            className="h-10 gap-2 px-4 text-sm font-semibold"
             disabled={isSaving}
             onClick={handleSaveChanges}
             type="button"

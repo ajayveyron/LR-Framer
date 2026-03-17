@@ -2,6 +2,7 @@
 import {
   useDeferredValue,
   useEffect,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -297,6 +298,7 @@ export function DashboardTableView({
   const [editorRevision, setEditorRevision] = useState(0);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [searchIndex, setSearchIndex] = useState(() =>
     buildSearchIndex(posts, metadata),
   );
@@ -342,6 +344,32 @@ export function DashboardTableView({
     window.addEventListener("popstate", handlePopState);
     return () => {
       window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleSearchShortcut(event: KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    }
+
+    window.addEventListener("keydown", handleSearchShortcut);
+    return () => {
+      window.removeEventListener("keydown", handleSearchShortcut);
     };
   }, []);
 
@@ -432,14 +460,6 @@ export function DashboardTableView({
               </span>
               <span>New Item</span>
             </Button>
-            <ColumnControls
-              onColumnsChange={(nextColumns) => {
-                writeStoredColumns(nextColumns);
-                setPage(1);
-              }}
-              options={columnOptions}
-              selectedColumns={selectedColumns}
-            />
             <div className="ml-auto flex w-full flex-wrap items-center justify-between gap-2.5 md:w-auto md:justify-end">
               {bridgeStatus ? (
                 <Badge
@@ -481,8 +501,12 @@ export function DashboardTableView({
                 setPage(1);
               }}
               placeholder="Search posts"
+              ref={searchInputRef}
               value={query}
             />
+            <span className="ml-auto hidden rounded-md border border-[var(--framer-fresco-panelDivider-color)] px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)] sm:inline-flex">
+              Cmd/Ctrl K
+            </span>
           </label>
 
           <div className="flex flex-col gap-4 border-b border-[var(--framer-fresco-panelDivider-color)] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
@@ -495,9 +519,19 @@ export function DashboardTableView({
                 {filteredPosts.length === 1 ? "" : "s"}
               </span>
             </div>
-            <div className="inline-flex flex-wrap items-center gap-4 text-[13px] text-[color:var(--framer-fresco-panelDescription-color)]">
-              <span>{draftCount} drafts</span>
-              <span>{filteredPosts.length - draftCount} published</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex flex-wrap items-center gap-4 text-[13px] text-[color:var(--framer-fresco-panelDescription-color)]">
+                <span>{draftCount} drafts</span>
+                <span>{filteredPosts.length - draftCount} published</span>
+              </div>
+              <ColumnControls
+                onColumnsChange={(nextColumns) => {
+                  writeStoredColumns(nextColumns);
+                  setPage(1);
+                }}
+                options={columnOptions}
+                selectedColumns={selectedColumns}
+              />
             </div>
           </div>
         </div>

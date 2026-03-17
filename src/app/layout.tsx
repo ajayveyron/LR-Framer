@@ -30,6 +30,9 @@ export const metadata: Metadata = {
     title: "FramerLink | Framer CMS Operations",
     description: "Hosted Framer CMS operations for one user-managed collection, with contributor access and preserved backend sync flows.",
   },
+  icons: {
+    icon: process.env.NODE_ENV === "development" ? "/favicon-dev.png" : "/icon.png",
+  },
 };
 
 function isClerkConfigured() {

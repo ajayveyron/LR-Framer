@@ -1,11 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
-import { SignOutButton, useUser } from "@clerk/nextjs";
-import { Sliders as Settings2Icon } from "@phosphor-icons/react";
+import { useClerk, useUser } from "@clerk/nextjs";
+import {
+  SignOut as SignOutIcon,
+  Sliders as Settings2Icon,
+} from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 function getInitials(name: string) {
   const parts = name
@@ -24,23 +36,25 @@ function getInitials(name: string) {
 }
 
 export function DashboardAccountLink() {
+  const clerk = useClerk();
   const { isLoaded, user } = useUser();
+  const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
   const fullName =
     user?.fullName?.trim() ||
     [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
     "Account";
-  const email = user?.primaryEmailAddress?.emailAddress ?? "Open settings";
 
   return (
-    <div className="flex w-full flex-wrap items-center justify-end gap-2.5 md:w-auto">
-      <Button
-        asChild
-        className="h-11 min-w-0 max-w-full gap-3 px-3.5 md:max-w-[320px]"
-        size="sm"
-        variant="outline"
-      >
-        <Link href="/dashboard/settings">
-          <span className="inline-flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelTitle-color)]">
+    <>
+      <div className="group relative">
+        <Button
+          aria-label="Open account menu"
+          className="size-11 rounded-full p-0"
+          size="icon-lg"
+          type="button"
+          variant="outline"
+        >
+          <span className="inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelTitle-color)]">
             {user?.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -53,25 +67,58 @@ export function DashboardAccountLink() {
               <span>{getInitials(fullName)}</span>
             )}
           </span>
-          <span className="hidden min-w-0 flex-1 text-left sm:flex sm:flex-col">
-            <span className="truncate text-sm font-semibold text-[color:var(--framer-fresco-panelTitle-color)]">
-              {isLoaded ? fullName : "Account"}
-            </span>
-            <span className="truncate text-[11px] text-[color:var(--framer-fresco-panelSubtitle-color)]">
-              {email}
-            </span>
-          </span>
-          <span className="hidden text-xs font-semibold text-[color:var(--framer-fresco-panelSubtitle-color)] lg:inline-flex">
-            Settings
-          </span>
-          <Settings2Icon className="size-4 shrink-0 text-[color:var(--framer-fresco-panelSubtitle-color)]" />
-        </Link>
-      </Button>
-      <SignOutButton redirectUrl="/">
-        <Button className="h-11 px-4" size="sm" type="button" variant="destructive">
-          Log out
         </Button>
-      </SignOutButton>
-    </div>
+        <div className="pointer-events-none absolute right-0 top-full z-30 pt-2 opacity-0 transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+          <div className="w-44 border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-menuBackground-color)] p-1.5 shadow-[0_20px_48px_rgba(0,0,0,0.42)]">
+            <Link
+              className="flex min-h-9 items-center gap-2 rounded-md px-2.5 text-sm text-[color:var(--framer-fresco-menuText-color)] transition-colors hover:bg-[var(--framer-fresco-menuBackgroundActive-color)] hover:text-[color:var(--framer-fresco-menuTextActive-color)]"
+              href="/dashboard/settings"
+            >
+              <Settings2Icon className="size-4" />
+              <span>{isLoaded ? "Settings" : "Account"}</span>
+            </Link>
+            <div className="my-1 h-px bg-[var(--framer-fresco-panelDivider-color)]" />
+            <button
+              className="flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm text-[color:var(--framer-fresco-errorTint-color)] transition-colors hover:bg-[var(--framer-app-danger-callout-background-color)] hover:text-[color:var(--framer-app-danger-callout-text-color)]"
+              onClick={() => setConfirmLogoutOpen(true)}
+              type="button"
+            >
+              <SignOutIcon className="size-4" />
+              <span>Log out</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <Dialog onOpenChange={setConfirmLogoutOpen} open={confirmLogoutOpen}>
+        <DialogContent className="framer-dialog-panel border" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Log out?</DialogTitle>
+            <DialogDescription>
+              You&apos;ll be signed out of this workspace and returned to the home
+              screen.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="-mx-0 -mb-0 flex justify-end gap-2.5 border-0 bg-transparent p-0">
+            <Button
+              onClick={() => setConfirmLogoutOpen(false)}
+              type="button"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                void clerk.signOut({ redirectUrl: "/" });
+              }}
+              type="button"
+              variant="destructive"
+            >
+              Log out
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

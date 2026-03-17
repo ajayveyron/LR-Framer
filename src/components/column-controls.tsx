@@ -26,7 +26,7 @@ export function ColumnControls({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className="h-11 min-w-28 gap-2.5 px-4 text-sm font-semibold text-[color:var(--framer-fresco-settingsText-color)]"
+          className="h-9 min-w-24 gap-2 px-3 text-sm font-semibold text-[color:var(--framer-fresco-settingsText-color)]"
           size="sm"
           type="button"
           variant="outline"

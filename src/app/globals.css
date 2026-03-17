@@ -273,17 +273,11 @@
     margin: 0;
     color: var(--foreground);
     background-color: var(--background);
-    background-image:
-      radial-gradient(
-        circle at top left,
-        var(--framer-fresco-tintGradientStart-color),
-        transparent 30%
-      ),
-      linear-gradient(
-        180deg,
-        var(--framer-app-shell-start-color) 0%,
-        var(--framer-app-shell-end-color) 100%
-      );
+    background-image: linear-gradient(
+      180deg,
+      var(--framer-app-shell-start-color) 0%,
+      var(--framer-app-shell-end-color) 100%
+    );
   }
 
   a {
@@ -307,22 +301,7 @@
   .framer-shell {
     @apply min-h-screen p-4 sm:p-7;
     background-color: var(--background);
-    background-image:
-      radial-gradient(
-        circle at top left,
-        var(--framer-fresco-tintGradientStart-color),
-        transparent 28%
-      ),
-      radial-gradient(
-        circle at top right,
-        var(--framer-app-shell-glow-secondary-color),
-        transparent 24%
-      ),
-      linear-gradient(
-        180deg,
-        var(--framer-app-shell-start-color) 0%,
-        var(--framer-app-shell-end-color) 100%
-      );
+    background-image: none;
   }
 
   .framer-frame {

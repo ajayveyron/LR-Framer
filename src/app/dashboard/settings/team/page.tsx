@@ -1,8 +1,10 @@
 import Link from "next/link";
 
-import { OrganizationProfile } from "@clerk/nextjs";
+import { TeamManager } from "@/components/team-manager";
+import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 
 import { ProductConfigRequiredState } from "@/components/product-config-required-state";
+import { SettingsNav } from "@/components/settings-nav";
 import { Button } from "@/components/ui/button";
 import { requireAdminAccess } from "@/lib/product-access";
 
@@ -15,26 +17,29 @@ export default async function TeamSettingsPage() {
   }
 
   return (
-    <main className="framer-shell grid place-items-center">
-      <section className="framer-frame grid w-full max-w-7xl gap-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-3xl">
-            <span className="framer-kicker">Team</span>
-            <h1 className="mt-3 font-heading text-[clamp(32px,5vw,54px)] leading-[1.02] tracking-[-0.04em] text-[color:var(--framer-fresco-panelTitle-color)]">
-              Invite contributors to {access.site.name}
-            </h1>
-            <p className="mt-4 text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]">
-              Admins can invite contributors and manage membership here.
-              FramerLink keeps the role model intentionally small in this phase.
-            </p>
-          </div>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/dashboard/settings">Back to settings</Link>
+    <main className="framer-shell">
+      <section className="mx-auto grid w-full max-w-6xl gap-6">
+        <div className="flex items-center justify-between gap-4">
+          <Button asChild className="size-10 rounded-full p-0" size="icon-lg" variant="outline">
+            <Link aria-label="Back to dashboard" href="/dashboard">
+              <ArrowLeft className="size-4" />
+            </Link>
           </Button>
         </div>
-        <div className="framer-subtle-panel overflow-hidden p-3">
-          <OrganizationProfile routing="hash" />
+
+        <div className="grid gap-3">
+          <span className="framer-kicker w-fit">Settings</span>
+          <h1 className="font-heading text-[clamp(28px,4vw,42px)] leading-[1.04] tracking-[-0.04em] text-[color:var(--framer-fresco-panelTitle-color)]">
+            Team
+          </h1>
+          <p className="max-w-3xl text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]">
+            Invite contributors and manage membership for {access.site.name}.
+          </p>
         </div>
+
+        <SettingsNav currentPath="/dashboard/settings/team" />
+
+        <TeamManager />
       </section>
     </main>
   );
