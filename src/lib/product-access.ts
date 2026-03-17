@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { decryptSecret } from "@/lib/crypto";
 import { fetchProductMutation, fetchProductQuery } from "@/lib/convex";
 import type { FramerRuntimeContext } from "@/lib/framer-runtime";
+import { logError } from "@/lib/logger";
 import { getProductEnvIssues } from "@/lib/product-env";
 import type {
   ProductOnboardingState,
@@ -58,11 +59,19 @@ async function syncMembership(
     return;
   }
 
-  await fetchProductMutation(anyApi.product.upsertMembership, {
-    clerkOrganizationId: organizationId,
-    clerkUserId: userId,
-    role,
-  });
+  try {
+    await fetchProductMutation(anyApi.product.upsertMembership, {
+      clerkOrganizationId: organizationId,
+      clerkUserId: userId,
+      role,
+    });
+  } catch (error) {
+    logError("product.access.syncMembership.failed", error, {
+      clerkOrganizationId: organizationId,
+      clerkUserId: userId,
+      role,
+    });
+  }
 }
 
 async function getSiteForOrganization(organizationId: string) {
@@ -93,6 +102,15 @@ function getSuggestedSiteName(
   return "My FramerLink Team";
 }
 
+async function getSafeCurrentUser() {
+  try {
+    return await currentUser();
+  } catch (error) {
+    logError("product.access.currentUser.failed", error);
+    return null;
+  }
+}
+
 export const getOnboardingAccess = cache(
   async (): Promise<ConfigErrorState | OnboardingAccessState> => {
     const issues = getProductEnvIssues();
@@ -108,7 +126,7 @@ export const getOnboardingAccess = cache(
       redirect("/sign-in");
     }
 
-    const user = await currentUser();
+    const user = await getSafeCurrentUser();
     const role = mapOrganizationRole(orgRole);
     const site = orgId ? await getSiteForOrganization(orgId) : null;
     const onboardingState = orgId

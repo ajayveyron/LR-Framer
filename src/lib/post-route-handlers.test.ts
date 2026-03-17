@@ -55,6 +55,9 @@ test("handleCreatePost returns created response with injected dependencies", asy
         throw new Error("not used");
       },
       listBlogPosts: async () => [],
+      deleteBlogPost: async () => {
+        throw new Error("not used");
+      },
       updateBlogPost: async () => {
         throw new Error("not used");
       },
@@ -90,6 +93,9 @@ test("handleUpdatePost returns field errors for invalid payloads", async () => {
         throw new Error("not used");
       },
       listBlogPosts: async () => [],
+      deleteBlogPost: async () => {
+        throw new Error("not used");
+      },
       updateBlogPost: async () => {
         throw new Error("should not run");
       },

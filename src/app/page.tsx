@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SignOutButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 
 import { Button } from "@/components/ui/button";
@@ -36,20 +37,29 @@ export default async function MarketingHomePage() {
             FramerLink
           </Link>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button asChild size="sm" variant="ghost">
-              <Link href={isSignedIn ? "/dashboard" : "/sign-in"}>
-                {isSignedIn ? "Dashboard" : "Sign in"}
-              </Link>
-            </Button>
-            <Button
-              asChild
-              className="framer-primary-action"
-              size="sm"
-            >
-              <Link href={isSignedIn ? "/dashboard" : "/sign-up"}>
-                {isSignedIn ? "Open app" : "Start free"}
-              </Link>
-            </Button>
+            {isSignedIn ? (
+              <>
+                <Button asChild size="sm" variant="ghost">
+                  <Link href="/dashboard">Dashboard</Link>
+                </Button>
+                <SignOutButton redirectUrl="/">
+                  <Button size="sm" variant="outline">Log out</Button>
+                </SignOutButton>
+              </>
+            ) : (
+              <>
+                <Button asChild size="sm" variant="ghost">
+                  <Link href="/sign-in">Sign in</Link>
+                </Button>
+                <Button
+                  asChild
+                  className="framer-primary-action"
+                  size="sm"
+                >
+                  <Link href="/sign-up">Start free</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
 

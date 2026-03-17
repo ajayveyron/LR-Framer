@@ -14,9 +14,22 @@ const heading = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "FramerLink",
+  title: "FramerLink | Framer CMS Operations",
   description:
     "Hosted Framer CMS operations for one user-managed collection, with contributor access and preserved backend sync flows.",
+  keywords: ["Framer", "CMS", "Dashboard", "FramerLink"],
+  authors: [{ name: "FramerLink Team" }],
+  openGraph: {
+    title: "FramerLink | Framer CMS Operations",
+    description: "Hosted Framer CMS operations for one user-managed collection, with contributor access and preserved backend sync flows.",
+    type: "website",
+    siteName: "FramerLink",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FramerLink | Framer CMS Operations",
+    description: "Hosted Framer CMS operations for one user-managed collection, with contributor access and preserved backend sync flows.",
+  },
 };
 
 function isClerkConfigured() {
