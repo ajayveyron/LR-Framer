@@ -5,7 +5,6 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type {
   BlogCollectionMetadata,
   BlogPostRecord,
-  BridgeSyncResult,
   DashboardFieldDefinition,
   DashboardFieldValue,
 } from "@/lib/cms-types";
@@ -16,7 +15,7 @@ import {
   isNotionBridgeConfigured,
 } from "@/lib/env";
 import { AppError } from "@/lib/errors";
-import { logError, logEvent } from "@/lib/logger";
+import { logEvent } from "@/lib/logger";
 import {
   getBlogMetadata,
   getDashboardOverview,
@@ -171,7 +170,6 @@ export function getNotionBridgeStatus() {
     approvedStatusValue: env.NOTION_APPROVED_STATUS_VALUE,
     slugPropertyName: env.NOTION_SLUG_PROPERTY_NAME,
     framerItemIdPropertyName: env.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME,
-    responsePropertyName: env.NOTION_RESPONSE_PROPERTY_NAME,
     fieldMap: getNotionFieldMap(),
   };
 }
@@ -183,7 +181,6 @@ function getNotionBridgeConfig() {
     approvedStatusValue: env.NOTION_APPROVED_STATUS_VALUE,
     fieldMap: getNotionFieldMap(),
     framerItemIdPropertyName: env.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME,
-    responsePropertyName: env.NOTION_RESPONSE_PROPERTY_NAME,
     slugPropertyName: env.NOTION_SLUG_PROPERTY_NAME,
     statusPropertyName: env.NOTION_STATUS_PROPERTY_NAME,
   };
@@ -585,162 +582,6 @@ async function getPageMarkdown(pageId: string) {
   }
 
   return (await response.text()).trim();
-}
-
-function getErrorMessage(error: unknown) {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return typeof error === "string" ? error : "Unexpected bridge error.";
-}
-
-function buildFailedResponseMessage(error: unknown) {
-  return `Failed at ${new Date().toISOString()}: ${getErrorMessage(error)}`;
-}
-
-function buildRemovedResponseMessage(result: BridgeSyncResult) {
-  return `Success at ${new Date().toISOString()}: removed linked Framer post "${result.post.slug}" (${result.framerItemId}).`;
-}
-
-function buildSkippedResponseMessage(reason: string) {
-  return `Skipped at ${new Date().toISOString()}: ${reason}`;
-}
-
-function buildSyncedResponseMessage(
-  result: BridgeSyncResult,
-  options?: { draftedBecauseUnapproved?: boolean },
-) {
-  const timestamp = new Date().toISOString();
-
-  if (options?.draftedBecauseUnapproved) {
-    return `Success at ${timestamp}: synced "${result.post.slug}" to Framer as a draft because the page is not approved (${result.framerItemId}, action ${result.action}).`;
-  }
-
-  switch (result.action) {
-    case "created":
-      return `Success at ${timestamp}: created ${result.post.draft ? "draft" : "published"} Framer post "${result.post.slug}" (${result.framerItemId}).`;
-    case "updated":
-      return `Success at ${timestamp}: updated ${result.post.draft ? "draft" : "published"} Framer post "${result.post.slug}" (${result.framerItemId}).`;
-    case "unchanged":
-      return `Success at ${timestamp}: no content changes for "${result.post.slug}"; linked Framer post is ${result.framerItemId}.`;
-    case "deleted":
-      return buildRemovedResponseMessage(result);
-    default:
-      return `Success at ${timestamp}: synced "${result.post.slug}" (${result.framerItemId}).`;
-  }
-}
-
-async function resolveResponseProperty(
-  page: NotionPage,
-): Promise<{
-  currentValue: DashboardFieldValue;
-  propertyName: string;
-  propertyType: string;
-} | null> {
-  const configuredName = getServerEnv().NOTION_RESPONSE_PROPERTY_NAME;
-  const pageEntry = getPropertyByName(page.properties, configuredName);
-
-  if (pageEntry) {
-    return {
-      currentValue: extractPropertyValue(pageEntry[1]),
-      propertyName: pageEntry[0],
-      propertyType: pageEntry[1].type,
-    };
-  }
-
-  const dataSource = await getDataSource().catch(() => null);
-  const dataSourceEntry = dataSource
-    ? getPropertyByName(dataSource.properties, configuredName)
-    : null;
-
-  if (!dataSourceEntry) {
-    return null;
-  }
-
-  return {
-    currentValue: null,
-    propertyName: dataSourceEntry[0],
-    propertyType: dataSourceEntry[1].type,
-  };
-}
-
-async function updateResponseOnPage(page: NotionPage, message: string) {
-  const resolvedProperty = await resolveResponseProperty(page);
-  if (!resolvedProperty) {
-    logEvent("warn", "notion.sync.response.missingProperty", {
-      configuredPropertyName: getServerEnv().NOTION_RESPONSE_PROPERTY_NAME,
-      pageId: page.id,
-      propertyNames: Object.keys(page.properties),
-    });
-    return false;
-  }
-
-  const { currentValue, propertyName, propertyType } = resolvedProperty;
-
-  if (currentValue === message) {
-    logEvent("info", "notion.sync.response.unchanged", {
-      pageId: page.id,
-      propertyName,
-    });
-    return false;
-  }
-
-  if (propertyType === "rich_text") {
-    await notionRequest(`/pages/${page.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        properties: {
-          [propertyName]: {
-            rich_text: toNotionRichText(message),
-          },
-        },
-      }),
-    });
-    logEvent("info", "notion.sync.response.updated", {
-      pageId: page.id,
-      propertyName,
-      propertyType,
-    });
-    return true;
-  }
-
-  if (propertyType === "title") {
-    await notionRequest(`/pages/${page.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        properties: {
-          [propertyName]: {
-            title: toNotionRichText(message),
-          },
-        },
-      }),
-    });
-    logEvent("info", "notion.sync.response.updated", {
-      pageId: page.id,
-      propertyName,
-      propertyType,
-    });
-    return true;
-  }
-
-  logEvent("warn", "notion.sync.response.unsupportedPropertyType", {
-    pageId: page.id,
-    propertyName,
-    propertyType,
-  });
-  return false;
-}
-
-async function recordResponseOnPage(page: NotionPage, message: string) {
-  try {
-    await updateResponseOnPage(page, message);
-  } catch (error) {
-    logError("notion.sync.response.failed", error, {
-      pageId: page.id,
-      propertyName: getServerEnv().NOTION_RESPONSE_PROPERTY_NAME,
-    });
-  }
 }
 
 async function updateFramerItemIdOnPage(
@@ -1305,14 +1146,6 @@ function buildNotionPropertiesForPost(
   }
   usedPropertyNames.add(framerItemIdPropertyName);
 
-  const responseProperty = getPropertyByName(
-    dataSource.properties,
-    env.NOTION_RESPONSE_PROPERTY_NAME,
-  );
-  if (responseProperty) {
-    usedPropertyNames.add(responseProperty[0]);
-  }
-
   const statusProperty = getPropertyByName(
     dataSource.properties,
     env.NOTION_STATUS_PROPERTY_NAME,
@@ -1658,41 +1491,17 @@ export async function syncApprovedNotionPages(options?: { pageId?: string }) {
       });
     }
 
-    try {
-      const result = await syncNotionPageToFramer(
-        await getBlogMetadata(),
-        page,
-        active ? await getPageMarkdown(page.id) : "",
-        bridgeConfig,
-        {
-          backfillFramerItemId: updateFramerItemIdOnPage,
-          removeBridgePosts,
-          syncBridgePosts,
-        },
-      );
-      const pageResult = result.results[0];
-
-      if (pageResult) {
-        await recordResponseOnPage(
-          page,
-          pageResult.action === "deleted"
-            ? buildRemovedResponseMessage(pageResult)
-            : buildSyncedResponseMessage(pageResult, {
-                draftedBecauseUnapproved: active && !approved,
-              }),
-        );
-      } else if (!active) {
-        await recordResponseOnPage(
-          page,
-          buildSkippedResponseMessage("The page is archived or trashed."),
-        );
-      }
-
-      return result;
-    } catch (error) {
-      await recordResponseOnPage(page, buildFailedResponseMessage(error));
-      throw error;
-    }
+    return syncNotionPageToFramer(
+      await getBlogMetadata(),
+      page,
+      active ? await getPageMarkdown(page.id) : "",
+      bridgeConfig,
+      {
+        backfillFramerItemId: updateFramerItemIdOnPage,
+        removeBridgePosts,
+        syncBridgePosts,
+      },
+    );
   }
 
   const approvedPages = await queryApprovedPages();
@@ -1720,7 +1529,6 @@ export async function syncApprovedNotionPages(options?: { pageId?: string }) {
       }
 
       const backfilled = await updateFramerItemIdOnPage(page, result.framerItemId);
-      await recordResponseOnPage(page, buildSyncedResponseMessage(result));
       return backfilled ? 1 : 0;
     },
   );

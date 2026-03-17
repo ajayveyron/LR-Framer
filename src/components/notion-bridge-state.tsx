@@ -12,7 +12,6 @@ type NotionBridgeStateProps = {
     approvedStatusValue: string;
     slugPropertyName: string;
     framerItemIdPropertyName: string;
-    responsePropertyName: string;
     fieldMap: Record<string, string>;
   };
 };
@@ -32,7 +31,6 @@ const fallbackStatus = {
   approvedStatusValue: "Approved",
   slugPropertyName: "Slug",
   framerItemIdPropertyName: "Framer Item ID",
-  responsePropertyName: "Response",
   fieldMap: {},
 };
 
@@ -97,10 +95,6 @@ export function NotionBridgeState({ status }: NotionBridgeStateProps) {
           <strong>Framer item ID property</strong>
           <span className="mono">{resolvedStatus.framerItemIdPropertyName}</span>
         </div>
-        <div className="field-row">
-          <strong>Response property</strong>
-          <span className="mono">{resolvedStatus.responsePropertyName}</span>
-        </div>
       </div>
 
       {Object.keys(resolvedStatus.fieldMap).length > 0 ? (
@@ -125,7 +119,6 @@ NOTION_STATUS_PROPERTY_NAME=Status
 NOTION_APPROVED_STATUS_VALUE=Approved
 NOTION_SLUG_PROPERTY_NAME=Slug
 NOTION_FRAMER_ITEM_ID_PROPERTY_NAME=Framer Item ID
-NOTION_RESPONSE_PROPERTY_NAME=Response
 NOTION_FIELD_MAP={"author":"Writer","date":"Publish Date","createdAt":"CMS Created At","lastUpdated":"CMS Updated At"}`}
           </pre>
         </div>
