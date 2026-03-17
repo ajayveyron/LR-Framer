@@ -7,6 +7,15 @@ import { useState, useTransition } from "react";
 import { useOrganizationList } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -22,7 +31,8 @@ import type {
   ProductSite,
 } from "@/lib/product-types";
 
-const FRAMER_DOCS_URL = "https://www.framer.com/developers/server-api-quick-start";
+const FRAMER_DOCS_URL =
+  "https://www.framer.com/developers/server-api-quick-start";
 const shellClassName = "framer-shell";
 const cardClassName = "framer-frame mx-auto w-full max-w-7xl";
 const sectionClassName =
@@ -36,8 +46,19 @@ const helperTextClassName =
   "text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
 const errorBannerClassName = "framer-callout-danger";
 const fieldClassName = "grid gap-2";
+const labelRowClassName = "flex items-center justify-between gap-3";
 const formControlClassName =
   "framer-form-control h-auto min-h-[52px] rounded-2xl border px-4 py-3.5 text-[15px] leading-[1.45]";
+const helpTriggerClassName =
+  "shrink-0 text-[11px] font-semibold  tracking-[0.08em] underline decoration-dotted";
+const helpDialogContentClassName =
+  "max-w-lg gap-5 rounded-[28px] border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-background-color)] p-6 shadow-2xl";
+const helpDialogTextClassName =
+  "text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
+const helpDialogListClassName =
+  "grid gap-3 pl-5 text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
+const helpCodeClassName =
+  "rounded-md bg-[var(--framer-app-surface-muted-color)] px-1.5 py-0.5 text-[13px] text-[color:var(--framer-fresco-panelTitle-color)]";
 
 export function OnboardingFlow({
   initialOnboardingState,
@@ -56,9 +77,7 @@ export function OnboardingFlow({
     initialSite?.name ?? suggestedSiteName,
   );
   const [projectInput, setProjectInput] = useState(
-    initialOnboardingState?.projectUrl ??
-      initialSite?.framerProjectUrl ??
-      "",
+    initialOnboardingState?.projectUrl ?? initialSite?.framerProjectUrl ?? "",
   );
   const [apiKey, setApiKey] = useState("");
   const [collections, setCollections] = useState<FramerCollectionOption[]>([]);
@@ -68,13 +87,16 @@ export function OnboardingFlow({
       "",
   );
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [organizationError, setOrganizationError] = useState<string | null>(null);
+  const [organizationError, setOrganizationError] = useState<string | null>(
+    null,
+  );
   const [isValidating, startValidation] = useTransition();
   const [isSaving, startSaving] = useTransition();
   const [isCreatingOrganization, startOrganizationCreation] = useTransition();
 
   const organizationId = initialOrganizationId;
-  const canValidate = projectInput.trim().length > 0 && apiKey.trim().length > 0;
+  const canValidate =
+    projectInput.trim().length > 0 && apiKey.trim().length > 0;
   const canComplete =
     organizationId &&
     apiKey.trim().length > 0 &&
@@ -139,7 +161,9 @@ export function OnboardingFlow({
         }
 
         setCollections(data.collections);
-        if (!data.collections.some((entry) => entry.id === selectedCollectionId)) {
+        if (
+          !data.collections.some((entry) => entry.id === selectedCollectionId)
+        ) {
           setSelectedCollectionId(data.collections[0]?.id ?? "");
         }
       } catch (error) {
@@ -175,7 +199,9 @@ export function OnboardingFlow({
         const data = (await response.json()) as { error?: string };
 
         if (!response.ok) {
-          throw new Error(data.error ?? "FramerLink could not finish onboarding.");
+          throw new Error(
+            data.error ?? "FramerLink could not finish onboarding.",
+          );
         }
 
         router.push("/dashboard");
@@ -212,8 +238,8 @@ export function OnboardingFlow({
                 Create your team
               </h2>
               <p className="mt-3 max-w-2xl text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]">
-                This is the shared FramerLink space where admins and contributors
-                will manage one Framer CMS collection.
+                This is the shared FramerLink space where admins and
+                contributors will manage one Framer CMS collection.
               </p>
             </div>
 
@@ -289,7 +315,62 @@ export function OnboardingFlow({
                 />
               </div>
               <div className={fieldClassName}>
-                <Label htmlFor="project-input">Framer project URL or ID</Label>
+                <div className={labelRowClassName}>
+                  <Label htmlFor="project-input">
+                    Framer project URL or ID
+                  </Label>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <div className={helpTriggerClassName}>How to find it</div>
+                    </DialogTrigger>
+                    <DialogContent className={helpDialogContentClassName}>
+                      <DialogHeader className="pr-8">
+                        <DialogTitle className="font-heading text-2xl leading-tight text-[color:var(--framer-fresco-panelTitle-color)]">
+                          Find your Framer project URL or ID
+                        </DialogTitle>
+                        <DialogDescription className={helpDialogTextClassName}>
+                          FramerLink accepts either the full project URL or the
+                          raw project ID from the same Framer project.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <ol className={helpDialogListClassName}>
+                        <li>
+                          Open the Framer project you want this team to manage.
+                        </li>
+                        <li>
+                          Copy the project link from the browser address bar or
+                          use Framer&apos;s Copy Project Link action.
+                        </li>
+                        <li>
+                          Paste the full URL here. If you prefer the raw ID, use
+                          the final segment from that project URL.
+                        </li>
+                      </ol>
+                      <p className={helpDialogTextClassName}>
+                        Example:{" "}
+                        <code className={helpCodeClassName}>
+                          https://framer.com/projects/My-Site--abc123
+                        </code>{" "}
+                        becomes{" "}
+                        <code className={helpCodeClassName}>abc123</code>.
+                      </p>
+                      <div className="flex items-center justify-between gap-3 border-t border-[var(--framer-fresco-panelDivider-color)] pt-4">
+                        <Link
+                          className="text-sm font-medium text-[color:var(--framer-fresco-tint-color)] underline underline-offset-3"
+                          href={FRAMER_DOCS_URL}
+                          target="_blank"
+                        >
+                          Open Framer docs
+                        </Link>
+                        <DialogClose asChild>
+                          <Button type="button" variant="outline">
+                            Close
+                          </Button>
+                        </DialogClose>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
                 <Input
                   autoCapitalize="none"
                   autoComplete="off"
@@ -309,7 +390,54 @@ export function OnboardingFlow({
               </div>
 
               <div className={fieldClassName}>
-                <Label htmlFor="api-key">Framer Server API key</Label>
+                <div className={labelRowClassName}>
+                  <Label htmlFor="api-key">Framer Server API key</Label>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <div className={helpTriggerClassName}>How to get it</div>
+                    </DialogTrigger>
+                    <DialogContent className={helpDialogContentClassName}>
+                      <DialogHeader className="pr-8">
+                        <DialogTitle className="font-heading text-2xl leading-tight text-[color:var(--framer-fresco-panelTitle-color)]">
+                          Get your Framer Server API key
+                        </DialogTitle>
+                        <DialogDescription className={helpDialogTextClassName}>
+                          Server API keys are created per project, so use the
+                          same Framer project you entered above.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <ol className={helpDialogListClassName}>
+                        <li>Open that Framer project.</li>
+                        <li>
+                          Go to Site Settings, then open the General section.
+                        </li>
+                        <li>
+                          Create a Server API key for the project and copy it to
+                          a safe place.
+                        </li>
+                        <li>Paste the key here to validate the connection.</li>
+                      </ol>
+                      <p className={helpDialogTextClassName}>
+                        Treat this key like a password. Anyone with it can
+                        access the project through Framer&apos;s Server API.
+                      </p>
+                      <div className="flex items-center justify-between gap-3 border-t border-[var(--framer-fresco-panelDivider-color)] pt-4">
+                        <Link
+                          className="text-sm font-medium text-[color:var(--framer-fresco-tint-color)] underline underline-offset-3"
+                          href={FRAMER_DOCS_URL}
+                          target="_blank"
+                        >
+                          Open Framer docs
+                        </Link>
+                        <DialogClose asChild>
+                          <Button type="button" variant="outline">
+                            Close
+                          </Button>
+                        </DialogClose>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
                 <Input
                   autoCapitalize="none"
                   autoComplete="new-password"
@@ -339,7 +467,9 @@ export function OnboardingFlow({
 
               {collections.length > 0 ? (
                 <div className={fieldClassName}>
-                  <Label htmlFor="collection-select">User-managed collection</Label>
+                  <Label htmlFor="collection-select">
+                    User-managed collection
+                  </Label>
                   <Select
                     onValueChange={setSelectedCollectionId}
                     value={selectedCollectionId}
@@ -359,8 +489,8 @@ export function OnboardingFlow({
                     </SelectContent>
                   </Select>
                   <p className={helperTextClassName}>
-                    FramerLink only supports one user-managed collection per team
-                    in this phase.
+                    FramerLink only supports one user-managed collection per
+                    team in this phase.
                   </p>
                 </div>
               ) : null}
