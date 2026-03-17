@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { AppError } from "@/lib/errors";
 import type { AppErrorField } from "@/lib/errors";
+import { isTransientFramerError } from "@/lib/framer-errors";
 
 type FramerApiErrorLike = {
   code?: string;
@@ -64,6 +65,13 @@ export function getErrorResponse(error: unknown) {
   }
 
   if (isFramerApiError(error)) {
+    if (isTransientFramerError(error)) {
+      return {
+        message: "Framer is temporarily unavailable. Retry in a few seconds.",
+        status: 503,
+      };
+    }
+
     return {
       message: error.message ?? "Framer request failed.",
       status: getStatusFromFramerError(error),
