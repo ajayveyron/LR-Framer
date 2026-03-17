@@ -24,6 +24,7 @@ import type {
   ReferenceOption,
   UpsertBlogPostInput,
 } from "./cms-types.ts";
+import { appConfig } from "./app-config.ts";
 import { getServerEnv } from "./env.ts";
 import { AppError } from "./errors.ts";
 import { logError, logEvent } from "./logger.ts";
@@ -154,7 +155,7 @@ function indexCollectionItems(items: CollectionItem[]) {
 async function withFramerProject<T>(callback: (framer: Framer) => Promise<T>) {
   const env = getServerEnv();
   return withConnection(
-    env.FRAMER_PROJECT_URL,
+    appConfig.framer.projectId,
     async (framer) => callback(framer),
     env.FRAMER_API_KEY,
   );
@@ -164,12 +165,12 @@ async function getBlogCollection(framer: Framer) {
   const collection = (await framer.getCollections()).find(
     (entry) =>
       normalizeLabel(entry.name) ===
-      normalizeLabel(getServerEnv().FRAMER_COLLECTION_NAME),
+      normalizeLabel(appConfig.framer.collectionName),
   );
 
   if (!collection) {
     throw new AppError(
-      `Collection "${getServerEnv().FRAMER_COLLECTION_NAME}" was not found in the Framer project.`,
+      `Collection "${appConfig.framer.collectionName}" was not found in the Framer project.`,
       404,
     );
   }

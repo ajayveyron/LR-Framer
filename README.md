@@ -18,8 +18,8 @@ Internal Next.js dashboard for reading, creating, and updating posts in one exis
 
 ## Quick validation
 
-1. Copy `.env.example` to `.env.local`.
-2. Fill in `FRAMER_PROJECT_URL` and `FRAMER_API_KEY`.
+1. Copy `.env.example` to `.env`.
+2. Fill in `FRAMER_API_KEY`.
 3. Run `npm install`.
 4. Run `npm run framer:check`.
 5. If the script shows your target collection, fields, and existing items, the Framer connection is working.
@@ -30,38 +30,27 @@ Internal Next.js dashboard for reading, creating, and updating posts in one exis
 
 Required:
 
-- `FRAMER_PROJECT_URL`
 - `FRAMER_API_KEY`
-
-Recommended:
-
-- `FRAMER_COLLECTION_NAME` defaults to `Blog`
 
 Optional Notion bridge:
 
 - `NOTION_API_KEY`
-- `NOTION_DATA_SOURCE_ID` must be the actual Notion data source ID, not the surrounding database ID
 - `NOTION_WEBHOOK_SECRET`
-- `NOTION_STATUS_PROPERTY_NAME` defaults to `Status`
-- `NOTION_APPROVED_STATUS_VALUE` defaults to `Approved`
-- `NOTION_SLUG_PROPERTY_NAME` defaults to `Slug`
-- `NOTION_FRAMER_ITEM_ID_PROPERTY_NAME` defaults to `Framer Item ID`
-- `NOTION_FIELD_MAP` optional JSON object for property-name overrides
+
+Everything else is hardcoded in `src/lib/app-config.ts` for this internal deployment, including:
+
+- Framer project binding
+- Framer collection name
+- Notion data source ID
+- Notion property names and approval rule
+- Notion field mapping overrides
 
 Example:
 
 ```env
-FRAMER_PROJECT_URL=https://framer.com/projects/Your-Project--abcdefghijklmnopqrst
 FRAMER_API_KEY=ap_your_server_api_key
-FRAMER_COLLECTION_NAME=Blog
 NOTION_API_KEY=secret_xxx
-NOTION_DATA_SOURCE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 NOTION_WEBHOOK_SECRET=choose-a-long-random-secret
-NOTION_STATUS_PROPERTY_NAME=Status
-NOTION_APPROVED_STATUS_VALUE=Approved
-NOTION_SLUG_PROPERTY_NAME=Slug
-NOTION_FRAMER_ITEM_ID_PROPERTY_NAME=Framer Item ID
-NOTION_FIELD_MAP={"author":"Writer","date":"Publish Date","createdAt":"CMS Created At","lastUpdated":"CMS Updated At"}
 ```
 
 ## Local development
@@ -105,8 +94,8 @@ This mode keeps the dashboard intact and adds a backend bridge for approved Noti
 
 1. Create a Notion integration and copy its API key into `NOTION_API_KEY`.
 2. Share the target Notion data source with that integration.
-3. Copy the data source ID into `NOTION_DATA_SOURCE_ID`. Do not use the parent database ID.
-4. Add these properties in Notion:
+3. Confirm the hardcoded data source ID in `src/lib/app-config.ts` points at the correct Notion data source. Do not use the parent database ID.
+4. Add these properties in Notion so they match the hardcoded bridge config:
    - `Status` as a status/select property
    - `Slug` as a text or formula property
    - `Framer Item ID` as a rich text property
@@ -118,11 +107,18 @@ This mode keeps the dashboard intact and adds a backend bridge for approved Noti
 
 - The bridge reuses the same Framer collection metadata lookup used by the dashboard.
 - It matches Notion properties to Framer fields by logical meaning first (`title`, `body`, `author`, `date`, `slug`) and then by field name.
-- When importing Framer posts into Notion, `NOTION_FIELD_MAP` can also target `createdAt`, `lastUpdated`, and `lastUpdatedBy`.
-- If your names do not line up, set `NOTION_FIELD_MAP`. Example:
+- The override map lives in `src/lib/app-config.ts`.
+- When importing Framer posts into Notion, the field map can also target `createdAt`, `lastUpdated`, and `lastUpdatedBy`.
+- If your names do not line up, update the hardcoded field map. Example:
 
-```env
-NOTION_FIELD_MAP={"author":"Writer","date":"Publish Date","slug":"Permalink","createdAt":"CMS Created At","lastUpdated":"CMS Updated At"}
+```ts
+fieldMap: {
+  author: "Writer",
+  date: "Publish Date",
+  slug: "Permalink",
+  createdAt: "CMS Created At",
+  lastUpdated: "CMS Updated At",
+}
 ```
 
 ### Webhook flow
@@ -194,7 +190,7 @@ curl -X POST http://localhost:3000/api/notion/import \
 - The Framer item ID is written back into the `Framer Item ID` Notion property when possible.
 - Existing Framer posts can be imported into Notion and matched back to existing pages by Framer item ID or slug.
 - Newly created Notion pages from Framer are seeded with the approved status when the Framer post is not a draft. Existing page statuses are preserved.
-- Framer item audit timestamps can be mirrored into writable Notion properties via `NOTION_FIELD_MAP`.
+- Framer item audit timestamps can be mirrored into writable Notion properties via the hardcoded field map in `src/lib/app-config.ts`.
 - If anything changed, Framer publishes a new site deployment.
 
 ## Deployment
@@ -202,14 +198,14 @@ curl -X POST http://localhost:3000/api/notion/import \
 ### Vercel
 
 1. Create a new Vercel project from this repo.
-2. Add all env vars from `.env.local`.
+2. Add the secret env vars from `.env`.
 3. Deploy.
 
 Vercel works well here because the app is a standard Next.js project and the Framer API connection is opened per request.
 
 ### Railway or another Node host
 
-1. Set the same env vars.
+1. Set the same secret env vars.
 2. Use the default build/start commands:
 
 ```bash

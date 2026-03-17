@@ -1,0 +1,21 @@
+{
+  "framer": {
+    "projectId": "DgYWXliPZbIxP2w28MpC",
+    "collectionName": "Blogs"
+  },
+  "notion": {
+    "dataSourceId": "321136a7-645b-8031-b4e0-000b247e2790",
+    "statusPropertyName": "Status",
+    "approvedStatusValue": "Approved",
+    "slugPropertyName": "Slug",
+    "framerItemIdPropertyName": "Framer Item ID",
+    "fieldMap": {
+      "title": "Title",
+      "slug": "Slug",
+      "description": "Description",
+      "thumbnail": "Thumbnail",
+      "person": "Person",
+      "category": "Category"
+    }
+  }
+}

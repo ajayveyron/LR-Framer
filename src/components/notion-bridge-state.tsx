@@ -59,6 +59,10 @@ export function NotionBridgeState({ status }: NotionBridgeStateProps) {
             published automatically, removed again when they leave the approved state,
             and existing Framer posts can be backfilled into Notion for future editing.
           </p>
+          <p className="muted" style={{ marginTop: 8 }}>
+            The Notion data source, property names, and field mapping are pinned in code for this
+            deployment. Only the bridge secrets live in <span className="mono">.env</span>.
+          </p>
         </div>
       </div>
 
@@ -113,13 +117,7 @@ export function NotionBridgeState({ status }: NotionBridgeStateProps) {
           ))}
           <pre className="warning-banner mono" style={preStyle}>
 {`NOTION_API_KEY=secret_xxx
-NOTION_DATA_SOURCE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-NOTION_WEBHOOK_SECRET=choose-a-long-random-secret
-NOTION_STATUS_PROPERTY_NAME=Status
-NOTION_APPROVED_STATUS_VALUE=Approved
-NOTION_SLUG_PROPERTY_NAME=Slug
-NOTION_FRAMER_ITEM_ID_PROPERTY_NAME=Framer Item ID
-NOTION_FIELD_MAP={"author":"Writer","date":"Publish Date","createdAt":"CMS Created At","lastUpdated":"CMS Updated At"}`}
+NOTION_WEBHOOK_SECRET=choose-a-long-random-secret`}
           </pre>
         </div>
       ) : null}

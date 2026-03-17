@@ -1,22 +1,22 @@
 import { withConnection } from "framer-api";
 
-const projectUrl = process.env.FRAMER_PROJECT_URL;
+import appConfig from "../src/lib/app-config.json" with { type: "json" };
+
+const projectId = appConfig.framer.projectId;
 const apiKey = process.env.FRAMER_API_KEY;
-const targetCollectionName = process.env.FRAMER_COLLECTION_NAME ?? "Blog";
+const targetCollectionName = appConfig.framer.collectionName;
 
 function normalize(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-if (!projectUrl || !apiKey) {
-  console.error(
-    "FRAMER_PROJECT_URL and FRAMER_API_KEY must be set before running npm run framer:check",
-  );
+if (!apiKey) {
+  console.error("FRAMER_API_KEY must be set before running npm run framer:check");
   process.exit(1);
 }
 
 await withConnection(
-  projectUrl,
+  projectId,
   async (framer) => {
     const collections = await framer.getCollections();
     console.log(`Connected to project. Collections found: ${collections.length}`);

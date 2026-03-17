@@ -8,9 +8,9 @@ import type {
   DashboardFieldDefinition,
   DashboardFieldValue,
 } from "@/lib/cms-types";
+import { appConfig } from "@/lib/app-config";
 import {
   getNotionBridgeEnvIssues,
-  getNotionFieldMap,
   getServerEnv,
   isNotionBridgeConfigured,
 } from "@/lib/env";
@@ -157,32 +157,28 @@ async function mapWithConcurrency<T, TResult>(
 }
 
 export function getNotionBridgeStatus() {
-  const env = getServerEnv();
-
   return {
     configured: isNotionBridgeConfigured(),
     issues: getNotionBridgeEnvIssues(),
     webhookPath: "/api/notion/webhook",
     manualSyncPath: "/api/notion/sync",
     manualImportPath: "/api/notion/import",
-    dataSourceId: env.NOTION_DATA_SOURCE_ID ?? null,
-    statusPropertyName: env.NOTION_STATUS_PROPERTY_NAME,
-    approvedStatusValue: env.NOTION_APPROVED_STATUS_VALUE,
-    slugPropertyName: env.NOTION_SLUG_PROPERTY_NAME,
-    framerItemIdPropertyName: env.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME,
-    fieldMap: getNotionFieldMap(),
+    dataSourceId: appConfig.notion.dataSourceId,
+    statusPropertyName: appConfig.notion.statusPropertyName,
+    approvedStatusValue: appConfig.notion.approvedStatusValue,
+    slugPropertyName: appConfig.notion.slugPropertyName,
+    framerItemIdPropertyName: appConfig.notion.framerItemIdPropertyName,
+    fieldMap: { ...appConfig.notion.fieldMap },
   };
 }
 
 function getNotionBridgeConfig() {
-  const env = getServerEnv();
-
   return {
-    approvedStatusValue: env.NOTION_APPROVED_STATUS_VALUE,
-    fieldMap: getNotionFieldMap(),
-    framerItemIdPropertyName: env.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME,
-    slugPropertyName: env.NOTION_SLUG_PROPERTY_NAME,
-    statusPropertyName: env.NOTION_STATUS_PROPERTY_NAME,
+    approvedStatusValue: appConfig.notion.approvedStatusValue,
+    fieldMap: appConfig.notion.fieldMap,
+    framerItemIdPropertyName: appConfig.notion.framerItemIdPropertyName,
+    slugPropertyName: appConfig.notion.slugPropertyName,
+    statusPropertyName: appConfig.notion.statusPropertyName,
   };
 }
 
@@ -293,10 +289,9 @@ async function notionRequest<T>(
 }
 
 async function getDataSource() {
-  const env = getServerEnv();
-  const configuredId = env.NOTION_DATA_SOURCE_ID ?? "";
+  const configuredId = appConfig.notion.dataSourceId;
   if (!configuredId) {
-    throw new AppError("NOTION_DATA_SOURCE_ID is required to resolve the Notion data source.", 503);
+    throw new AppError("The Notion bridge data source ID is not configured.", 503);
   }
   const cached = readCachedDataSource(configuredId);
 
@@ -452,19 +447,18 @@ async function getDataSource() {
   }
 
   throw new AppError(
-    `Could not resolve NOTION_DATA_SOURCE_ID "${configuredId}" as a data source or database. ` +
-    `Update it to the actual Notion data source ID to avoid fallback resolution.`,
+    `Could not resolve the configured Notion data source ID "${configuredId}" as a data source or database. ` +
+    `Update src/lib/app-config.ts to the actual Notion data source ID to avoid fallback resolution.`,
     400,
   );
 }
 
 function getStatusFilterProperty(dataSource: NotionDataSource) {
-  const env = getServerEnv();
-  const property = dataSource.properties[env.NOTION_STATUS_PROPERTY_NAME];
+  const property = dataSource.properties[appConfig.notion.statusPropertyName];
 
   if (!property) {
     throw new AppError(
-      `The Notion status property "${env.NOTION_STATUS_PROPERTY_NAME}" was not found in the configured data source.`,
+      `The Notion status property "${appConfig.notion.statusPropertyName}" was not found in the configured data source.`,
       400,
     );
   }
@@ -472,28 +466,28 @@ function getStatusFilterProperty(dataSource: NotionDataSource) {
   switch (property.type) {
     case "status":
       return {
-        property: env.NOTION_STATUS_PROPERTY_NAME,
+        property: appConfig.notion.statusPropertyName,
         status: {
-          equals: env.NOTION_APPROVED_STATUS_VALUE,
+          equals: appConfig.notion.approvedStatusValue,
         },
       };
     case "select":
       return {
-        property: env.NOTION_STATUS_PROPERTY_NAME,
+        property: appConfig.notion.statusPropertyName,
         select: {
-          equals: env.NOTION_APPROVED_STATUS_VALUE,
+          equals: appConfig.notion.approvedStatusValue,
         },
       };
     case "checkbox":
       return {
-        property: env.NOTION_STATUS_PROPERTY_NAME,
+        property: appConfig.notion.statusPropertyName,
         checkbox: {
-          equals: env.NOTION_APPROVED_STATUS_VALUE.toLowerCase() === "true",
+          equals: appConfig.notion.approvedStatusValue.toLowerCase() === "true",
         },
       };
     default:
       throw new AppError(
-        `The Notion status property "${env.NOTION_STATUS_PROPERTY_NAME}" must be a status, select, or checkbox property.`,
+        `The Notion status property "${appConfig.notion.statusPropertyName}" must be a status, select, or checkbox property.`,
         400,
       );
   }
@@ -588,8 +582,7 @@ async function updateFramerItemIdOnPage(
   page: NotionPage,
   framerItemId: string,
 ) {
-  const env = getServerEnv();
-  const property = page.properties[env.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME];
+  const property = page.properties[appConfig.notion.framerItemIdPropertyName];
   if (!property) {
     return false;
   }
@@ -604,7 +597,7 @@ async function updateFramerItemIdOnPage(
       method: "PATCH",
       body: JSON.stringify({
         properties: {
-          [env.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME]: {
+          [appConfig.notion.framerItemIdPropertyName]: {
             rich_text: [
               {
                 type: "text",
@@ -625,7 +618,7 @@ async function updateFramerItemIdOnPage(
       method: "PATCH",
       body: JSON.stringify({
         properties: {
-          [env.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME]: {
+          [appConfig.notion.framerItemIdPropertyName]: {
             url: framerItemId,
           },
         },
@@ -635,7 +628,7 @@ async function updateFramerItemIdOnPage(
   }
 
   throw new AppError(
-    `The Notion property "${env.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME}" must be a rich_text or url property to store the synced Framer item ID.`,
+    `The Notion property "${appConfig.notion.framerItemIdPropertyName}" must be a rich_text or url property to store the synced Framer item ID.`,
     400,
   );
 }
@@ -1035,7 +1028,7 @@ function getMappedDataSourceProperty(
   field: DashboardFieldDefinition,
   logicalKey: keyof typeof LOGICAL_FIELD_PATTERNS | undefined,
 ) {
-  const fieldMap = getNotionFieldMap();
+  const fieldMap = appConfig.notion.fieldMap;
   const configuredName =
     fieldMap[field.id] ??
     fieldMap[field.name] ??
@@ -1062,7 +1055,7 @@ function getMappedAuditDataSourceProperty(
   properties: Record<string, NotionDataSourceProperty>,
   key: keyof typeof FRAMER_AUDIT_PROPERTY_PATTERNS,
 ) {
-  const fieldMap = getNotionFieldMap();
+  const fieldMap = appConfig.notion.fieldMap;
   const configuredName = fieldMap[key];
 
   if (configuredName) {
@@ -1078,7 +1071,6 @@ function buildNotionPropertiesForPost(
   post: BlogPostRecord,
   existingPage?: NotionPage,
 ) {
-  const env = getServerEnv();
   const properties: Record<string, NotionPropertyPayload> = {};
   const usedPropertyNames = new Set<string>();
 
@@ -1097,7 +1089,7 @@ function buildNotionPropertiesForPost(
 
   const slugProperty = getPropertyByName(
     dataSource.properties,
-    env.NOTION_SLUG_PROPERTY_NAME,
+    appConfig.notion.slugPropertyName,
   );
   if (slugProperty) {
     const [propertyName, property] = slugProperty;
@@ -1116,11 +1108,11 @@ function buildNotionPropertiesForPost(
 
   const framerItemIdProperty = getPropertyByName(
     dataSource.properties,
-    env.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME,
+    appConfig.notion.framerItemIdPropertyName,
   );
   if (!framerItemIdProperty) {
     throw new AppError(
-      `The Notion property "${env.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME}" was not found in the configured data source.`,
+      `The Notion property "${appConfig.notion.framerItemIdPropertyName}" was not found in the configured data source.`,
       400,
     );
   }
@@ -1129,7 +1121,7 @@ function buildNotionPropertiesForPost(
   const framerItemIdUpdate = buildNotionPropertyUpdate(framerItemIdPropertyDef, post.id);
   if (!framerItemIdUpdate) {
     throw new AppError(
-      `The Notion property "${env.NOTION_FRAMER_ITEM_ID_PROPERTY_NAME}" must be writable to store Framer item IDs.`,
+      `The Notion property "${appConfig.notion.framerItemIdPropertyName}" must be writable to store Framer item IDs.`,
       400,
     );
   }
@@ -1148,7 +1140,7 @@ function buildNotionPropertiesForPost(
 
   const statusProperty = getPropertyByName(
     dataSource.properties,
-    env.NOTION_STATUS_PROPERTY_NAME,
+    appConfig.notion.statusPropertyName,
   );
   if (statusProperty) {
     const [propertyName, property] = statusProperty;
@@ -1162,7 +1154,7 @@ function buildNotionPropertiesForPost(
           ? !post.draft
           : post.draft
             ? null
-            : env.NOTION_APPROVED_STATUS_VALUE;
+            : appConfig.notion.approvedStatusValue;
       const statusUpdate = buildNotionPropertyUpdate(property, desiredStatusValue);
       if (statusUpdate) {
         properties[propertyName] = statusUpdate.payload;
@@ -1463,9 +1455,8 @@ export async function syncApprovedNotionPages(options?: { pageId?: string }) {
 
   if (pageId) {
     const page = await getPage(pageId);
-    const env = getServerEnv();
-    const statusPropertyName = env.NOTION_STATUS_PROPERTY_NAME;
-    const approvedStatusValue = env.NOTION_APPROVED_STATUS_VALUE;
+    const statusPropertyName = appConfig.notion.statusPropertyName;
+    const approvedStatusValue = appConfig.notion.approvedStatusValue;
     const propertyNames = Object.keys(page.properties);
     const statusValue = getStatusValue(page.properties, bridgeConfig);
     const active = isActivePage(page);

@@ -7,7 +7,7 @@ import type {
   BridgeSyncResponse,
   UpsertBlogPostInput,
 } from "@/lib/cms-types";
-import { getServerEnv } from "@/lib/env";
+import { appConfig } from "@/lib/app-config";
 import {
   createBlogPost as createBlogPostCore,
   getBlogMetadata as getBlogMetadataCore,
@@ -31,8 +31,7 @@ let cachedMetadata:
   | null = null;
 
 function getMetadataCacheKey() {
-  const env = getServerEnv();
-  return `${env.FRAMER_PROJECT_URL}::${env.FRAMER_COLLECTION_NAME}`;
+  return `${appConfig.framer.projectId}::${appConfig.framer.collectionName}`;
 }
 
 function readMetadataCache() {
