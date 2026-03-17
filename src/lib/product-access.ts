@@ -75,19 +75,34 @@ async function syncMembership(
 }
 
 async function getSiteForOrganization(organizationId: string) {
-  return fetchProductQuery(anyApi.product.getSiteForOrganization, {
-    clerkOrganizationId: organizationId,
-  }) as Promise<ProductSite | null>;
+  try {
+    return (await fetchProductQuery(anyApi.product.getSiteForOrganization, {
+      clerkOrganizationId: organizationId,
+    })) as ProductSite | null;
+  } catch (error) {
+    logError("product.access.getSiteForOrganization.failed", error, {
+      clerkOrganizationId: organizationId,
+    });
+    return null;
+  }
 }
 
 async function getOnboardingState(
   organizationId: string,
   userId: string,
 ) {
-  return fetchProductQuery(anyApi.product.getOnboardingState, {
-    clerkOrganizationId: organizationId,
-    clerkUserId: userId,
-  }) as Promise<ProductOnboardingState | null>;
+  try {
+    return (await fetchProductQuery(anyApi.product.getOnboardingState, {
+      clerkOrganizationId: organizationId,
+      clerkUserId: userId,
+    })) as ProductOnboardingState | null;
+  } catch (error) {
+    logError("product.access.getOnboardingState.failed", error, {
+      clerkOrganizationId: organizationId,
+      clerkUserId: userId,
+    });
+    return null;
+  }
 }
 
 function getSuggestedSiteName(
