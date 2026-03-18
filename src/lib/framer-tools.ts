@@ -22,16 +22,37 @@ import {
 } from "@/lib/framer";
 import { logEvent, logError } from "@/lib/logger";
 
+// Maximum serialized size for a tool result sent back through the stream.
+// Anything larger gets truncated to avoid blowing up the SSE response.
+const MAX_TOOL_RESULT_BYTES = 8_000;
+
 function wrapExecute<T>(
   event: string,
   fn: () => Promise<T>,
   meta: Record<string, unknown> = {},
-): Promise<T> {
+): Promise<T | { _truncated: true; itemCount?: number; preview: string }> {
   logEvent("info", `ai.tool.${event}.called`, meta);
-  return fn().catch((error) => {
-    logError(`ai.tool.${event}.failed`, error, meta);
-    throw error;
-  });
+  return fn()
+    .then((result) => {
+      const serialized = JSON.stringify(result);
+      if (serialized.length > MAX_TOOL_RESULT_BYTES) {
+        logEvent("warn", `ai.tool.${event}.result_truncated`, {
+          ...meta,
+          originalSize: serialized.length,
+          maxSize: MAX_TOOL_RESULT_BYTES,
+        });
+        return {
+          _truncated: true,
+          itemCount: Array.isArray(result) ? result.length : undefined,
+          preview: serialized.slice(0, MAX_TOOL_RESULT_BYTES) + "…",
+        } as any;
+      }
+      return result;
+    })
+    .catch((error) => {
+      logError(`ai.tool.${event}.failed`, error, meta);
+      throw error;
+    });
 }
 
 // ---------------------------------------------------------------------------

@@ -135,3 +135,39 @@
 **How it works:** The `googleSearch` tool is a Vertex AI provider tool (not a custom tool). The model invokes it internally when it needs real-time web data. The grounding metadata (source URLs, search queries) comes through as provider metadata. On the client side, the tool call shows up as a `tool-google_search` message part, rendered as a compact "Searched the web" status pill.
 
 **Scope:** `src/app/api/ai/chat/route.ts` (added google_search tool + system prompt update), `src/components/ai-chat-panel.tsx` (GlobeSimple icon import + google_search tool renderer).
+
+## 2026-03-18 — Add AI image generation tool to chat (separate from Framer tools)
+
+**What changed:** Added a `generate_and_upload_image` tool to the AI chat that generates images via Gemini (`gemini-3.1-flash-image-preview`) and uploads them to Framer as assets. The tool lives in its own file `src/lib/ai-image-tool.ts`, separate from the Framer tools in `src/lib/framer-tools.ts`.
+
+**Why:** User wants the AI chat to be able to generate images on demand and set them on CMS item image fields. The tool returns a Framer asset URL that the agent can chain with `framer_set_item_attributes` using `{ type: "image", value: returnedUrl }`. Kept in a separate file because the user explicitly said "keep them separate" — image gen is a different concern from Framer CRUD operations.
+
+**How it works:** Uses `generateText` with Gemini image model + `responseModalities: ["IMAGE", "TEXT"]` to produce an image from a text prompt. The image is extracted from `result.files`, converted to a `File` object, and uploaded via `uploadBlogAsset("image", file)`. The chat panel renders a spinner during generation, an image preview on success, and an error message on failure.
+
+**Scope:** `src/lib/ai-image-tool.ts` (new file — tool definition), `src/app/api/ai/chat/route.ts` (imports and adds tool to tools map, updated system prompt), `src/components/ai-chat-panel.tsx` (ImageSquare icon + dedicated renderer for `tool-generate_and_upload_image` parts).
+
+## 2026-03-18 — Dynamic brand context for image gen system prompt
+
+**What changed:** Rewrote `IMAGE_SYSTEM_PROMPT` in `ai-image-prompt.ts` to be brand-agnostic. Added `BrandContext` interface, `buildImageSystemPrompt(brand?)` for injecting brand identity at runtime, `loadBrandContext()` that reads `brand.json` from project root (cached after first read), and `getImageSystemPrompt()` convenience async function. Both `ai-image-tool.ts` and `api/ai/image/route.ts` now use `getImageSystemPrompt()` instead of the static export.
+
+**Why:** This is a user-facing product — different users have different brands. Hardcoding LinkRunner.io brand context was wrong. Brand info (name, aesthetic, primary color) is read from `brand.json` at runtime so each deployment gets its own brand identity in image generation.
+
+**Scope:** `src/lib/ai-image-prompt.ts` (new `BrandContext`, `buildImageSystemPrompt`, `loadBrandContext`, `getImageSystemPrompt`), `src/lib/ai-image-tool.ts` (uses `getImageSystemPrompt()`), `src/app/api/ai/image/route.ts` (uses `getImageSystemPrompt()`).
+
+Also added `referenceImageUrl` support to the `generate_and_upload_image` tool so user-uploaded images in chat can be passed through as style/composition references.
+
+## 2026-03-18 — Upload image attachments to Framer before sending to AI chat
+
+**What changed:** When a user attaches an image in the AI chat, the `onSubmit` handler now uploads it to Framer via `/api/uploads` first, replacing the base64 data URL with a short hosted Framer asset URL before calling `sendMessage`.
+
+**Why:** The AI SDK's `PromptInput` converts attached images to base64 data URLs (~5-10MB each). These get included in the message parts and sent to the server on every subsequent message as part of conversation history. The accumulated payload was causing "Unterminated string in JSON at position 10474634" errors — the SSE response stream was ~10MB and getting corrupted/truncated. By uploading to Framer first, the URL in the message is a short HTTPS link (~100 bytes) instead of megabytes of base64.
+
+**Scope:** `src/components/ai-chat-panel.tsx` (onSubmit handler). Also added server-side tool result truncation in `framer-tools.ts` (8KB cap via `wrapExecute`) and server-side message sanitization in `route.ts` (2KB cap on incoming tool results) as additional safety nets.
+
+## 2026-03-18 — Use body size limit instead of temp image store for chat attachments
+
+**What changed:** Removed the in-memory temp image store (`temp-image-store.ts`, `/api/uploads/temp` POST and GET endpoints). Instead, added `experimental.proxyClientMaxBodySize: "25mb"` to `next.config.ts` so the base64 data URL can go through on the current message. The `onSubmit` handler in the chat panel now passes files directly to `sendMessage` without any pre-upload step.
+
+**Why:** The temp store approach failed for two reasons: (1) Next.js dev mode runs route handlers in different workers, so the GET handler couldn't find images stored by the POST handler (404). (2) Even if it worked, Vertex AI can't reach `localhost` URLs to fetch the image — it needs the image data inline. The body size limit approach is simpler and works because we already strip old images from history (client-side in `prepareSendMessagesRequest` and server-side in the chat route), so only the current message carries the large base64 payload.
+
+**Scope:** `next.config.ts` (added `proxyClientMaxBodySize`), `src/components/ai-chat-panel.tsx` (simplified `onSubmit`), deleted `src/lib/temp-image-store.ts`, `src/app/api/uploads/temp/route.ts`, `src/app/api/uploads/temp/[id]/route.ts`.

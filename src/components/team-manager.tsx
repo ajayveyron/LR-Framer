@@ -106,6 +106,7 @@ export function TeamManager() {
       {/* Org card */}
       <div className="flex items-center gap-3">
         {organization.hasImage && organization.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img src={organization.imageUrl} alt={organization.name} className="h-10 w-10 rounded-lg object-cover" />
         ) : (
           <div className="h-10 w-10 shrink-0 flex items-center justify-center rounded-lg bg-[#2B2B2B] text-[color:var(--framer-fresco-tint-color)] font-semibold uppercase text-lg">
@@ -180,6 +181,7 @@ export function TeamManager() {
               return (
                 <tr key={membership.id} className="hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                   <td className="py-4 px-6 flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={membership.publicUserData?.imageUrl || ""} alt="Avatar" className="h-8 w-8 rounded-full bg-[#2B2B2B] object-cover" />
                     <div className="flex flex-col">
                       <span className="settings-label text-[color:var(--framer-fresco-panelTitle-color)] flex items-center gap-2">

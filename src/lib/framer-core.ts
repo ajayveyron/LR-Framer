@@ -1,3 +1,87 @@
+// ---------------------------------------------------------------------------
+// Polyfill FileReader for Node.js — the Framer SDK uses it internally during
+// asset uploads, but it's a browser-only API.
+// ---------------------------------------------------------------------------
+if (typeof globalThis.FileReader === "undefined") {
+  class _FileReader extends EventTarget {
+    static readonly EMPTY = 0;
+    static readonly LOADING = 1;
+    static readonly DONE = 2;
+
+    readonly EMPTY = 0;
+    readonly LOADING = 1;
+    readonly DONE = 2;
+
+    readyState = 0;
+    result: string | ArrayBuffer | null = null;
+    error: DOMException | null = null;
+
+    onload: ((ev: Event) => void) | null = null;
+    onerror: ((ev: Event) => void) | null = null;
+    onloadend: ((ev: Event) => void) | null = null;
+    onloadstart: ((ev: Event) => void) | null = null;
+    onprogress: ((ev: Event) => void) | null = null;
+    onabort: ((ev: Event) => void) | null = null;
+
+    private _finish(result: string | ArrayBuffer | null, error?: unknown) {
+      if (error) {
+        this.error = error instanceof DOMException ? error : new DOMException(String(error));
+        this.readyState = 2;
+        const ev = new Event("error");
+        this.dispatchEvent(ev);
+        this.onerror?.(ev);
+      } else {
+        this.result = result;
+        this.readyState = 2;
+        const ev = new Event("load");
+        this.dispatchEvent(ev);
+        this.onload?.(ev);
+      }
+      const endEv = new Event("loadend");
+      this.dispatchEvent(endEv);
+      this.onloadend?.(endEv);
+    }
+
+    readAsDataURL(blob: Blob) {
+      this.readyState = 1;
+      blob
+        .arrayBuffer()
+        .then((buf) => {
+          const b64 = Buffer.from(buf).toString("base64");
+          const mime = blob.type || "application/octet-stream";
+          this._finish(`data:${mime};base64,${b64}`);
+        })
+        .catch((err) => this._finish(null, err));
+    }
+
+    readAsArrayBuffer(blob: Blob) {
+      this.readyState = 1;
+      blob
+        .arrayBuffer()
+        .then((buf) => this._finish(buf))
+        .catch((err) => this._finish(null, err));
+    }
+
+    readAsText(blob: Blob) {
+      this.readyState = 1;
+      blob
+        .text()
+        .then((txt) => this._finish(txt))
+        .catch((err) => this._finish(null, err));
+    }
+
+    abort() {
+      this.readyState = 2;
+      this.result = null;
+      const ev = new Event("abort");
+      this.dispatchEvent(ev);
+      this.onabort?.(ev);
+    }
+  }
+
+  (globalThis as any).FileReader = _FileReader;
+}
+
 import type {
   Collection,
   CollectionItem,
@@ -1462,6 +1546,10 @@ function serializeFieldData(fieldData: Record<string, { type: string; value: unk
       result[fieldId] = (entry.value as { url?: string } | null)?.url ?? null;
     } else if (entry.type === "multiCollectionReference") {
       result[fieldId] = [...(entry.value as string[])];
+    } else if (entry.type === "formattedText") {
+      // Truncate long HTML bodies to avoid blowing up streaming JSON responses
+      const text = (entry.value as string) ?? "";
+      result[fieldId] = text.length > 500 ? text.slice(0, 500) + "…[truncated]" : text;
     } else {
       result[fieldId] = entry.value ?? null;
     }

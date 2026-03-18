@@ -323,6 +323,14 @@ export type MessageResponseProps = ComponentProps<typeof Streamdown>;
 
 const streamdownPlugins = { cjk, code, math, mermaid };
 
+// Use <div> instead of <p> for markdown paragraphs to avoid hydration errors
+// when Streamdown's link-safety dialog renders <div> inside a paragraph.
+const streamdownComponents = {
+  p: (props: HTMLAttributes<HTMLDivElement>) => (
+    <div className="mb-4 last:mb-0" {...props} />
+  ),
+};
+
 export const MessageResponse = memo(
   ({ className, ...props }: MessageResponseProps) => (
     <Streamdown
@@ -330,6 +338,7 @@ export const MessageResponse = memo(
         "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         className
       )}
+      components={streamdownComponents}
       plugins={streamdownPlugins}
       {...props}
     />

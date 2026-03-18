@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Sparkle, X, WarningCircle, ArrowCounterClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop, GlobeSimple } from "@phosphor-icons/react";
+import { Sparkle, X, WarningCircle, ArrowCounterClockwise, ArrowClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop, GlobeSimple, ImageSquare, DownloadSimple, Plus } from "@phosphor-icons/react";
 import { useCallback, useMemo, useState } from "react";
 
 import {
@@ -22,11 +22,7 @@ import {
   PromptInputFooter,
   PromptInputHeader,
   PromptInputSubmit,
-  PromptInputActionMenu,
-  PromptInputActionMenuTrigger,
-  PromptInputActionMenuContent,
-  PromptInputActionAddAttachments,
-  PromptInputActionAddScreenshot,
+  PromptInputButton,
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
 import { EditProposalView } from "@/components/edit-proposal-view";
@@ -96,6 +92,19 @@ function AttachmentPreviewStrip() {
   );
 }
 
+function DirectAttachButton() {
+  const attachments = usePromptInputAttachments();
+  return (
+    <PromptInputButton
+      aria-label="Add file"
+      onClick={() => attachments.openFileDialog()}
+      type="button"
+    >
+      <Plus className="size-4" />
+    </PromptInputButton>
+  );
+}
+
 export function AIChatPanel({
   open,
   onOpenChange,
@@ -125,7 +134,63 @@ export function AIChatPanel({
     () =>
       new DefaultChatTransport({
         api: "/api/ai/chat",
-        body: bodyData,
+        prepareSendMessagesRequest: ({ id, messages: msgs, trigger, messageId }) => {
+          // Sanitize message history before sending to keep the payload small.
+          // Strategy:
+          // - Strip large file parts (base64 images) from all messages EXCEPT
+          //   the last user message. The model sees the image on the current
+          //   turn; previous images become text placeholders.
+          // - Truncate oversized tool results to 2KB.
+          const MAX_TOOL_RESULT_CHARS = 2000;
+          const MAX_FILE_URL_LEN = 50_000;
+
+          // Find the index of the last user message so we preserve its files
+          let lastUserIdx = -1;
+          for (let i = msgs.length - 1; i >= 0; i--) {
+            if (msgs[i].role === "user") { lastUserIdx = i; break; }
+          }
+
+          const sanitized = msgs.map((msg, idx) => {
+            if (!Array.isArray(msg.parts)) return msg;
+
+            let needsWork = false;
+            for (const p of msg.parts) {
+              if (p.type === "tool-invocation" && "result" in p && p.result !== undefined && JSON.stringify(p.result).length > MAX_TOOL_RESULT_CHARS) {
+                needsWork = true; break;
+              }
+              // Only strip file parts from NON-last user messages
+              if (idx !== lastUserIdx && p.type === "file" && "url" in p && typeof p.url === "string" && p.url.length > MAX_FILE_URL_LEN) {
+                needsWork = true; break;
+              }
+            }
+            if (!needsWork) return msg;
+
+            return {
+              ...msg,
+              parts: msg.parts.map((p) => {
+                if (p.type === "tool-invocation" && "result" in p && p.result !== undefined) {
+                  const s = JSON.stringify(p.result);
+                  if (s.length > MAX_TOOL_RESULT_CHARS) {
+                    return { ...p, result: { _truncated: true, preview: s.slice(0, MAX_TOOL_RESULT_CHARS) } };
+                  }
+                }
+                if (idx !== lastUserIdx && p.type === "file" && "url" in p && typeof p.url === "string" && p.url.length > MAX_FILE_URL_LEN) {
+                  return { type: "text" as const, text: `[User attached an image: ${("filename" in p && p.filename) || "image"}]` };
+                }
+                return p;
+              }),
+            };
+          });
+          return {
+            body: {
+              ...bodyData,
+              id,
+              messages: sanitized,
+              trigger,
+              messageId,
+            },
+          };
+        },
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [bodyData, chatKey],
@@ -138,6 +203,8 @@ export function AIChatPanel({
     status,
     stop,
     error,
+    regenerate,
+    clearError,
   } = useChat({
     transport: chatTransport,
     onError: (err) => {
@@ -296,6 +363,32 @@ export function AIChatPanel({
                     </div>
                   )}
                   {message.parts.map((part, i) => {
+                    // User-attached file previews (images, docs, etc.)
+                    if (part.type === "file") {
+                      const isImage = part.mediaType?.startsWith("image/");
+                      if (isImage) {
+                        return (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            key={i}
+                            alt={part.filename ?? "Attached image"}
+                            className="max-h-48 rounded-md border border-[var(--framer-fresco-panelDivider-color)] object-contain"
+                            src={part.url}
+                          />
+                        );
+                      }
+                      // Non-image file attachment badge
+                      return (
+                        <div
+                          key={i}
+                          className="inline-flex items-center gap-1.5 rounded border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-2 py-1 text-xs text-[color:var(--framer-fresco-panelDescription-color)]"
+                        >
+                          <ImageSquare className="size-3.5 shrink-0" weight="fill" />
+                          <span className="truncate max-w-40">{part.filename ?? "Attachment"}</span>
+                        </div>
+                      );
+                    }
+
                     if (part.type === "text" && part.text.length > 0) {
                       return (
                         <MessageResponse key={i}>
@@ -326,6 +419,71 @@ export function AIChatPanel({
 
                     // source-url parts are rendered grouped above
                     if (part.type === "source-url" || part.type === "source-document") {
+                      return null;
+                    }
+
+                    // Image generation tool — show preview with the generated image
+                    if (part.type === "tool-generate_and_upload_image") {
+                      const hasOutput = "output" in part && part.output != null;
+                      const output = hasOutput ? (part.output as { success?: boolean; url?: string; error?: string; prompt?: string }) : null;
+                      const isSuccess = output?.success && output?.url;
+
+                      if (!hasOutput) {
+                        return (
+                          <div
+                            key={i}
+                            className="flex items-center gap-2 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]"
+                          >
+                            <CircleNotch className="size-3.5 shrink-0 animate-spin" />
+                            <ImageSquare className="size-3.5 shrink-0" weight="fill" />
+                            <span>Generating image…</span>
+                          </div>
+                        );
+                      }
+
+                      if (isSuccess) {
+                        return (
+                          <div key={i} className="flex flex-col gap-2">
+                            <div className="flex items-center justify-between text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle className="size-3.5 shrink-0 text-emerald-400" weight="fill" />
+                                <ImageSquare className="size-3.5 shrink-0" weight="fill" />
+                                <span>Image generated &amp; uploaded</span>
+                              </div>
+                              <a
+                                href={output.url}
+                                download={`ai-image-${Date.now()}.png`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[color:var(--framer-fresco-tint-color)] transition-colors hover:bg-[var(--framer-fresco-panelDivider-color)]"
+                              >
+                                <DownloadSimple className="size-3.5" weight="bold" />
+                                <span>Download</span>
+                              </a>
+                            </div>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              alt={output.prompt ?? "AI generated image"}
+                              className="max-h-64 rounded-md border border-[var(--framer-fresco-panelDivider-color)] object-contain"
+                              src={output.url}
+                            />
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400"
+                        >
+                          <WarningCircle className="size-3.5 shrink-0" weight="fill" />
+                          <span>{output?.error ?? "Image generation failed"}</span>
+                        </div>
+                      );
+                    }
+
+                    // google_search is a provider tool — results come as source-url parts, not tool output
+                    if (part.type === "tool-google_search") {
                       return null;
                     }
 
@@ -362,25 +520,36 @@ export function AIChatPanel({
                 <span className="inline-block size-1.5 animate-bounce rounded-full bg-[var(--framer-fresco-panelSubtitle-color)] [animation-delay:300ms]" />
               </div>
             )}
+
+            {/* Inline error + retry */}
+            {error && !isStreaming && (
+              <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+                <WarningCircle className="size-3.5 shrink-0" weight="fill" />
+                <span className="min-w-0 flex-1 truncate">{error.message}</span>
+                <button
+                  type="button"
+                  className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-red-300 transition-colors hover:bg-red-500/20 hover:text-red-200"
+                  onClick={() => {
+                    clearError();
+                    regenerate();
+                  }}
+                >
+                  <ArrowClockwise className="size-3.5" weight="bold" />
+                  <span>Retry</span>
+                </button>
+              </div>
+            )}
           </ConversationContent>
           <ConversationScrollButton />
         </Conversation>
 
-        {/* Error display */}
-        {error && (
-          <div className="flex items-center gap-2 border-t border-[var(--framer-fresco-panelDivider-color)] px-4 py-2 text-xs text-red-400">
-            <WarningCircle className="size-4 shrink-0" weight="fill" />
-            <span className="truncate">{error.message}</span>
-          </div>
-        )}
-
         {/* Input */}
-        <div className="border-t border-[var(--framer-fresco-panelDivider-color)] px-4 py-3">
+        <div className="border-t border-[var(--framer-fresco-panelDivider-color)] p-4 pb-8">
           <PromptInput
             accept="image/*,application/pdf,text/plain,text/html,text/css,text/csv,text/xml,text/markdown,application/json,application/xml,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,audio/*,video/*"
             maxFiles={5}
             maxFileSize={10 * 1024 * 1024}
-            onSubmit={({ text, files }) => {
+            onSubmit={async ({ text, files }) => {
               if (!text.trim() && files.length === 0) return;
               if (isStreaming) return;
               sendMessage({ text, files });
@@ -392,13 +561,7 @@ export function AIChatPanel({
               className="min-h-10 text-sm"
             />
             <PromptInputFooter>
-              <PromptInputActionMenu>
-                <PromptInputActionMenuTrigger />
-                <PromptInputActionMenuContent>
-                  <PromptInputActionAddAttachments />
-                  <PromptInputActionAddScreenshot />
-                </PromptInputActionMenuContent>
-              </PromptInputActionMenu>
+              <DirectAttachButton />
               <PromptInputSubmit
                 status={isStreaming ? "streaming" : "ready"}
                 onStop={() => stop()}

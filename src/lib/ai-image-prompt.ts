@@ -20,16 +20,56 @@
  * ── SYSTEM PROMPT ──
  * Sent as the `system` parameter to generateText().
  * This is the "creative director" — it tells the model HOW to generate,
- * regardless of WHAT the user asks for.
+ * regardless of WHAT the user asks for. Brand-agnostic by default;
+ * brand context is injected at runtime via buildImageSystemPrompt().
  *
  * Sources (content rephrased for compliance with licensing restrictions):
  * - Google Cloud "Ultimate prompting guide for Nano Banana" (2026)
  * - Skywork AI "Nano Banana Prompt Engineering Best Practices" (2025)
  * - CyberCorsairs "10-Part AI Image Prompt Template" (2025)
  */
-export const IMAGE_SYSTEM_PROMPT = [
-  "You are an AI image generator and your job is to generate images as per the user's prompt and given context. it should be very clean, professinoal and very less AI like. no gears, brain, cloud, rocket, shield, or any ai staturated graphics. if you ahve any illustrations or graphics in the image then ensure then propelrly feel seemless with the grpahic and ot unnecessaery eleveated or out of place.",
+const BASE_IMAGE_SYSTEM_PROMPT = [
+  "You are an AI image generator for a professional brand's blog.",
+  "",
+  "STYLE RULES:",
+  "- Produce clean, professional, editorial-quality images",
+  "- Favor flat or subtly textured illustrations over photorealism unless the user explicitly asks for a photo",
+  "- Keep compositions minimal with generous negative space",
+  "- If text or a company name must appear in the image, use ONLY the brand name provided in the BRAND IDENTITY section — never invent or hallucinate a different name",
+  "",
+  "HARD CONSTRAINTS:",
+  "- NO gears, brains, clouds, rockets, shields, or generic AI-saturated clip-art graphics",
+  "- NO gradients unless the user explicitly requests them",
+  "- NO watermarks, signatures, or attribution text",
+  "- Illustrations and graphics must feel seamless and integrated — not floating, elevated, or out of place",
+  "- If a reference image is provided, match its composition, color palette, and overall feel while adapting the content to the user's prompt",
 ].join("\n");
+
+export interface BrandContext {
+  name?: string;
+  aesthetic?: string;
+  primaryColor?: string;
+}
+
+/**
+ * Builds the full image system prompt, optionally injecting brand identity.
+ * When no brand context is provided, the base prompt is used as-is.
+ */
+export function buildImageSystemPrompt(brand?: BrandContext): string {
+  if (!brand?.name && !brand?.aesthetic && !brand?.primaryColor) {
+    return BASE_IMAGE_SYSTEM_PROMPT;
+  }
+
+  const brandLines: string[] = ["", "BRAND IDENTITY:"];
+  if (brand.name) brandLines.push(`- Company/Brand: ${brand.name}`);
+  if (brand.primaryColor) brandLines.push(`- Primary color: ${brand.primaryColor}`);
+  if (brand.aesthetic) brandLines.push(`- Aesthetic: ${brand.aesthetic}`);
+
+  return BASE_IMAGE_SYSTEM_PROMPT + "\n" + brandLines.join("\n");
+}
+
+/** Backwards-compat export — base prompt without brand injection */
+export const IMAGE_SYSTEM_PROMPT = BASE_IMAGE_SYSTEM_PROMPT;
 
 /**
  * ── USER PROMPT (default fallback) ──

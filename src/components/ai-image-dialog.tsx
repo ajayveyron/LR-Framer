@@ -172,16 +172,6 @@ export function AIImageDialog({
         {referenceImageUrl && (
           <div className="flex relative flex-col items-left gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {/* <div className="flex items-center gap-2">
-            <img
-              alt="Current thumbnail"
-              className="size-8 shrink-0 rounded object-cover"
-              src={referenceImageUrl}
-            />
-            <span className="text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
-              Using current thumbnail as reference
-            </span>
-            </div> */}
             <img
               alt="Current thumbnail"
               className="h-16 shrink-0 rounded border border-tertiary absolute top-3 left-3"

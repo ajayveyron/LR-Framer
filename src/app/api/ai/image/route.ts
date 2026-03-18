@@ -4,7 +4,8 @@ import { z } from "zod";
 
 import { createErrorJsonResponse } from "@/lib/api";
 import { requireAIConfig } from "@/lib/ai-config";
-import { IMAGE_SYSTEM_PROMPT, buildImagePrompt } from "@/lib/ai-image-prompt";
+import { buildImagePrompt } from "@/lib/ai-image-prompt";
+import { getImageSystemPrompt } from "@/lib/brand";
 import { AppError } from "@/lib/errors";
 import { logEvent, logError } from "@/lib/logger";
 
@@ -52,8 +53,10 @@ export async function POST(request: Request) {
     // See: buildImagePrompt() in src/lib/ai-image-prompt.ts
     const userPrompt = buildImagePrompt(prompt, context);
 
+    const systemPrompt = await getImageSystemPrompt();
+
     logEvent("info", "ai.image_gen.prompt_assembled", {
-      systemPrompt: IMAGE_SYSTEM_PROMPT,
+      systemPrompt,
       userPrompt,
       hasReferenceImage: Boolean(referenceImageUrl),
     });
@@ -93,9 +96,7 @@ export async function POST(request: Request) {
         try {
           result = await generateText({
             model: config.provider(config.imageModel),
-            // ── SYSTEM PROMPT ── style rules, composition, medium, constraints
-            // See: IMAGE_SYSTEM_PROMPT in src/lib/ai-image-prompt.ts
-            system: IMAGE_SYSTEM_PROMPT,
+            system: systemPrompt,
             // ── USER MESSAGE ── the actual request + blog context + optional reference image
             messages: [{ role: "user" as const, content: userContent }],
             providerOptions: {

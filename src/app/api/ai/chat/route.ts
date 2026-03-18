@@ -5,9 +5,13 @@ import { createErrorJsonResponse } from "@/lib/api";
 import { requireAIConfig } from "@/lib/ai-config";
 import { AppError } from "@/lib/errors";
 import { framerTools } from "@/lib/framer-tools";
+import { generateAndUploadImage } from "@/lib/ai-image-tool";
 import { logEvent, logError } from "@/lib/logger";
 
 export const runtime = "nodejs";
+
+// Allow large request bodies — conversation history with tool results can grow
+export const maxDuration = 120;
 
 const bodyDataSchema = z.object({
   selectedRows: z.array(
@@ -56,6 +60,12 @@ ${selectionBlock}
 
 You have access to Google Search for real-time web information. When the user asks about current events, latest documentation, pricing, comparisons, or anything that benefits from up-to-date web data, use the google_search tool.
 
+You can generate images using the generate_and_upload_image tool. It creates an AI image from a text prompt and uploads it to Framer as an asset. The tool returns the uploaded image URL. To set it on a CMS item's image field, chain it with framer_set_item_attributes using fieldData: { fieldId: { type: "image", value: returnedUrl } }.
+
+If the user has attached an image in their message, pass its URL as the referenceImageUrl parameter so the generated image matches the style and composition of the reference.
+
+IMPORTANT: You may only call generate_and_upload_image ONCE per user message. If the user asks for images for multiple items, generate one image and reuse it, or ask the user to send separate messages for each image. Never batch multiple image generation calls in a single turn.
+
 You also have access to Framer CMS tools that let you directly interact with the Framer project:
 - framer_get_project_info: Get project name and ID
 - framer_get_publish_info: Get current deployment info for staging/production
@@ -101,6 +111,56 @@ export async function POST(request: Request) {
 
     const { selectedRows, fieldDefinitions } = dataResult.data;
 
+    // Server-side safety: sanitize incoming message history to prevent
+    // massive payloads from blowing up the model context or SSE stream.
+    // - Convert data: URL file parts to inline base64 (Vertex AI rejects data: scheme)
+    // - Truncate oversized tool results (>2KB)
+    // - Strip large file parts from all but the last user message
+    //   so the model sees the current image but history stays lightweight
+    const MAX_TOOL_RESULT = 2_000;
+    const MAX_FILE_URL = 50_000;
+    let lastUserIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if ((messages as any[])[i]?.role === "user") { lastUserIdx = i; break; }
+    }
+    const sanitizedMessages = (messages as any[]).map((msg: any, idx: number) => {
+      if (!Array.isArray(msg.parts)) return msg;
+      return {
+        ...msg,
+        parts: msg.parts.map((p: any) => {
+          // Convert data: URL file parts to inline base64 so Vertex AI
+          // doesn't try to fetch them as HTTP URLs
+          if (p.type === "file" && typeof p.url === "string" && p.url.startsWith("data:")) {
+            // Strip old images from history — only keep the current message's
+            if (idx !== lastUserIdx) {
+              return { type: "text", text: `[User attached an image: ${p.filename || "image"}]` };
+            }
+            // Parse data URL: data:<mediaType>;base64,<data>
+            const match = p.url.match(/^data:([^;]+);base64,(.+)$/s);
+            if (match) {
+              // Set url to raw base64 — convertToModelMessages passes
+              // url as the `data` field of a FilePart, which expects
+              // raw base64 (not a full data: URL)
+              return { ...p, url: match[2], mediaType: match[1] };
+            }
+            return p;
+          }
+          // Strip non-data-URL large file parts from history
+          if (idx !== lastUserIdx && p.type === "file" && typeof p.url === "string" && p.url.length > MAX_FILE_URL) {
+            return { type: "text", text: `[User attached an image: ${p.filename || "image"}]` };
+          }
+          // Truncate oversized tool results
+          if (p.type === "tool-invocation" && p.result !== undefined) {
+            const s = JSON.stringify(p.result);
+            if (s.length > MAX_TOOL_RESULT) {
+              return { ...p, result: { _truncated: true, preview: s.slice(0, MAX_TOOL_RESULT) } };
+            }
+          }
+          return p;
+        }),
+      };
+    });
+
     logEvent("info", "ai.bulk_edit.requested", {
       selectedRowCount: selectedRows.length,
       messageCount: messages.length,
@@ -110,8 +170,8 @@ export async function POST(request: Request) {
     const result = streamText({
       model: config.provider(config.textModel),
       system: buildSystemPrompt(selectedRows, fieldDefinitions),
-      messages: await convertToModelMessages(messages),
-      stopWhen: stepCountIs(5),
+      messages: await convertToModelMessages(sanitizedMessages),
+      stopWhen: stepCountIs(10),
       tools: {
         google_search: config.provider.tools.googleSearch({}),
         propose_edits: tool({
@@ -131,6 +191,7 @@ export async function POST(request: Request) {
           execute: async (input) => input,
         }),
         ...framerTools,
+        generate_and_upload_image: generateAndUploadImage,
       },
       onFinish: ({ usage }) => {
         logEvent("info", "ai.bulk_edit.completed", {
