@@ -3,8 +3,8 @@ import Link from "next/link";
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 
 import { ProductConfigRequiredState } from "@/components/product-config-required-state";
-import { SettingsNav } from "@/components/settings-nav";
 import { SiteSettingsForm } from "@/components/site-settings-form";
+import { TeamManager } from "@/components/team-manager";
 import { Button } from "@/components/ui/button";
 import { getDashboardAccess } from "@/lib/product-access";
 
@@ -16,34 +16,35 @@ export default async function SettingsPage() {
     return <ProductConfigRequiredState issues={access.issues} />;
   }
 
+  const isAdmin = access.role === "admin";
+
   return (
-    <main className="framer-shell">
-      <section className="mx-auto grid w-full max-w-6xl gap-6">
-        <div className="flex items-center justify-between gap-4">
+    <main className="settings-shell">
+      <section className="mx-auto grid w-full max-w-6xl gap-10">
+        <div className="flex items-center gap-4">
           <Button asChild className="size-10 rounded-full p-0" size="icon-lg" variant="outline">
             <Link aria-label="Back to dashboard" href="/dashboard">
               <ArrowLeft className="size-4" />
             </Link>
           </Button>
+          <h1 className="settings-heading">Settings</h1>
         </div>
-
-        <div className="grid gap-3">
-          <span className="framer-kicker w-fit">Settings</span>
-          <h1 className="font-heading text-[clamp(28px,4vw,42px)] leading-[1.04] tracking-[-0.04em] text-[color:var(--framer-fresco-panelTitle-color)]">
-            Workspace settings
-          </h1>
-        </div>
-
-        <SettingsNav currentPath="/dashboard/settings" />
 
         <SiteSettingsForm
-          canManage={access.role === "admin"}
+          canManage={isAdmin}
           initialCollectionId={access.site.framerCollectionId ?? ""}
           initialCollectionName={access.site.framerCollectionName ?? ""}
           initialProjectInput={
             access.site.framerProjectUrl ?? access.site.framerProjectId ?? ""
           }
         />
+
+        {isAdmin && (
+          <div className="settings-section grid gap-6">
+            <h2 className="settings-heading">Team</h2>
+            <TeamManager />
+          </div>
+        )}
       </section>
     </main>
   );

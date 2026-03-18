@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import {
   Sheet,
   SheetContent,
@@ -504,9 +505,17 @@ export function DashboardTableView({
               ref={searchInputRef}
               value={query}
             />
-            <span className="ml-auto hidden rounded-md border border-[var(--framer-fresco-panelDivider-color)] px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)] sm:inline-flex">
-              Cmd/Ctrl K
-            </span>
+            <KbdGroup className="ml-auto hidden sm:inline-flex">
+              <Kbd className="text-[color:var(--framer-fresco-panelSubtitle-color)]">
+                {typeof navigator !== "undefined" &&
+                /mac/i.test(navigator.platform)
+                  ? "⌘"
+                  : "Ctrl"}
+              </Kbd>
+              <Kbd className="text-[color:var(--framer-fresco-panelSubtitle-color)]">
+                K
+              </Kbd>
+            </KbdGroup>
           </label>
 
           <div className="flex flex-col gap-4 border-b border-[var(--framer-fresco-panelDivider-color)] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">

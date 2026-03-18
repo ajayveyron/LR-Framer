@@ -32,7 +32,7 @@ const fieldClassName = "grid gap-2";
 const helperTextClassName =
   "text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
 const formControlClassName =
-  "h-10 rounded-lg border px-3 text-sm leading-[1.4]";
+  "settings-input h-10 rounded-lg px-3 text-sm leading-[1.4]";
 const labelRowClassName = "flex items-center justify-between gap-3";
 const helpTriggerClassName =
   "shrink-0 text-[11px] font-semibold tracking-[0.08em] underline decoration-dotted text-[color:var(--framer-fresco-panelSubtitle-color)] hover:text-[color:var(--framer-fresco-panelTitle-color)] transition-colors cursor-pointer";
@@ -87,21 +87,21 @@ export function SiteSettingsForm({
 
   if (!canManage) {
     return (
-      <section className="grid gap-4 border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] p-5">
+      <section className="settings-section grid gap-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-[color:var(--framer-fresco-panelTitle-color)]">
+            <h2 className="settings-heading">
               Framer connection
             </h2>
           </div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+          <span className="inline-flex items-center gap-2 rounded-full bg-[#2B2B2B] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
             <ShieldCheckIcon className="size-3.5" />
             Read only
           </span>
         </div>
         <dl className="grid gap-3 mt-2 text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
           <div className="grid gap-1">
-            <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+            <dt className="settings-label">
               Project
             </dt>
             <dd className="break-all text-[color:var(--framer-fresco-panelTitle-color)]">
@@ -109,7 +109,7 @@ export function SiteSettingsForm({
             </dd>
           </div>
           <div className="grid gap-1">
-            <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+            <dt className="settings-label">
               Collection
             </dt>
             <dd className="text-[color:var(--framer-fresco-panelTitle-color)]">
@@ -117,7 +117,7 @@ export function SiteSettingsForm({
             </dd>
           </div>
           <div className="grid gap-1">
-            <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+            <dt className="settings-label">
               API key
             </dt>
             <dd className="text-[color:var(--framer-fresco-panelTitle-color)]">
@@ -241,9 +241,9 @@ export function SiteSettingsForm({
   }
 
   return (
-    <section className="grid gap-5 border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] p-5">
+    <section className="settings-section grid gap-5">
       <div>
-        <h2 className="text-xl font-semibold text-[color:var(--framer-fresco-panelTitle-color)]">
+        <h2 className="settings-heading">
           Framer connection
         </h2>
       </div>
@@ -268,7 +268,7 @@ export function SiteSettingsForm({
 
         <div className={fieldClassName}>
           <div className={labelRowClassName}>
-            <Label htmlFor="settings-project-input">Framer project URL or ID</Label>
+            <Label className="settings-label" htmlFor="settings-project-input">Framer project URL or ID</Label>
             <Dialog>
               <DialogTrigger asChild>
                 <div className={helpTriggerClassName}>How to find it</div>
@@ -341,7 +341,7 @@ export function SiteSettingsForm({
 
         <div className={fieldClassName}>
           <div className={labelRowClassName}>
-            <Label htmlFor="settings-api-key">Framer Server API key</Label>
+            <Label className="settings-label" htmlFor="settings-api-key">Framer Server API key</Label>
             <Dialog>
               <DialogTrigger asChild>
                 <div className={helpTriggerClassName}>How to get it</div>
@@ -405,10 +405,10 @@ export function SiteSettingsForm({
         </div>
 
         <div className={fieldClassName}>
-          <Label htmlFor="settings-collection-select">CMS collection</Label>
+          <Label className="settings-label" htmlFor="settings-collection-select">CMS collection</Label>
           <Select onValueChange={setSelectedCollectionId} value={selectedCollectionId}>
             <SelectTrigger
-              className={formControlClassName}
+              className="settings-input h-10 rounded-lg px-3 text-sm leading-[1.4]"
               id="settings-collection-select"
             >
               <SelectValue

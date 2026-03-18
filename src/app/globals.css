@@ -304,6 +304,52 @@
     background-image: none;
   }
 
+  .settings-shell {
+    @apply min-h-screen p-4 sm:p-7;
+    background: #1D1D1D;
+  }
+
+  .settings-section {
+    @apply rounded-xl p-6;
+    background-color: #111111;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .settings-input {
+    border: 1px solid transparent !important;
+    background-color: #2B2B2B !important;
+    color: var(--framer-fresco-settingsText-color) !important;
+    box-shadow: none !important;
+    border-radius: 8px !important;
+  }
+
+  .settings-input::placeholder {
+    color: rgba(255, 255, 255, 0.3) !important;
+  }
+
+  .settings-input:focus-visible {
+    border-color: var(--framer-fresco-tint-color) !important;
+    box-shadow: none !important;
+    outline: none;
+  }
+
+  .settings-heading {
+    font-family: Inter, system-ui, -apple-system, "system-ui", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.8px;
+    line-height: 1.2;
+    color: var(--framer-fresco-panelTitle-color);
+  }
+
+  .settings-label {
+    font-family: Inter, system-ui, -apple-system, "system-ui", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.6;
+    color: var(--framer-fresco-panelTitle-color);
+  }
+
   .framer-frame {
     @apply rounded-none border p-6 shadow-[0_30px_120px_rgba(0,0,0,0.45)];
     border-color: var(--framer-fresco-panelDivider-color);
