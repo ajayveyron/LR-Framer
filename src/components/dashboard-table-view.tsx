@@ -15,6 +15,7 @@ import { ColumnControls } from "@/components/column-controls";
 import { DashboardAccountLink } from "@/components/dashboard-account-link";
 import { PostEditor } from "@/components/post-editor";
 import { SelectionToolbar } from "@/components/selection-toolbar";
+import { Sparkle } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -479,10 +480,6 @@ export function DashboardTableView({
     lastClickedIndexRef.current = null;
   }
 
-  function handleAIEdit() {
-    setChatOpen(true);
-  }
-
   const selectedPosts = useMemo(
     () => cachedPosts.filter((p) => selectedRows.has(p.id)),
     [cachedPosts, selectedRows],
@@ -548,6 +545,16 @@ export function DashboardTableView({
                   {bridgeStatus.configured ? "Bridge Ready" : "Manual Mode"}
                 </Badge>
               ) : null}
+              <Button
+                aria-label="Open AI chat"
+                className="size-11 rounded-full p-0"
+                onClick={() => setChatOpen(true)}
+                size="icon-lg"
+                type="button"
+                variant="outline"
+              >
+                <Sparkle className="size-5" weight="duotone" />
+              </Button>
               <DashboardAccountLink />
             </div>
           </div>
@@ -601,7 +608,6 @@ export function DashboardTableView({
               {selectedRows.size > 0 && (
                 <SelectionToolbar
                   selectedCount={selectedRows.size}
-                  onAIEdit={handleAIEdit}
                   onClearSelection={handleClearSelection}
                 />
               )}

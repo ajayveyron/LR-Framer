@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Sparkle, X, WarningCircle, ArrowCounterClockwise } from "@phosphor-icons/react";
+import { Sparkle, X, WarningCircle, ArrowCounterClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop } from "@phosphor-icons/react";
 import { useCallback, useMemo, useState } from "react";
 
 import {
@@ -19,6 +19,8 @@ import {
 import {
   PromptInput,
   PromptInputTextarea,
+  PromptInputFooter,
+  PromptInputSubmit,
 } from "@/components/ai-elements/prompt-input";
 import { EditProposalView } from "@/components/edit-proposal-view";
 import { Badge } from "@/components/ui/badge";
@@ -135,9 +137,9 @@ export function AIChatPanel({
         showCloseButton={false}
         side="right"
       >
-        <SheetTitle className="sr-only">AI Edit Panel</SheetTitle>
+        <SheetTitle className="sr-only">AI Assistant</SheetTitle>
         <SheetDescription className="sr-only">
-          Chat with AI to bulk edit selected CMS rows.
+          Chat with AI to manage your CMS, edit posts, and more.
         </SheetDescription>
 
         {/* Header */}
@@ -147,19 +149,21 @@ export function AIChatPanel({
             weight="duotone"
           />
           <div className="min-w-0 flex-1">
-            <span className="text-sm font-semibold">AI Edit</span>
-            <div className="flex items-center gap-1.5 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
-              <Badge
-                className="h-5 px-1.5 text-[10px] font-semibold"
-                variant="secondary"
-              >
-                {selectedPosts.length}
-              </Badge>
-              <span className="truncate">
-                {truncatedTitles}
-                {moreCount > 0 && ` +${moreCount} more`}
-              </span>
-            </div>
+            <span className="text-sm font-semibold">AI Assistant</span>
+            {selectedPosts.length > 0 && (
+              <div className="flex items-center gap-1.5 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+                <Badge
+                  className="h-5 px-1.5 text-[10px] font-semibold"
+                  variant="secondary"
+                >
+                  {selectedPosts.length}
+                </Badge>
+                <span className="truncate">
+                  {truncatedTitles}
+                  {moreCount > 0 && ` +${moreCount} more`}
+                </span>
+              </div>
+            )}
           </div>
           {messages.length > 0 && (
             <Button
@@ -191,8 +195,12 @@ export function AIChatPanel({
           <ConversationContent className="gap-6 px-4 py-4">
             {messages.length === 0 && (
               <ConversationEmptyState
-                title="What do you want to change?"
-                description={`${selectedPosts.length} row${selectedPosts.length === 1 ? "" : "s"} selected. Describe the edits you want and I'll propose changes for review.`}
+                title="How can I help?"
+                description={
+                  selectedPosts.length > 0
+                    ? `${selectedPosts.length} row${selectedPosts.length === 1 ? "" : "s"} selected. You can ask me to edit them, or ask anything about your site.`
+                    : "Ask me anything — manage your CMS, publish your site, explore collections, and more."
+                }
                 icon={
                   <Sparkle
                     className="size-8 text-[color:var(--framer-fresco-panelSubtitle-color)]"
@@ -235,16 +243,37 @@ export function AIChatPanel({
                       );
                     }
 
+                    // Generic tool call indicator for framer_* tools
+                    if (part.type.startsWith("tool-")) {
+                      const toolName = part.type.slice("tool-".length).replace(/_/g, " ");
+                      const hasOutput = "output" in part && part.output != null;
+                      return (
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]"
+                        >
+                          {hasOutput ? (
+                            <CheckCircle className="size-3.5 shrink-0 text-emerald-400" weight="fill" />
+                          ) : (
+                            <CircleNotch className="size-3.5 shrink-0 animate-spin" />
+                          )}
+                          <Wrench className="size-3.5 shrink-0" />
+                          <span className="capitalize">{toolName}</span>
+                        </div>
+                      );
+                    }
+
                     return null;
                   })}
                 </MessageContent>
               </Message>
             );})}
 
-            {isStreaming && messages.at(-1)?.role !== "assistant" && (
-              <div className="flex items-center gap-2 text-xs text-[color:var(--framer-fresco-panelSubtitle-color)]">
-                <span className="inline-block size-2 animate-pulse rounded-full bg-[var(--framer-fresco-tint-color)]" />
-                Thinking…
+            {isStreaming && (
+              <div className="flex items-center gap-1.5 py-1">
+                <span className="inline-block size-1.5 animate-bounce rounded-full bg-[var(--framer-fresco-panelSubtitle-color)] [animation-delay:0ms]" />
+                <span className="inline-block size-1.5 animate-bounce rounded-full bg-[var(--framer-fresco-panelSubtitle-color)] [animation-delay:150ms]" />
+                <span className="inline-block size-1.5 animate-bounce rounded-full bg-[var(--framer-fresco-panelSubtitle-color)] [animation-delay:300ms]" />
               </div>
             )}
           </ConversationContent>
@@ -264,18 +293,27 @@ export function AIChatPanel({
           <PromptInput
             onSubmit={({ text }) => {
               if (!text.trim()) return;
-              if (isStreaming) {
-                stop();
-                return;
-              }
+              if (isStreaming) return;
               sendMessage({ text });
             }}
           >
             <PromptInputTextarea
-              placeholder="Describe the changes you want…"
-              disabled={selectedPosts.length === 0}
+              placeholder={selectedPosts.length > 0 ? "Describe the changes you want…" : "Ask me anything…"}
               className="min-h-10 text-sm"
             />
+            <PromptInputFooter>
+              <div />
+              <PromptInputSubmit
+                status={isStreaming ? "streaming" : "ready"}
+                onStop={() => stop()}
+              >
+                {isStreaming ? (
+                  <Stop className="size-4" weight="fill" />
+                ) : (
+                  <PaperPlaneRight className="size-4" weight="fill" />
+                )}
+              </PromptInputSubmit>
+            </PromptInputFooter>
           </PromptInput>
         </div>
       </SheetContent>

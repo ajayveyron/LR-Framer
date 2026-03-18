@@ -1,18 +1,16 @@
 "use client";
 
-import { Sparkle, X } from "@phosphor-icons/react";
+import { X } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 interface SelectionToolbarProps {
   selectedCount: number;
-  onAIEdit: () => void;
   onClearSelection: () => void;
 }
 
 export function SelectionToolbar({
   selectedCount,
-  onAIEdit,
   onClearSelection,
 }: SelectionToolbarProps) {
   return (
@@ -23,17 +21,6 @@ export function SelectionToolbar({
       >
         {selectedCount} selected
       </Badge>
-
-      <Button
-        disabled={selectedCount === 0}
-        onClick={onAIEdit}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        <Sparkle weight="duotone" data-icon="inline-start" />
-        AI Edit
-      </Button>
 
       <Button
         onClick={onClearSelection}

@@ -8,16 +8,33 @@ import type {
   UpsertBlogPostInput,
 } from "@/lib/cms-types";
 import {
+  addCollectionItems as addCollectionItemsCore,
+  addEnumCase as addEnumCaseCore,
   createBlogPost as createBlogPostCore,
   deleteBlogPost as deleteBlogPostCore,
+  getAllCollections as getAllCollectionsCore,
   getBlogMetadata as getBlogMetadataCore,
   getBlogPostById as getBlogPostByIdCore,
+  getCollectionById as getCollectionByIdCore,
+  getCollectionFields as getCollectionFieldsCore,
+  getCollectionItems as getCollectionItemsCore,
   getDashboardOverview as getDashboardOverviewCore,
   getEditorBootstrap as getEditorBootstrapCore,
+  getEnumFieldCases as getEnumFieldCasesCore,
+  getProjectInfo as getProjectInfoCore,
+  getPublishInfo as getPublishInfoCore,
   listBlogPosts as listBlogPostsCore,
+  publishSite as publishSiteCore,
+  removeCollectionItem as removeCollectionItemCore,
+  removeCollectionItems as removeCollectionItemsCore,
   removeBridgePosts as removeBridgePostsCore,
+  removeEnumCase as removeEnumCaseCore,
+  setCollectionAsActive as setCollectionAsActiveCore,
+  setCollectionItemAttributes as setCollectionItemAttributesCore,
+  setEnumCaseOrder as setEnumCaseOrderCore,
   syncBridgePosts as syncBridgePostsCore,
   updateBlogPost as updateBlogPostCore,
+  updateEnumCase as updateEnumCaseCore,
 } from "@/lib/framer-core";
 import { getFramerRuntimeContext } from "@/lib/framer-runtime";
 
@@ -134,4 +151,118 @@ export async function syncBridgePostsFromRaw<T>(
   const metadata = await getBlogMetadata();
   const inputs = rawInputs.map((rawInput) => mapInput(metadata, rawInput));
   return syncBridgePosts(inputs, actor, publishRequested);
+}
+
+// ---------------------------------------------------------------------------
+// Generic Framer project operations
+// ---------------------------------------------------------------------------
+
+export async function getProjectInfo() {
+  return getProjectInfoCore();
+}
+
+export async function getPublishInfo() {
+  return getPublishInfoCore();
+}
+
+export async function publishSite() {
+  return publishSiteCore();
+}
+
+export async function getAllCollections() {
+  return getAllCollectionsCore();
+}
+
+export async function getCollectionById(collectionId: string) {
+  return getCollectionByIdCore(collectionId);
+}
+
+export async function getCollectionFields(collectionId: string) {
+  return getCollectionFieldsCore(collectionId);
+}
+
+export async function getCollectionItems(collectionId: string) {
+  return getCollectionItemsCore(collectionId);
+}
+
+export async function addCollectionItems(
+  collectionId: string,
+  items: Array<{
+    id?: string;
+    slug: string;
+    draft?: boolean;
+    fieldData?: Record<string, { type: string; value: unknown }>;
+  }>,
+) {
+  return addCollectionItemsCore(collectionId, items);
+}
+
+export async function removeCollectionItems(
+  collectionId: string,
+  itemIds: string[],
+) {
+  return removeCollectionItemsCore(collectionId, itemIds);
+}
+
+export async function setCollectionItemAttributes(
+  collectionId: string,
+  itemId: string,
+  attributes: {
+    slug?: string;
+    draft?: boolean;
+    fieldData?: Record<string, { type: string; value: unknown }>;
+  },
+) {
+  return setCollectionItemAttributesCore(collectionId, itemId, attributes);
+}
+
+export async function removeCollectionItem(
+  collectionId: string,
+  itemId: string,
+) {
+  return removeCollectionItemCore(collectionId, itemId);
+}
+
+export async function getEnumFieldCases(
+  collectionId: string,
+  fieldId: string,
+) {
+  return getEnumFieldCasesCore(collectionId, fieldId);
+}
+
+export async function addEnumCase(
+  collectionId: string,
+  fieldId: string,
+  name: string,
+) {
+  return addEnumCaseCore(collectionId, fieldId, name);
+}
+
+export async function setEnumCaseOrder(
+  collectionId: string,
+  fieldId: string,
+  caseIds: string[],
+) {
+  return setEnumCaseOrderCore(collectionId, fieldId, caseIds);
+}
+
+export async function updateEnumCase(
+  collectionId: string,
+  fieldId: string,
+  caseId: string,
+  newName: string,
+) {
+  return updateEnumCaseCore(collectionId, fieldId, caseId, newName);
+}
+
+export async function removeEnumCase(
+  collectionId: string,
+  fieldId: string,
+  caseId: string,
+) {
+  return removeEnumCaseCore(collectionId, fieldId, caseId);
+}
+
+export async function setCollectionAsActive(collectionId: string) {
+  return setCollectionAsActiveCore(collectionId);
 }
