@@ -358,28 +358,37 @@ export function DashboardTableView({
   }, []);
 
   useEffect(() => {
-    function handleSearchShortcut(event: KeyboardEvent) {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") {
+    function handleKeyboardShortcuts(event: KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey)) return;
+
+      const key = event.key.toLowerCase();
+
+      // Cmd+K → toggle AI chat panel
+      if (key === "k") {
+        event.preventDefault();
+        setChatOpen((prev) => !prev);
         return;
       }
 
-      const target = event.target as HTMLElement | null;
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target?.isContentEditable
-      ) {
-        return;
+      // Cmd+\ → focus search
+      if (key === "\\") {
+        const target = event.target as HTMLElement | null;
+        if (
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          target?.isContentEditable
+        ) {
+          return;
+        }
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
       }
-
-      event.preventDefault();
-      searchInputRef.current?.focus();
-      searchInputRef.current?.select();
     }
 
-    window.addEventListener("keydown", handleSearchShortcut);
+    window.addEventListener("keydown", handleKeyboardShortcuts);
     return () => {
-      window.removeEventListener("keydown", handleSearchShortcut);
+      window.removeEventListener("keydown", handleKeyboardShortcuts);
     };
   }, []);
 
@@ -589,7 +598,7 @@ export function DashboardTableView({
                   : "Ctrl"}
               </Kbd>
               <Kbd className="text-[color:var(--framer-fresco-panelSubtitle-color)]">
-                K
+                \
               </Kbd>
             </KbdGroup>
           </label>

@@ -171,3 +171,19 @@ Also added `referenceImageUrl` support to the `generate_and_upload_image` tool s
 **Why:** The temp store approach failed for two reasons: (1) Next.js dev mode runs route handlers in different workers, so the GET handler couldn't find images stored by the POST handler (404). (2) Even if it worked, Vertex AI can't reach `localhost` URLs to fetch the image — it needs the image data inline. The body size limit approach is simpler and works because we already strip old images from history (client-side in `prepareSendMessagesRequest` and server-side in the chat route), so only the current message carries the large base64 payload.
 
 **Scope:** `next.config.ts` (added `proxyClientMaxBodySize`), `src/components/ai-chat-panel.tsx` (simplified `onSubmit`), deleted `src/lib/temp-image-store.ts`, `src/app/api/uploads/temp/route.ts`, `src/app/api/uploads/temp/[id]/route.ts`.
+
+## 2026-03-18 — Add chat conversation history with localStorage persistence
+
+**What changed:** Added conversation persistence using localStorage and a history panel accessible via a ClockCounterClockwise (clock) icon in the AI chat header. Conversations are auto-saved after each assistant turn completes. Users can browse past conversations, restore them, or delete them. Starting a new chat saves the current conversation first.
+
+**Why:** User wants to retain and revisit past AI chat conversations. localStorage was chosen for simplicity — no backend changes needed, conversations stay local to the browser.
+
+**Scope:** `src/lib/chat-history.ts` (new file — save/list/load/delete with 50-conversation cap), `src/components/chat-history-panel.tsx` (new file — history list UI with back button, delete, and restore), `src/components/ai-chat-panel.tsx` (added ClockCounterClockwise icon button, showHistory state toggle, auto-save effect on status change, save-before-switch logic).
+
+## 2026-03-18 — Cmd+K toggles AI chat, Cmd+\ focuses search
+
+**What changed:** `Cmd+K` (or `Ctrl+K`) now toggles the AI chat panel open/closed. The search focus shortcut moved from `Cmd+K` to `Cmd+\`. The keyboard hint badge next to the search input updated from `K` to `\`.
+
+**Why:** User wants a fast shortcut to open the AI assistant — `Cmd+K` is the most natural choice (universal command palette pattern). Search moved to `Cmd+\` to free up the K binding.
+
+**Scope:** `src/components/dashboard-table-view.tsx` only — the `handleKeyboardShortcuts` effect and the `KbdGroup` label.
