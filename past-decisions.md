@@ -197,3 +197,25 @@ Also added `referenceImageUrl` support to the `generate_and_upload_image` tool s
 **How it works:** Conversations are scoped by `clerkOrganizationId` + `clerkUserId`. The API routes authenticate via Clerk, then proxy to Convex using the existing `fetchProductQuery`/`fetchProductMutation` + `anyApi` pattern. Saves are fire-and-forget from the client (async but errors are swallowed to avoid breaking the chat UX). The history panel fetches on mount with a loading state.
 
 **Scope:** `convex/schema.ts` (new `chatConversations` table), `convex/chat.ts` (new file — list/save/delete functions), `src/app/api/ai/chat/history/route.ts` (new — GET + POST), `src/app/api/ai/chat/history/[id]/route.ts` (new — DELETE), `src/lib/chat-history.ts` (rewritten — API calls instead of localStorage), `src/components/chat-history-panel.tsx` (async loading + spinner), `src/components/ai-chat-panel.tsx` (void async save calls).
+
+## 2026-03-18 — Token-based pricing for AI usage
+
+**What changed:** Decided on token-based pricing for all AI features (chat, image generation, etc.) rather than credit-based or tiered plans.
+
+**Why:** Tokens are the most accurate billing unit — they map directly to actual API costs, making margins predictable. Different actions have different real costs, and tokens reflect that naturally without arbitrary credit-to-action mappings. The team is comfortable with the complexity of explaining tokens to users.
+
+**UX approach:** Token tracking under the hood, but presented to users as a usage meter ("You've used 34% of your monthly AI allowance") rather than raw token counts. Best of both worlds — accurate billing internally, clean UX externally.
+
+**Image generation normalization:** Image gen (which doesn't use tokens natively) will be normalized to a token-equivalent cost based on actual API pricing.
+
+**Scope:** Affects future billing/metering implementation. No code changes yet.
+
+## 2026-03-18 — Dodo Payments as payment provider
+
+**What changed:** Chose Dodo Payments over Stripe and Polar.sh for handling subscriptions, usage-based billing, and payments.
+
+**Why:** Dodo Payments acts as a Merchant of Record (MoR) — handles global tax compliance, VAT/GST, chargebacks, and fraud across 150+ countries. First-class India domestic support (UPI, local debit/credit cards) plus international coverage. Native metered billing support for token-based AI usage tracking. No need to register for GST/VAT in every country or deal with RBI recurring payment mandates manually.
+
+**Pricing model:** Token-based AI usage tracked via Dodo's metered billing. Subscriptions with monthly token allowances. UI shows usage as a percentage meter, not raw token counts.
+
+**Scope:** Affects future billing/payment integration. No code changes yet.
