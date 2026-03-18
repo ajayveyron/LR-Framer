@@ -159,7 +159,7 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
   });
 
   const handleNewChat = useCallback(() => {
-    if (messages.length > 0) saveConversation(chatKey, messages);
+    if (messages.length > 0) void saveConversation(chatKey, messages);
     setMessages([]);
     setChatKey(crypto.randomUUID());
     setShowHistory(false);
@@ -170,13 +170,13 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
   useEffect(() => {
     const wasActive = prevStatusRef.current === "streaming" || prevStatusRef.current === "submitted";
     const nowIdle = status === "ready" || status === "error";
-    if (wasActive && nowIdle && messages.length > 0) saveConversation(chatKey, messages);
+    if (wasActive && nowIdle && messages.length > 0) void saveConversation(chatKey, messages);
     prevStatusRef.current = status;
   }, [status, messages, chatKey]);
 
   const handleRestoreConversation = useCallback(
     (conv: SavedConversation) => {
-      if (messages.length > 0) saveConversation(chatKey, messages);
+      if (messages.length > 0) void saveConversation(chatKey, messages);
       setMessages(conv.messages);
       setChatKey(conv.id);
       setShowHistory(false);

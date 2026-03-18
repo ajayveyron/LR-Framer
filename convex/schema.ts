@@ -2,6 +2,18 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  chatConversations: defineTable({
+    clerkOrganizationId: v.string(),
+    clerkUserId: v.string(),
+    conversationId: v.string(),
+    createdAt: v.number(),
+    messages: v.string(),
+    title: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_org_user", ["clerkOrganizationId", "clerkUserId"])
+    .index("by_conversation", ["conversationId"]),
+
   memberships: defineTable({
     clerkOrganizationId: v.string(),
     clerkUserId: v.string(),

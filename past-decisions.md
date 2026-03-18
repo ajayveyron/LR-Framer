@@ -187,3 +187,13 @@ Also added `referenceImageUrl` support to the `generate_and_upload_image` tool s
 **Why:** User wants a fast shortcut to open the AI assistant — `Cmd+K` is the most natural choice (universal command palette pattern). Search moved to `Cmd+\` to free up the K binding.
 
 **Scope:** `src/components/dashboard-table-view.tsx` only — the `handleKeyboardShortcuts` effect and the `KbdGroup` label.
+
+## 2026-03-18 — Move chat conversation storage from localStorage to Convex
+
+**What changed:** Chat conversation persistence moved from browser localStorage to Convex (server-side). Added a `chatConversations` table to the Convex schema, Convex query/mutation functions in `convex/chat.ts`, and API routes at `/api/ai/chat/history` (GET/POST) and `/api/ai/chat/history/[id]` (DELETE). The `chat-history.ts` client module now calls these API routes instead of localStorage. The history panel loads conversations asynchronously with a loading spinner.
+
+**Why:** User wants conversations stored server-side so they persist across browsers/devices and are scoped to the authenticated user's organization. localStorage was a quick prototype but not suitable for a real product.
+
+**How it works:** Conversations are scoped by `clerkOrganizationId` + `clerkUserId`. The API routes authenticate via Clerk, then proxy to Convex using the existing `fetchProductQuery`/`fetchProductMutation` + `anyApi` pattern. Saves are fire-and-forget from the client (async but errors are swallowed to avoid breaking the chat UX). The history panel fetches on mount with a loading state.
+
+**Scope:** `convex/schema.ts` (new `chatConversations` table), `convex/chat.ts` (new file — list/save/delete functions), `src/app/api/ai/chat/history/route.ts` (new — GET + POST), `src/app/api/ai/chat/history/[id]/route.ts` (new — DELETE), `src/lib/chat-history.ts` (rewritten — API calls instead of localStorage), `src/components/chat-history-panel.tsx` (async loading + spinner), `src/components/ai-chat-panel.tsx` (void async save calls).

@@ -1,38 +1,11 @@
 import type { UIMessage } from "ai";
 
-const STORAGE_KEY = "lr-chat-history";
-const MAX_CONVERSATIONS = 50;
-
 export interface SavedConversation {
   id: string;
   title: string;
   messages: UIMessage[];
   createdAt: string;
   updatedAt: string;
-}
-
-function getStorage(): SavedConversation[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as SavedConversation[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function setStorage(conversations: SavedConversation[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
-  } catch {
-    // Storage full — drop oldest conversations and retry
-    const trimmed = conversations.slice(0, Math.floor(conversations.length / 2));
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
-    } catch {
-      // Give up silently
-    }
-  }
 }
 
 /** Derive a title from the first user message */
@@ -47,44 +20,57 @@ function deriveTitle(messages: UIMessage[]): string {
   return text.length > 80 ? text.slice(0, 77) + "…" : text || "Untitled conversation";
 }
 
-/** Save or update a conversation. Call after each assistant response. */
-export function saveConversation(id: string, messages: UIMessage[]): void {
+/** Save or update a conversation (fire-and-forget safe). */
+export async function saveConversation(id: string, messages: UIMessage[]): Promise<void> {
   if (messages.length === 0) return;
-  const all = getStorage();
-  const now = new Date().toISOString();
-  const existing = all.find((c) => c.id === id);
-
-  if (existing) {
-    existing.messages = messages;
-    existing.title = deriveTitle(messages);
-    existing.updatedAt = now;
-  } else {
-    all.unshift({
-      id,
-      title: deriveTitle(messages),
-      messages,
-      createdAt: now,
-      updatedAt: now,
+  try {
+    await fetch("/api/ai/chat/history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversationId: id,
+        title: deriveTitle(messages),
+        messages: JSON.stringify(messages),
+      }),
     });
+  } catch {
+    // Fire-and-forget — don't break the chat experience
   }
-
-  // Keep list capped
-  setStorage(all.slice(0, MAX_CONVERSATIONS));
 }
 
 /** List all saved conversations, newest first. */
-export function listConversations(): SavedConversation[] {
-  return getStorage().sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-  );
-}
-
-/** Load a single conversation by id. */
-export function loadConversation(id: string): SavedConversation | undefined {
-  return getStorage().find((c) => c.id === id);
+export async function listConversations(): Promise<SavedConversation[]> {
+  try {
+    const res = await fetch("/api/ai/chat/history");
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      conversations: Array<{
+        conversationId: string;
+        title: string;
+        messages: string;
+        createdAt: number;
+        updatedAt: number;
+      }>;
+    };
+    return data.conversations.map((c) => ({
+      id: c.conversationId,
+      title: c.title,
+      messages: JSON.parse(c.messages) as UIMessage[],
+      createdAt: new Date(c.createdAt).toISOString(),
+      updatedAt: new Date(c.updatedAt).toISOString(),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 /** Delete a conversation by id. */
-export function deleteConversation(id: string): void {
-  setStorage(getStorage().filter((c) => c.id !== id));
+export async function deleteConversation(id: string): Promise<void> {
+  try {
+    await fetch(`/api/ai/chat/history/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  } catch {
+    // Fire-and-forget
+  }
 }
