@@ -1,4 +1,4 @@
-import { streamText, tool } from "ai";
+import { convertToModelMessages, streamText, tool } from "ai";
 import { z } from "zod";
 
 import { createErrorJsonResponse } from "@/lib/api";
@@ -51,7 +51,7 @@ ${fieldList}
 Selected rows:
 ${rowSummaries}
 
-When the user asks you to make changes, use the propose_edits tool to suggest edits. Always include the current value and proposed value for each change so the user can review a diff before applying.
+When the user asks you to make changes, use the propose_edits tool to suggest edits. For each row, provide the fieldId as the key and the new value directly. Example: changes: { "Fv4S6mkrw": "New description text" }.
 
 Be concise and helpful. If the user's request is ambiguous, ask for clarification before proposing edits.`;
 }
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       throw new AppError("messages array is required.", 400);
     }
 
-    const dataResult = bodyDataSchema.safeParse(body.data ?? {});
+    const dataResult = bodyDataSchema.safeParse(body);
     if (!dataResult.success) {
       throw new AppError("Invalid data payload: " + dataResult.error.message, 400);
     }
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     const result = streamText({
       model: config.provider(config.textModel),
       system: buildSystemPrompt(selectedRows, fieldDefinitions),
-      messages,
+      messages: await convertToModelMessages(messages),
       tools: {
         propose_edits: tool({
           description: "Propose field edits for selected CMS rows. Use this when the user asks to change, update, or modify fields across the selected rows.",
@@ -93,16 +93,14 @@ export async function POST(request: Request) {
               z.object({
                 rowId: z.string().describe("The id of the CMS row to edit"),
                 changes: z.record(
-                  z.string(),
-                  z.object({
-                    fieldName: z.string().describe("Human-readable field name"),
-                    currentValue: z.unknown().describe("Current value of the field"),
-                    proposedValue: z.unknown().describe("New value to set"),
-                  }),
-                ).describe("Map of fieldId to change details"),
+                  z.string().describe("The field id to change"),
+                  z.unknown().describe("The new value for the field"),
+                ).describe("Map of fieldId to new value"),
               }),
             ).describe("Array of row edits to propose"),
           }),
+          // No-op execute — the tool is rendered client-side.
+          execute: async (input) => input,
         }),
       },
       onFinish: ({ usage }) => {

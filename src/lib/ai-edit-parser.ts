@@ -1,28 +1,19 @@
 import type { DashboardFieldValue } from "@/lib/cms-types";
 
 /**
- * A single field change within a row edit proposal.
- */
-export interface FieldChange {
-  fieldName: string;
-  currentValue: DashboardFieldValue;
-  proposedValue: DashboardFieldValue;
-}
-
-/**
  * A proposed edit for one CMS row, as returned by the `propose_edits` tool.
+ * `changes` maps fieldId → new value directly (simplified format).
  */
 export interface ProposedEdit {
   rowId: string;
-  changes: Record<string, FieldChange>;
+  changes: Record<string, DashboardFieldValue>;
 }
 
 /**
  * Extracts `ProposedEdit[]` from a `propose_edits` tool invocation result.
  *
- * Accepts the `args` object from a `useChat` tool invocation where
- * `toolName === "propose_edits"`. Returns an empty array if the shape
- * is unexpected so the UI can degrade gracefully.
+ * The model sends a simplified format: `changes: { fieldId: newValue }`.
+ * Returns an empty array if the shape is unexpected so the UI degrades gracefully.
  */
 export function parseEditProposals(args: unknown): ProposedEdit[] {
   if (!args || typeof args !== "object") {
@@ -49,21 +40,13 @@ export function parseEditProposals(args: unknown): ProposedEdit[] {
       continue;
     }
 
-    const parsedChanges: Record<string, FieldChange> = {};
+    const parsedChanges: Record<string, DashboardFieldValue> = {};
 
-    for (const [fieldId, change] of Object.entries(
+    for (const [fieldId, value] of Object.entries(
       changes as Record<string, unknown>,
     )) {
-      if (!change || typeof change !== "object") {
-        continue;
-      }
-
-      const c = change as Record<string, unknown>;
-      parsedChanges[fieldId] = {
-        fieldName: typeof c.fieldName === "string" ? c.fieldName : fieldId,
-        currentValue: c.currentValue as DashboardFieldValue,
-        proposedValue: c.proposedValue as DashboardFieldValue,
-      };
+      // Accept any primitive or array value the model sends
+      parsedChanges[fieldId] = value as DashboardFieldValue;
     }
 
     if (Object.keys(parsedChanges).length > 0) {

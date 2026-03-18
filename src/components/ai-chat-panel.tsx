@@ -2,8 +2,8 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Sparkle, X, WarningCircle } from "@phosphor-icons/react";
-import { useMemo } from "react";
+import { Sparkle, X, WarningCircle, ArrowCounterClockwise } from "@phosphor-icons/react";
+import { useCallback, useMemo, useState } from "react";
 
 import {
   Conversation,
@@ -51,6 +51,8 @@ export function AIChatPanel({
   metadata,
   onPostsUpdated,
 }: AIChatPanelProps) {
+  const [chatKey, setChatKey] = useState(() => crypto.randomUUID());
+
   const bodyData = useMemo(
     () => ({
       selectedRows: selectedPosts.map((p) => ({
@@ -66,18 +68,21 @@ export function AIChatPanel({
     [selectedPosts, metadata.fields],
   );
 
+  // Include chatKey in the dep so a new transport is created on reset
   const chatTransport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/ai/chat",
         body: bodyData,
       }),
-    [bodyData],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bodyData, chatKey],
   );
 
   const {
     messages,
     sendMessage,
+    setMessages,
     status,
     stop,
     error,
@@ -94,6 +99,11 @@ export function AIChatPanel({
       );
     },
   });
+
+  const handleNewChat = useCallback(() => {
+    setMessages([]);
+    setChatKey(crypto.randomUUID());
+  }, [setMessages]);
 
   const isStreaming = status === "streaming" || status === "submitted";
 
@@ -151,6 +161,19 @@ export function AIChatPanel({
               </span>
             </div>
           </div>
+          {messages.length > 0 && (
+            <Button
+              aria-label="New chat"
+              className="size-8 shrink-0"
+              onClick={handleNewChat}
+              size="icon-sm"
+              title="New chat"
+              type="button"
+              variant="ghost"
+            >
+              <ArrowCounterClockwise className="size-4" />
+            </Button>
+          )}
           <Button
             aria-label="Close AI panel"
             className="size-8 shrink-0"
@@ -179,7 +202,8 @@ export function AIChatPanel({
               />
             )}
 
-            {messages.map((message) => (
+            {messages.map((message) => {
+              return (
               <Message key={message.id} from={message.role}>
                 <MessageContent>
                   {message.parts.map((part, i) => {
@@ -192,9 +216,9 @@ export function AIChatPanel({
                     }
 
                     if (part.type === "tool-propose_edits") {
-                      const edits = parseEditProposals(
-                        part.input,
-                      );
+                      const toolData = ("output" in part && part.output) ? part.output : part.input;
+                      if (!toolData) return null;
+                      const edits = parseEditProposals(toolData);
                       if (edits.length === 0) return null;
 
                       return (
@@ -202,6 +226,10 @@ export function AIChatPanel({
                           key={i}
                           edits={edits}
                           posts={selectedPosts}
+                          fieldDefinitions={
+                            metadata.fields
+                              .filter((f) => f.supported)
+                          }
                           onApplied={handleApplied}
                         />
                       );
@@ -211,7 +239,7 @@ export function AIChatPanel({
                   })}
                 </MessageContent>
               </Message>
-            ))}
+            );})}
 
             {isStreaming && messages.at(-1)?.role !== "assistant" && (
               <div className="flex items-center gap-2 text-xs text-[color:var(--framer-fresco-panelSubtitle-color)]">

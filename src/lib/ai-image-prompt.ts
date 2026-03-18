@@ -1,4 +1,20 @@
 /**
+ * System-level style direction prepended to every image generation prompt.
+ * Derived from research on structured prompting for Gemini image models.
+ *
+ * Sources (content rephrased for compliance with licensing restrictions):
+ * - Google Cloud "Ultimate prompting guide for Nano Banana" (2026)
+ * - Skywork AI "Nano Banana Prompt Engineering Best Practices" (2025)
+ * - CyberCorsairs "10-Part AI Image Prompt Template" (2025)
+ */
+export const IMAGE_SYSTEM_PROMPT = [
+  "STYLE: Editorial illustration with a sophisticated, premium  aesthetic.",
+  "COMPOSITION: Clean layout with generous negative space, single focal point, suitable for a blog header.",
+  "MEDIUM: Flat vector shapes layered with subtle depth — think risograph print or screen-printed editorial art, not 3D renders.",
+  "CONSTRAINTS: No text or typography in the image unless specifically asked. No watermarks. No people or faces. No busy patterns. No generic stock-photo feel. no gradients at all especillay. blue or pruple unless requested or are inth reference images. Avoid photorealism — lean editorial and graphic.",
+].join("\n");
+
+/**
  * Builds a default prompt from CMS context when the user leaves the
  * prompt field empty.
  */
@@ -6,15 +22,16 @@ export function buildDefaultPrompt(context?: {
   title?: string;
   slug?: string;
 }): string {
-  if (context?.title) {
-    return `A modern, clean blog header image for an article titled "${context.title}"`;
-  }
-  return "A modern, clean blog header image with abstract shapes and soft colors";
+  const subject = context?.title
+    ? `An abstract editorial illustration that visually represents the concept of "${context.title}"`
+    : "An abstract editorial illustration with geometric shapes conveying technology and creativity";
+
+  return subject;
 }
 
 /**
  * Builds an enriched prompt for AI image generation by combining
- * the user's prompt with contextual CMS data.
+ * the user's prompt with contextual CMS data and structured style direction.
  */
 export function buildImagePrompt(
   userPrompt: string,

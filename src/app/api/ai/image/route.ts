@@ -1,9 +1,10 @@
-import { generateImage } from "ai";
+import { generateText } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { createErrorJsonResponse } from "@/lib/api";
 import { requireAIConfig } from "@/lib/ai-config";
+import { IMAGE_SYSTEM_PROMPT, buildImagePrompt } from "@/lib/ai-image-prompt";
 import { AppError } from "@/lib/errors";
 import { logEvent, logError } from "@/lib/logger";
 
@@ -30,30 +31,36 @@ export async function POST(request: Request) {
     const parsed = requestSchema.safeParse(body);
 
     if (!parsed.success) {
-      throw new AppError(parsed.error.issues[0]?.message ?? "Invalid request.", 400);
+      throw new AppError(
+        parsed.error.issues[0]?.message ?? "Invalid request.",
+        400,
+      );
     }
 
-    const { prompt, referenceImageUrl, context } = parsed.data;
+    const { prompt, context } = parsed.data;
 
     logEvent("info", "ai.image_gen.requested", {
       promptLength: prompt.length,
       hasContext: Boolean(context),
-      hasReferenceImage: Boolean(referenceImageUrl),
       model: config.imageModel,
     });
 
-    const enrichedPrompt = context
-      ? `${prompt}\n\nContext — Title: ${context.title ?? "N/A"}, Slug: ${context.slug ?? "N/A"}`
-      : prompt;
+    const userPrompt = buildImagePrompt(prompt, context);
 
-    const result = await generateImage({
-      model: config.provider.image(config.imageModel),
-      prompt: referenceImageUrl
-        ? { text: enrichedPrompt, images: [referenceImageUrl] }
-        : enrichedPrompt,
+    const result = await generateText({
+      model: config.provider(config.imageModel),
+      system: IMAGE_SYSTEM_PROMPT,
+      prompt: userPrompt,
+      providerOptions: {
+        vertex: { generationConfig: { responseModalities: ["IMAGE", "TEXT"] } },
+      },
     });
 
-    if (!result.image) {
+    const imageFile = result.files?.find((f) =>
+      f.mediaType?.startsWith("image/"),
+    );
+
+    if (!imageFile) {
       throw new AppError(
         "The model did not return an image. Try a different prompt.",
         502,
@@ -66,8 +73,8 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({
-      imageBase64: result.image.base64,
-      mimeType: result.image.mediaType ?? "image/png",
+      imageBase64: imageFile.base64,
+      mimeType: imageFile.mediaType ?? "image/png",
     });
   } catch (error) {
     logError("ai.image_gen.failed", error);

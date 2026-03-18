@@ -15,21 +15,17 @@ const fieldValueArb = fc.oneof(
   fc.constant(null),
 );
 
-const fieldChangeArb = fc.record({
-  fieldName: fc.string({ minLength: 1, maxLength: 30 }),
-  currentValue: fieldValueArb,
-  proposedValue: fieldValueArb,
-});
+const fieldChangeArb = fieldValueArb;
 
 const fieldIdArb = fc.string({ minLength: 1, maxLength: 20 });
 
 const changesArb = fc
   .uniqueArray(fieldIdArb, { minLength: 1, maxLength: 5 })
   .chain((fieldIds) =>
-    fc.tuple(...fieldIds.map(() => fieldChangeArb)).map((changes) => {
-      const record: Record<string, { fieldName: string; currentValue: unknown; proposedValue: unknown }> = {};
+    fc.tuple(...fieldIds.map(() => fieldChangeArb)).map((values) => {
+      const record: Record<string, unknown> = {};
       fieldIds.forEach((id, i) => {
-        record[id] = changes[i]!;
+        record[id] = values[i];
       });
       return record;
     }),
@@ -65,11 +61,9 @@ describe("Property 8 — edit proposal JSON round-trip", () => {
             Object.keys(original.changes).sort(),
           );
 
-          for (const [fieldId, change] of Object.entries(result.changes)) {
-            const orig = original.changes[fieldId]!;
-            assert.equal(change.fieldName, orig.fieldName);
-            assert.deepStrictEqual(change.currentValue, orig.currentValue);
-            assert.deepStrictEqual(change.proposedValue, orig.proposedValue);
+          for (const [fieldId, value] of Object.entries(result.changes)) {
+            const orig = original.changes[fieldId];
+            assert.deepStrictEqual(value, orig);
           }
         }
       }),
@@ -169,7 +163,7 @@ describe("parseEditProposals — graceful degradation", () => {
 
   it("skips entries with missing rowId", () => {
     const result = parseEditProposals({
-      edits: [{ changes: { f1: { fieldName: "f1", currentValue: "a", proposedValue: "b" } } }],
+      edits: [{ changes: { f1: "some value" } }],
     });
     assert.equal(result.length, 0);
   });

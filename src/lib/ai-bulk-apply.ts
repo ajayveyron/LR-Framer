@@ -24,22 +24,28 @@ export async function applyBulkEdits(
   const succeeded: string[] = [];
   const failed: Array<{ rowId: string; error: string }> = [];
 
+  // Separate edits with valid posts from missing ones
+  const validEdits: Array<{ edit: ProposedEdit; post: BlogPostRecord }> = [];
+
   for (const edit of edits) {
     const post = postMap.get(edit.rowId);
     if (!post) {
       failed.push({ rowId: edit.rowId, error: "Post not found in local cache." });
       continue;
     }
+    validEdits.push({ edit, post });
+  }
 
-    const nextFieldValues: Record<string, DashboardFieldValue> = {
-      ...post.fieldValues,
-    };
+  // Fire all PUTs in parallel
+  const results = await Promise.allSettled(
+    validEdits.map(async ({ edit, post }) => {
+      const nextFieldValues: Record<string, DashboardFieldValue> = {
+        ...post.fieldValues,
+      };
+      for (const [fieldId, newValue] of Object.entries(edit.changes)) {
+        nextFieldValues[fieldId] = newValue;
+      }
 
-    for (const [fieldId, change] of Object.entries(edit.changes)) {
-      nextFieldValues[fieldId] = change.proposedValue;
-    }
-
-    try {
       const response = await fetch(`/api/posts/${edit.rowId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -54,18 +60,23 @@ export async function applyBulkEdits(
         const data = (await response.json().catch(() => ({}))) as {
           error?: string;
         };
-        failed.push({
-          rowId: edit.rowId,
-          error: data.error ?? `HTTP ${response.status}`,
-        });
-        continue;
+        throw new Error(data.error ?? `HTTP ${response.status}`);
       }
 
+      return edit.rowId;
+    }),
+  );
+
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i]!;
+    const { edit } = validEdits[i]!;
+    if (result.status === "fulfilled") {
       succeeded.push(edit.rowId);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Network error";
-      failed.push({ rowId: edit.rowId, error: message });
+    } else {
+      failed.push({
+        rowId: edit.rowId,
+        error: result.reason instanceof Error ? result.reason.message : "Network error",
+      });
     }
   }
 

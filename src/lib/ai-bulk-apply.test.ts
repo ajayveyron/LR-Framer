@@ -28,11 +28,7 @@ function makeFakeEdit(rowId: string): ProposedEdit {
   return {
     rowId,
     changes: {
-      title: {
-        fieldName: "Title",
-        currentValue: `Title ${rowId}`,
-        proposedValue: `Updated ${rowId}`,
-      },
+      title: `Updated ${rowId}`,
     },
   };
 }
