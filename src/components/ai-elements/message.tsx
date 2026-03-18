@@ -54,9 +54,12 @@ export const MessageContent = ({
 }: MessageContentProps) => (
   <div
     className={cn(
-      "is-user:dark flex w-fit min-w-0 max-w-full flex-col gap-2 overflow-hidden text-sm",
+      // [TUNE] Base conversation text — font size, spacing, overflow
+      "is-user:dark flex w-fit min-w-0 max-w-full flex-col gap-2 overflow-hidden text-md",
+      // [TUNE] User message bubble — background, padding, border-radius, text color
       "group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground",
-      "group-[.is-assistant]:text-foreground",
+      // [TUNE] Assistant message text color
+      "group-[.is-assistant]:text-foreground group-[.is-assistant]:font-light group-[.is-assistant]:leading-relaxed group-[.is-assistant]:tracking-wide",
       className
     )}
     {...props}
@@ -325,8 +328,10 @@ const streamdownPlugins = { cjk, code, math, mermaid };
 
 // Use <div> instead of <p> for markdown paragraphs to avoid hydration errors
 // when Streamdown's link-safety dialog renders <div> inside a paragraph.
+// [TUNE] Override individual markdown elements rendered inside assistant messages
 const streamdownComponents = {
   p: (props: HTMLAttributes<HTMLDivElement>) => (
+    // [TUNE] Paragraph spacing inside assistant responses
     <div className="mb-4 last:mb-0" {...props} />
   ),
 };
@@ -335,6 +340,7 @@ export const MessageResponse = memo(
   ({ className, ...props }: MessageResponseProps) => (
     <Streamdown
       className={cn(
+        // [TUNE] Markdown rendered response — overall sizing & child spacing
         "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         className
       )}

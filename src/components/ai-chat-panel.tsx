@@ -343,12 +343,14 @@ export function AIChatPanel({
               <Message key={message.id} from={message.role}>
                 <MessageContent>
                   {/* Search sources — rendered first so they appear during search */}
+                  {/* [TUNE] Search source badges row */}
                   {sources.length > 0 && (
                     <div className="flex flex-wrap items-center gap-1.5">
                       <GlobeSimple className="size-3.5 shrink-0 text-[color:var(--framer-fresco-panelSubtitle-color)]" weight="fill" />
                       {sources.map((src, si) => (
                         <a
                           key={si}
+                          // [TUNE] Individual source badge — border, bg, text size/color, hover
                           className="inline-flex max-w-48 items-center truncate rounded border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-2 py-0.5 text-[10px] text-[color:var(--framer-fresco-tint-color)] transition-colors hover:bg-[var(--framer-fresco-panelDivider-color)]"
                           href={src.url}
                           rel="noopener noreferrer"
@@ -432,6 +434,7 @@ export function AIChatPanel({
                         return (
                           <div
                             key={i}
+                            // [TUNE] Image gen loading state — border, bg, text
                             className="flex items-center gap-2 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]"
                           >
                             <CircleNotch className="size-3.5 shrink-0 animate-spin" />
@@ -443,7 +446,9 @@ export function AIChatPanel({
 
                       if (isSuccess) {
                         return (
+                          // [TUNE] Image gen success card — layout, spacing
                           <div key={i} className="flex flex-col gap-2">
+                            {/* [TUNE] Image gen success header — text size/color */}
                             <div className="flex items-center justify-between text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
                               <div className="flex items-center gap-2">
                                 <CheckCircle className="size-3.5 shrink-0 text-emerald-400" weight="fill" />
@@ -474,6 +479,7 @@ export function AIChatPanel({
                       return (
                         <div
                           key={i}
+                          // [TUNE] Image gen error state — border, bg, text color
                           className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400"
                         >
                           <WarningCircle className="size-3.5 shrink-0" weight="fill" />
@@ -494,6 +500,7 @@ export function AIChatPanel({
                       return (
                         <div
                           key={i}
+                          // [TUNE] Inline tool pill — border, background, text size/color, padding, radius
                           className="flex items-center gap-2 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]"
                         >
                           {hasOutput ? (
@@ -523,6 +530,7 @@ export function AIChatPanel({
 
             {/* Inline error + retry */}
             {error && !isStreaming && (
+              // [TUNE] Chat-level error banner — border, bg, text color
               <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
                 <WarningCircle className="size-3.5 shrink-0" weight="fill" />
                 <span className="min-w-0 flex-1 truncate">{error.message}</span>
