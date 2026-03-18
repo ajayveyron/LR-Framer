@@ -17,7 +17,7 @@ import { z } from "zod";
 const project = process.env.GOOGLE_CLOUD_PROJECT?.trim();
 const location = process.env.GOOGLE_CLOUD_LOCATION?.trim();
 const textModel = "gemini-3.1-pro-preview";
-const imageModel = "gemini-3.1-flash-image-preview";
+const imageModel = "gemini-3-pro-image-preview";
 const shouldSkip = !project || !location;
 
 function getProvider() {

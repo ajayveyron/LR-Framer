@@ -1,19 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Sparkle,
   SpinnerGap,
   ArrowCounterClockwise,
   Check,
   Image as ImageIcon,
+  X,
 } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -55,12 +55,16 @@ export function AIImageDialog({
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   async function handleGenerate() {
     const effectivePrompt = prompt.trim() || buildDefaultPrompt(context);
     setGenerating(true);
     setError(null);
     setPreview(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     logEvent("info", "ai.image_dialog.generate_requested", {
       promptLength: effectivePrompt.length,
@@ -70,7 +74,7 @@ export function AIImageDialog({
     });
 
     try {
-      const result = await generateAIImage(effectivePrompt, context, referenceImageUrl);
+      const result = await generateAIImage(effectivePrompt, context, referenceImageUrl, controller.signal);
       const dataUrl = `data:${result.mimeType};base64,${result.imageBase64}`;
       setPreview({ dataUrl, base64: result.imageBase64, mimeType: result.mimeType });
       // If user left prompt empty, fill it with what was actually sent
@@ -78,10 +82,16 @@ export function AIImageDialog({
 
       logEvent("info", "ai.image_dialog.generate_completed", { success: true });
     } catch (err) {
+      if (controller.signal.aborted) {
+        setError("Generation cancelled.");
+        logEvent("info", "ai.image_dialog.generate_cancelled", {});
+        return;
+      }
       const message = err instanceof Error ? err.message : "Generation failed.";
       setError(message);
       logError("ai.image_dialog.generate_failed", err);
     } finally {
+      abortRef.current = null;
       setGenerating(false);
     }
   }
@@ -144,24 +154,25 @@ export function AIImageDialog({
             />
             Generate Image with AI
           </DialogTitle>
-          <DialogDescription>
+          {/* <DialogDescription>
             Describe the image you want. CMS content is used as additional context.
-          </DialogDescription>
+          </DialogDescription> */}
         </DialogHeader>
 
         {/* Context preview */}
-        {context?.title && (
+        {/* {context?.title && (
           <div className="rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
             <span className="font-medium text-[color:var(--framer-fresco-panelSubtitle-color)]">Context:</span>{" "}
             {context.title}
             {context.slug && ` · /${context.slug}`}
           </div>
-        )}
+        )} */}
 
         {/* Reference image indicator */}
         {referenceImageUrl && (
-          <div className="flex items-center gap-2.5 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2">
+          <div className="flex relative flex-col items-left gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
+            {/* <div className="flex items-center gap-2">
             <img
               alt="Current thumbnail"
               className="size-8 shrink-0 rounded object-cover"
@@ -170,16 +181,23 @@ export function AIImageDialog({
             <span className="text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
               Using current thumbnail as reference
             </span>
+            </div> */}
+            <img
+              alt="Current thumbnail"
+              className="h-16 shrink-0 rounded border border-tertiary absolute top-3 left-3"
+              src={referenceImageUrl}
+            />
+            <Textarea
+          className="min-h-20 resize-none text-sm pt-22"
+          disabled={generating || uploading}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="Custom instructions (Optional)"
+          value={prompt}
+        />
           </div>
         )}
 
-        <Textarea
-          className="min-h-20 resize-none text-sm"
-          disabled={generating || uploading}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="A modern blog header illustration showing…"
-          value={prompt}
-        />
+        
 
         {/* Preview */}
         {preview && (
@@ -195,7 +213,7 @@ export function AIImageDialog({
 
         {/* Empty state */}
         {!preview && !generating && !error && (
-          <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--framer-fresco-panelDivider-color)] py-10 text-[color:var(--framer-fresco-panelSubtitle-color)]">
+          <div className="h-40 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--framer-fresco-panelDivider-color)] py-10 text-[color:var(--framer-fresco-panelSubtitle-color)]">
             <ImageIcon className="size-8" weight="duotone" />
             <span className="text-xs">Your generated image will appear here</span>
           </div>
@@ -203,9 +221,20 @@ export function AIImageDialog({
 
         {/* Loading */}
         {generating && (
-          <div className="flex items-center justify-center gap-2 py-10 text-[color:var(--framer-fresco-panelSubtitle-color)]">
-            <SpinnerGap className="size-6 animate-spin" />
-            <span className="text-sm">Generating…</span>
+          <div className="h-40 flex flex-col items-center justify-center gap-2  rounded-lg border border-dashed border-[var(--framer-fresco-panelDivider-color)]  py-10 text-[color:var(--framer-fresco-panelSubtitle-color)]">
+            <SpinnerGap className="size-8 animate-spin" />
+            <span className="text-md">Generating…</span>
+            <span className="text-xs">It can take up to 2 minutes</span>
+            <Button
+              className="mt-2"
+              onClick={() => abortRef.current?.abort()}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <X className="size-4" />
+              Cancel
+            </Button>
           </div>
         )}
 

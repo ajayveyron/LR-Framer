@@ -37,24 +37,101 @@ export async function POST(request: Request) {
       );
     }
 
-    const { prompt, context } = parsed.data;
+    const { prompt, referenceImageUrl, context } = parsed.data;
 
     logEvent("info", "ai.image_gen.requested", {
       promptLength: prompt.length,
       hasContext: Boolean(context),
+      hasReferenceImage: Boolean(referenceImageUrl),
+      referenceImageUrl: referenceImageUrl ?? null,
       model: config.imageModel,
     });
 
+    // ── USER PROMPT ──
+    // Built from what the user typed + CMS context (title, slug, body).
+    // See: buildImagePrompt() in src/lib/ai-image-prompt.ts
     const userPrompt = buildImagePrompt(prompt, context);
 
-    const result = await generateText({
-      model: config.provider(config.imageModel),
-      system: IMAGE_SYSTEM_PROMPT,
-      prompt: userPrompt,
-      providerOptions: {
-        vertex: { generationConfig: { responseModalities: ["IMAGE", "TEXT"] } },
-      },
+    logEvent("info", "ai.image_gen.prompt_assembled", {
+      systemPrompt: IMAGE_SYSTEM_PROMPT,
+      userPrompt,
+      hasReferenceImage: Boolean(referenceImageUrl),
     });
+
+    // ── BUILD MESSAGES ──
+    // For generateText with Gemini, we pass the user prompt as a message.
+    // If a reference image URL is provided, we include it as an image part
+    // so the model can see and use it for generation.
+    const userContent: Array<
+      | { type: "text"; text: string }
+      | { type: "image"; image: string }
+    > = [{ type: "text", text: userPrompt }];
+
+    if (referenceImageUrl) {
+      userContent.push({ type: "image", image: referenceImageUrl });
+    }
+
+    // ── GENERATE ──
+    // Using generateText (not generateImage) because Gemini image models
+    // support system prompts via generateText. Images come back in result.files.
+    // We handle retries manually to log each attempt for debugging.
+    const MAX_ATTEMPTS = 2;
+    let result: Awaited<ReturnType<typeof generateText>> | undefined;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        logEvent("info", "ai.image_gen.attempt", {
+          attempt,
+          maxAttempts: MAX_ATTEMPTS,
+        });
+
+        // 120s timeout per attempt — image gen with reference images can take 90s+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 300_000);
+
+        try {
+          result = await generateText({
+            model: config.provider(config.imageModel),
+            // ── SYSTEM PROMPT ── style rules, composition, medium, constraints
+            // See: IMAGE_SYSTEM_PROMPT in src/lib/ai-image-prompt.ts
+            system: IMAGE_SYSTEM_PROMPT,
+            // ── USER MESSAGE ── the actual request + blog context + optional reference image
+            messages: [{ role: "user" as const, content: userContent }],
+            providerOptions: {
+              // Tell Vertex to return images (not just text)
+              vertex: { generationConfig: { responseModalities: ["IMAGE", "TEXT"] } },
+            },
+            // Disable SDK-level retries — we handle them ourselves for logging
+            maxRetries: 0,
+            abortSignal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeout);
+        }
+
+        // Success — break out of retry loop
+        break;
+      } catch (err) {
+        lastError = err;
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logEvent("warn", "ai.image_gen.attempt_failed", {
+          attempt,
+          maxAttempts: MAX_ATTEMPTS,
+          error: errMsg,
+          willRetry: attempt < MAX_ATTEMPTS,
+        });
+
+        if (attempt >= MAX_ATTEMPTS) break;
+
+        // Brief backoff before retry
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+      }
+    }
+
+    if (!result) {
+      throw lastError ?? new AppError("Image generation failed after retries.", 502);
+    }
 
     const imageFile = result.files?.find((f) =>
       f.mediaType?.startsWith("image/"),
