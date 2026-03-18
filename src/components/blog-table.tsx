@@ -1,7 +1,8 @@
 "use client";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -31,6 +32,10 @@ type BlogTableProps = {
   onReorderColumns?: (sourceIndex: number, destinationIndex: number) => void;
   onDraftToggle?: (post: BlogPostRecord) => void;
   onDelete?: (postId: string) => void;
+  selectedRows?: Set<string>;
+  onToggleRow?: (rowId: string) => void;
+  onToggleAll?: (visibleRowIds: string[]) => void;
+  onShiftClick?: (rowId: string) => void;
 };
 
 type ColumnLimits = {
@@ -277,6 +282,10 @@ export function BlogTable({
   onReorderColumns,
   onDraftToggle,
   onDelete,
+  selectedRows,
+  onToggleRow,
+  onToggleAll,
+  onShiftClick,
 }: BlogTableProps) {
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() =>
     Object.fromEntries(
@@ -288,6 +297,17 @@ export function BlogTable({
   );
   const [draggingColumn, setDraggingColumn] = useState<string | null>(null);
   const [draggedColumnIndex, setDraggedColumnIndex] = useState<number | null>(null);
+  const lastClickedIndexRef = useRef<number | null>(null);
+
+  // Derive selection-related state
+  const hasSelection = selectedRows !== undefined && onToggleRow !== undefined;
+  const allPostIds = posts.map((p) => p.id);
+  const allVisibleSelected = hasSelection && allPostIds.length > 0 && allPostIds.every((id) => selectedRows.has(id));
+  const someVisibleSelected = hasSelection && !allVisibleSelected && allPostIds.some((id) => selectedRows.has(id));
+  const headerCheckedState: boolean | "indeterminate" = allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false;
+
+  // Build a flat ordered list of post IDs for shift-click index tracking
+  const flatPostIds = posts.map((p) => p.id);
 
   useEffect(() => {
     return () => {
@@ -307,12 +327,14 @@ export function BlogTable({
     );
   }
 
+  const CHECKBOX_COL_WIDTH = 48;
+
   const tableMinWidth = columns.reduce(
     (sum, column) =>
       sum +
       (columnWidths[column.key] ??
         getColumnLimits(metadata, column.key).defaultWidth),
-    0,
+    hasSelection ? CHECKBOX_COL_WIDTH : 0,
   );
 
   const groupedPosts = [
@@ -335,6 +357,7 @@ export function BlogTable({
         style={{ minWidth: tableMinWidth }}
       >
         <colgroup>
+          {hasSelection && <col style={{ width: CHECKBOX_COL_WIDTH }} />}
           {columns.map((column) => {
             const width =
               columnWidths[column.key] ??
@@ -345,6 +368,20 @@ export function BlogTable({
         </colgroup>
         <thead>
           <tr>
+            {hasSelection && (
+              <th
+                className="sticky top-0 z-10 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-3 py-[18px] text-center"
+              >
+                <Checkbox
+                  aria-label={allVisibleSelected ? "Deselect all rows" : "Select all rows"}
+                  checked={headerCheckedState}
+                  onCheckedChange={() => {
+                    onToggleAll?.(allPostIds);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </th>
+            )}
             {columns.map((column, index) => (
               <ContextMenu key={column.key}>
                 <ContextMenuTrigger asChild>
@@ -452,7 +489,7 @@ export function BlogTable({
               >
                 <td
                   className="border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-4 text-[13px] font-bold text-[color:var(--framer-fresco-panelTitle-color)]"
-                  colSpan={columns.length}
+                  colSpan={columns.length + (hasSelection ? 1 : 0)}
                 >
                   {group.label}
                 </td>
@@ -464,7 +501,8 @@ export function BlogTable({
                       aria-label={`Edit ${post.title}`}
                       className={cn(
                         "group cursor-pointer transition-all hover:bg-[var(--framer-app-surface-subtle-color)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--framer-fresco-tintDimmed-color)] focus-visible:ring-inset data-[active=true]:bg-[var(--framer-app-surface-muted-color)]",
-                        loadingPosts?.has(post.id) && "pointer-events-none opacity-50 duration-300"
+                        loadingPosts?.has(post.id) && "pointer-events-none opacity-50 duration-300",
+                        hasSelection && selectedRows.has(post.id) && "bg-[var(--framer-fresco-tintDimmed-color)]",
                       )}
                       data-active={post.id === activePostId}
                       onClick={() => {
@@ -481,6 +519,29 @@ export function BlogTable({
                       role="link"
                       tabIndex={0}
                     >
+                      {hasSelection && (
+                        <td
+                          className="border-b border-[var(--framer-fresco-panelDivider-color)] px-3 py-[18px] text-center"
+                        >
+                          <Checkbox
+                            aria-label={`Select ${post.title}`}
+                            checked={selectedRows.has(post.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const postIndex = flatPostIds.indexOf(post.id);
+                              if (e.shiftKey && lastClickedIndexRef.current !== null) {
+                                onShiftClick?.(post.id);
+                              } else {
+                                onToggleRow(post.id);
+                              }
+                              lastClickedIndexRef.current = postIndex;
+                            }}
+                            onCheckedChange={() => {
+                              // Handled by onClick for shift-key detection
+                            }}
+                          />
+                        </td>
+                      )}
                       {columns.map((column) => {
                         if (column.key === "status") {
                           const isLoading = loadingPosts?.has(post.id);

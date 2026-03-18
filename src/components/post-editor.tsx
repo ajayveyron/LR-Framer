@@ -21,8 +21,10 @@ import {
   ListBullets as ListIcon,
   ListNumbers as ListOrderedIcon,
   Quotes as TextQuoteIcon,
+  Sparkle,
 } from "@phosphor-icons/react";
 
+import { AIImageDialog } from "@/components/ai-image-dialog";
 import { useNotify } from "@/components/notification-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -400,10 +402,12 @@ function ReadOnlyField({
 
 function RichTextInput({
   onChange,
+  onAIImage,
   placeholder,
   value,
 }: {
   onChange: (value: string) => void;
+  onAIImage?: () => void;
   placeholder: string;
   value: string;
 }) {
@@ -806,6 +810,25 @@ function RichTextInput({
             <ListOrderedIcon className="size-4" />
           </Button>
         </div>
+
+        {onAIImage ? (
+          <div className={toolbarActionGroupClassName}>
+            <Button
+              aria-label="Generate image with AI"
+              className={toolbarActionButtonClassName}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                onAIImage();
+              }}
+              size="xs"
+              title="Generate image with AI"
+              type="button"
+              variant="ghost"
+            >
+              <Sparkle className="size-4" weight="duotone" />
+            </Button>
+          </div>
+        ) : null}
       </div>
       <div
         className={editorContentClassName}
@@ -880,6 +903,8 @@ export function PostEditor({
   const [pendingUploads, setPendingUploads] = useState<Record<string, boolean>>(
     {},
   );
+  const [aiImageFieldId, setAiImageFieldId] = useState<string | null>(null);
+  const [aiImageRichTextFieldId, setAiImageRichTextFieldId] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const titleFieldId = metadata.logicalFields.title;
   const bodyFieldId = metadata.logicalFields.body;
@@ -1361,6 +1386,7 @@ export function PostEditor({
             name={path}
             render={({ field: controllerField }) => (
               <RichTextInput
+                onAIImage={() => setAiImageRichTextFieldId(field.id)}
                 onChange={controllerField.onChange}
                 placeholder={`Write ${field.name.toLowerCase()}`}
                 value={
@@ -1475,6 +1501,18 @@ export function PostEditor({
                         Remove
                       </Button>
                     ) : null}
+                    {field.type === "image" ? (
+                      <Button
+                        className="h-7 rounded-lg px-2.5 text-xs"
+                        onClick={() => setAiImageFieldId(field.id)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        <Sparkle className="size-3.5" weight="duotone" />
+                        AI
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -1507,6 +1545,18 @@ export function PostEditor({
                     {isUploading ? "Uploading..." : "Upload"}
                   </label>
                 </Button>
+                {field.type === "image" ? (
+                  <Button
+                    className="h-9 rounded-lg px-3"
+                    onClick={() => setAiImageFieldId(field.id)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Sparkle className="size-4" weight="duotone" />
+                    Generate Image
+                  </Button>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -1784,6 +1834,71 @@ export function PostEditor({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* AI Image Generation Dialog — image fields */}
+      <AIImageDialog
+        context={{
+          title: typeof titleValue === "string" ? titleValue : undefined,
+          slug: form.getValues("slug") || undefined,
+        }}
+        defaultPrompt=""
+        onAccept={(imageUrl) => {
+          if (aiImageFieldId) {
+            const fieldPath = `fieldValues.${aiImageFieldId}` as const;
+            form.setValue(fieldPath, imageUrl, {
+              shouldDirty: true,
+              shouldTouch: true,
+              shouldValidate: true,
+            });
+            notify.success("AI image applied.");
+          }
+        }}
+        onOpenChange={(open) => {
+          if (!open) setAiImageFieldId(null);
+        }}
+        open={aiImageFieldId !== null}
+        referenceImageUrl={
+          aiImageFieldId &&
+          typeof watchedFieldValues?.[aiImageFieldId] === "string" &&
+          (watchedFieldValues[aiImageFieldId] as string).length > 0
+            ? (watchedFieldValues[aiImageFieldId] as string)
+            : undefined
+        }
+      />
+
+      {/* AI Image Generation Dialog — rich text inline */}
+      <AIImageDialog
+        context={{
+          title: typeof titleValue === "string" ? titleValue : undefined,
+          slug: form.getValues("slug") || undefined,
+          bodyText: aiImageRichTextFieldId
+            ? (typeof watchedFieldValues?.[aiImageRichTextFieldId] === "string"
+              ? (watchedFieldValues[aiImageRichTextFieldId] as string).replace(/<[^>]*>/g, " ").slice(0, 500)
+              : undefined)
+            : undefined,
+        }}
+        defaultPrompt=""
+        onAccept={(imageUrl, altText) => {
+          if (aiImageRichTextFieldId) {
+            const fieldPath = `fieldValues.${aiImageRichTextFieldId}` as const;
+            const currentHtml =
+              (typeof watchedFieldValues?.[aiImageRichTextFieldId] === "string"
+                ? (watchedFieldValues[aiImageRichTextFieldId] as string)
+                : "") ?? "";
+            const imgTag = `<img src="${imageUrl}" alt="${altText.replace(/"/g, "&quot;")}" />`;
+            form.setValue(fieldPath, currentHtml + imgTag, {
+              shouldDirty: true,
+              shouldTouch: true,
+              shouldValidate: true,
+            });
+            notify.success("AI image inserted.");
+          }
+        }}
+        onOpenChange={(open) => {
+          if (!open) setAiImageRichTextFieldId(null);
+        }}
+        open={aiImageRichTextFieldId !== null}
+      />
     </section>
   );
 }

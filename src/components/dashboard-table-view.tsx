@@ -1,16 +1,20 @@
 "use client";
 import {
+  useCallback,
   useDeferredValue,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
 } from "react";
 
+import { AIChatPanel } from "@/components/ai-chat-panel";
 import { BlogTable } from "@/components/blog-table";
 import { ColumnControls } from "@/components/column-controls";
 import { DashboardAccountLink } from "@/components/dashboard-account-link";
 import { PostEditor } from "@/components/post-editor";
+import { SelectionToolbar } from "@/components/selection-toolbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +34,7 @@ import {
 } from "@/components/ui/sheet";
 import type { BlogCollectionMetadata, BlogPostRecord } from "@/lib/cms-types";
 import type { SiteRole } from "@/lib/product-types";
+import { toggleRow, toggleAllRows, shiftClickRange } from "@/lib/selection";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
@@ -300,6 +305,9 @@ export function DashboardTableView({
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [chatOpen, setChatOpen] = useState(false);
+  const lastClickedIndexRef = useRef<number | null>(null);
   const [searchIndex, setSearchIndex] = useState(() =>
     buildSearchIndex(posts, metadata),
   );
@@ -374,6 +382,18 @@ export function DashboardTableView({
     };
   }, []);
 
+  // Emit wide event when selection changes
+  useEffect(() => {
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        level: "info",
+        event: "dashboard.rows.selected",
+        count: selectedRows.size,
+      }),
+    );
+  }, [selectedRows]);
+
   function commitDrawerState(
     nextDrawerState: DrawerState | null,
     historyMode: "push" | "replace" = "push",
@@ -429,6 +449,55 @@ export function DashboardTableView({
   const currentPage = Math.min(totalPages, Math.max(1, page));
   const startIndex = (currentPage - 1) * PAGE_SIZE;
   const visiblePosts = filteredPosts.slice(startIndex, startIndex + PAGE_SIZE);
+  const visiblePostIds = visiblePosts.map((post) => post.id);
+
+  function handleToggleRow(rowId: string) {
+    setSelectedRows((current) => toggleRow(current, rowId));
+    const idx = visiblePostIds.indexOf(rowId);
+    if (idx !== -1) {
+      lastClickedIndexRef.current = idx;
+    }
+  }
+
+  function handleToggleAll(visibleRowIds: string[]) {
+    setSelectedRows((current) => toggleAllRows(current, visibleRowIds));
+    lastClickedIndexRef.current = null;
+  }
+
+  function handleShiftClick(rowId: string) {
+    const clickedIndex = visiblePostIds.indexOf(rowId);
+    if (clickedIndex === -1) return;
+    const lastIndex = lastClickedIndexRef.current ?? clickedIndex;
+    setSelectedRows((current) =>
+      shiftClickRange(current, visiblePostIds, lastIndex, clickedIndex),
+    );
+    lastClickedIndexRef.current = clickedIndex;
+  }
+
+  function handleClearSelection() {
+    setSelectedRows(new Set());
+    lastClickedIndexRef.current = null;
+  }
+
+  function handleAIEdit() {
+    setChatOpen(true);
+  }
+
+  const selectedPosts = useMemo(
+    () => cachedPosts.filter((p) => selectedRows.has(p.id)),
+    [cachedPosts, selectedRows],
+  );
+
+  const handlePostsUpdated = useCallback(
+    (updatedPosts: BlogPostRecord[]) => {
+      setCachedPosts((current) => {
+        const updated = new Map(updatedPosts.map((p) => [p.id, p]));
+        return current.map((p) => updated.get(p.id) ?? p);
+      });
+    },
+    [],
+  );
+
   const activeColumns = selectedColumns
     .map((key) => columnOptions.find((column) => column.key === key))
     .filter((column): column is { key: string; label: string } => column !== undefined);
@@ -529,6 +598,13 @@ export function DashboardTableView({
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              {selectedRows.size > 0 && (
+                <SelectionToolbar
+                  selectedCount={selectedRows.size}
+                  onAIEdit={handleAIEdit}
+                  onClearSelection={handleClearSelection}
+                />
+              )}
               <div className="inline-flex flex-wrap items-center gap-4 text-[13px] text-[color:var(--framer-fresco-panelDescription-color)]">
                 <span>{draftCount} drafts</span>
                 <span>{filteredPosts.length - draftCount} published</span>
@@ -554,6 +630,10 @@ export function DashboardTableView({
             posts={visiblePosts}
             role={role}
             loadingPosts={loadingPosts}
+            selectedRows={selectedRows}
+            onToggleRow={handleToggleRow}
+            onToggleAll={handleToggleAll}
+            onShiftClick={handleShiftClick}
             onHideColumn={(columnKey) => {
               const nextSelected = selectedColumns.filter((key) => key !== columnKey);
               if (nextSelected.length > 0) {
@@ -735,6 +815,14 @@ export function DashboardTableView({
           </div>
         </SheetContent>
       </Sheet>
+
+      <AIChatPanel
+        metadata={metadata}
+        onOpenChange={setChatOpen}
+        onPostsUpdated={handlePostsUpdated}
+        open={chatOpen}
+        selectedPosts={selectedPosts}
+      />
     </section>
   );
 }

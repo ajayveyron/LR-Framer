@@ -107,3 +107,91 @@ export function getLegacyFramerApiKey() {
     503,
   );
 }
+
+// ---------------------------------------------------------------------------
+// AI / Vertex AI environment (optional — dashboard works without these)
+// ---------------------------------------------------------------------------
+
+const aiEnvSchema = z.object({
+  GOOGLE_CLOUD_PROJECT: z.string().optional(),
+  GOOGLE_CLOUD_LOCATION: z.string().optional(),
+});
+
+/** Gemini 3.1 Pro — advanced reasoning, text generation */
+export const GEMINI_TEXT_MODEL = "gemini-3.1-pro-preview";
+/** Nano Banana 2 (Gemini 3.1 Flash Image) — image generation */
+export const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image-preview";
+
+export interface AIEnv {
+  GOOGLE_CLOUD_PROJECT: string;
+  GOOGLE_CLOUD_LOCATION: string;
+}
+
+let cachedAIEnv: AIEnv | undefined | null = null; // null = not yet resolved
+
+/**
+ * Returns diagnostics for AI-related env vars.
+ * Empty array means either AI is fully configured or not attempted at all.
+ * Issues are only reported when at least one AI var is provided but the
+ * required pair is incomplete.
+ */
+export function getAIEnvIssues(): Array<{ path: string; message: string }> {
+  const schemaResult = aiEnvSchema.safeParse(process.env);
+  if (!schemaResult.success) {
+    return mapIssues(schemaResult.error.issues);
+  }
+
+  const project = normalizeOptionalValue(process.env.GOOGLE_CLOUD_PROJECT);
+  const location = normalizeOptionalValue(process.env.GOOGLE_CLOUD_LOCATION);
+
+  // If neither is set, AI features are simply not configured — no issues.
+  if (!project && !location) {
+    return [];
+  }
+
+  const issues: Array<{ path: string; message: string }> = [];
+
+  if (!project) {
+    issues.push({
+      path: "GOOGLE_CLOUD_PROJECT",
+      message:
+        "GOOGLE_CLOUD_PROJECT is required when GOOGLE_CLOUD_LOCATION is set.",
+    });
+  }
+
+  if (!location) {
+    issues.push({
+      path: "GOOGLE_CLOUD_LOCATION",
+      message:
+        "GOOGLE_CLOUD_LOCATION is required when GOOGLE_CLOUD_PROJECT is set.",
+    });
+  }
+
+  return issues;
+}
+
+/**
+ * Returns the validated AI env vars, or `undefined` if AI features are not
+ * configured. The dashboard continues to work normally when this returns
+ * `undefined`.
+ */
+export function getAIEnv(): AIEnv | undefined {
+  if (cachedAIEnv !== null) {
+    return cachedAIEnv;
+  }
+
+  const project = normalizeOptionalValue(process.env.GOOGLE_CLOUD_PROJECT);
+  const location = normalizeOptionalValue(process.env.GOOGLE_CLOUD_LOCATION);
+
+  if (!project || !location) {
+    cachedAIEnv = undefined;
+    return undefined;
+  }
+
+  cachedAIEnv = {
+    GOOGLE_CLOUD_PROJECT: project,
+    GOOGLE_CLOUD_LOCATION: location,
+  };
+
+  return cachedAIEnv;
+}
