@@ -560,7 +560,7 @@ export function DashboardTableView({
           </div>
 
           <label
-            className="flex min-h-[74px] items-center gap-3 border-b border-[var(--framer-fresco-panelDivider-color)] px-5 text-[color:var(--framer-fresco-panelSubtitle-color)]"
+            className="flex h-auto items-center gap-3 border-b border-[var(--framer-fresco-panelDivider-color)] px-5 py-2 text-[color:var(--framer-fresco-panelSubtitle-color)]"
             htmlFor="dashboard-search"
           >
             <span
@@ -570,14 +570,14 @@ export function DashboardTableView({
               <SearchIcon />
             </span>
             <Input
-              aria-label="Search posts"
-              className="h-auto border-0 bg-transparent px-0 py-0 text-lg text-[color:var(--framer-fresco-settingsText-color)] shadow-none placeholder:text-[color:var(--framer-fresco-panelSubtitle-color)] focus-visible:border-0 focus-visible:ring-0"
+              aria-label="Search items"
+              className="h-full border-0 bg-transparent px-4 py-4 text-lg text-[color:var(--framer-fresco-settingsText-color)] shadow-none placeholder:text-[color:var(--framer-fresco-panelSubtitle-color)] focus-visible:border-0 focus-visible:ring-0"
               id="dashboard-search"
               onChange={(event) => {
                 setQuery(event.target.value);
                 setPage(1);
               }}
-              placeholder="Search posts"
+              placeholder="Search items"
               ref={searchInputRef}
               value={query}
             />

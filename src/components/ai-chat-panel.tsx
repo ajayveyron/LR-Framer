@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Sparkle, X, WarningCircle, ArrowCounterClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop } from "@phosphor-icons/react";
+import { Sparkle, X, WarningCircle, ArrowCounterClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop, GlobeSimple } from "@phosphor-icons/react";
 import { useCallback, useMemo, useState } from "react";
 
 import {
@@ -20,7 +20,14 @@ import {
   PromptInput,
   PromptInputTextarea,
   PromptInputFooter,
+  PromptInputHeader,
   PromptInputSubmit,
+  PromptInputActionMenu,
+  PromptInputActionMenuTrigger,
+  PromptInputActionMenuContent,
+  PromptInputActionAddAttachments,
+  PromptInputActionAddScreenshot,
+  usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
 import { EditProposalView } from "@/components/edit-proposal-view";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +51,49 @@ interface AIChatPanelProps {
   selectedPosts: BlogPostRecord[];
   metadata: BlogCollectionMetadata;
   onPostsUpdated: (updatedPosts: BlogPostRecord[]) => void;
+}
+
+function AttachmentPreviewStrip() {
+  const attachments = usePromptInputAttachments();
+  if (attachments.files.length === 0) return null;
+
+  return (
+    <PromptInputHeader>
+      {attachments.files.map((file) => {
+        const ext = file.filename?.split(".").pop()?.toUpperCase() ?? "FILE";
+        const isImage = file.mediaType?.startsWith("image/") && file.url;
+
+        return (
+          <div
+            key={file.id}
+            className="group relative size-20 shrink-0 overflow-hidden rounded border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)]"
+          >
+            {isImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                alt={file.filename ?? "attachment"}
+                className="size-full object-cover"
+                src={file.url}
+              />
+            ) : (
+              <span className="flex size-full flex-col items-center justify-center gap-0.5">
+                <span className="text-[10px] font-semibold uppercase text-[color:var(--framer-fresco-panelSubtitle-color)]">{ext}</span>
+                <span className="max-w-full truncate px-1 text-[8px] text-[color:var(--framer-fresco-panelDescription-color)]">{file.filename}</span>
+              </span>
+            )}
+            <button
+              aria-label={`Remove ${file.filename ?? "attachment"}`}
+              className="cursor-default absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-[red] text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+              onClick={() => attachments.remove(file.id)}
+              type="button"
+            >
+              <X className="size-2.5" />
+            </button>
+          </div>
+        );
+      })}
+    </PromptInputHeader>
+  );
 }
 
 export function AIChatPanel({
@@ -211,9 +261,40 @@ export function AIChatPanel({
             )}
 
             {messages.map((message) => {
+              const sources = message.parts.filter(
+                (p): p is typeof p & { type: "source-url"; url: string; title?: string } =>
+                  p.type === "source-url",
+              );
+              const hasTextContent = message.parts.some(
+                (p) => p.type === "text" && p.text.length > 0,
+              );
+              const isLastMessage = message.id === messages[messages.length - 1]?.id;
+              // Show spinner under sources while text hasn't arrived yet
+              const showSourcesSpinner =
+                isLastMessage && isStreaming && sources.length > 0 && !hasTextContent;
               return (
               <Message key={message.id} from={message.role}>
                 <MessageContent>
+                  {/* Search sources — rendered first so they appear during search */}
+                  {sources.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <GlobeSimple className="size-3.5 shrink-0 text-[color:var(--framer-fresco-panelSubtitle-color)]" weight="fill" />
+                      {sources.map((src, si) => (
+                        <a
+                          key={si}
+                          className="inline-flex max-w-48 items-center truncate rounded border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-2 py-0.5 text-[10px] text-[color:var(--framer-fresco-tint-color)] transition-colors hover:bg-[var(--framer-fresco-panelDivider-color)]"
+                          href={src.url}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                        >
+                          {src.title || new URL(src.url).hostname}
+                        </a>
+                      ))}
+                      {showSourcesSpinner && (
+                        <CircleNotch className="size-3.5 shrink-0 animate-spin text-[color:var(--framer-fresco-panelSubtitle-color)]" />
+                      )}
+                    </div>
+                  )}
                   {message.parts.map((part, i) => {
                     if (part.type === "text" && part.text.length > 0) {
                       return (
@@ -241,6 +322,11 @@ export function AIChatPanel({
                           onApplied={handleApplied}
                         />
                       );
+                    }
+
+                    // source-url parts are rendered grouped above
+                    if (part.type === "source-url" || part.type === "source-document") {
+                      return null;
                     }
 
                     // Generic tool call indicator for framer_* tools
@@ -291,18 +377,28 @@ export function AIChatPanel({
         {/* Input */}
         <div className="border-t border-[var(--framer-fresco-panelDivider-color)] px-4 py-3">
           <PromptInput
-            onSubmit={({ text }) => {
-              if (!text.trim()) return;
+            accept="image/*,application/pdf,text/plain,text/html,text/css,text/csv,text/xml,text/markdown,application/json,application/xml,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,audio/*,video/*"
+            maxFiles={5}
+            maxFileSize={10 * 1024 * 1024}
+            onSubmit={({ text, files }) => {
+              if (!text.trim() && files.length === 0) return;
               if (isStreaming) return;
-              sendMessage({ text });
+              sendMessage({ text, files });
             }}
           >
+            <AttachmentPreviewStrip />
             <PromptInputTextarea
               placeholder={selectedPosts.length > 0 ? "Describe the changes you want…" : "Ask me anything…"}
               className="min-h-10 text-sm"
             />
             <PromptInputFooter>
-              <div />
+              <PromptInputActionMenu>
+                <PromptInputActionMenuTrigger />
+                <PromptInputActionMenuContent>
+                  <PromptInputActionAddAttachments />
+                  <PromptInputActionAddScreenshot />
+                </PromptInputActionMenuContent>
+              </PromptInputActionMenu>
               <PromptInputSubmit
                 status={isStreaming ? "streaming" : "ready"}
                 onStop={() => stop()}

@@ -125,3 +125,13 @@
 **Why:** With all the Framer tools now available, the AI chat is a general-purpose CMS assistant — not just a bulk edit tool. Disabling input when no rows are selected made no sense. The user should be able to open the chat and ask about anything (project info, collections, publishing, etc.) without needing to select rows first.
 
 **Scope:** `src/components/ai-chat-panel.tsx` (removed disabled prop, adaptive header/empty state), `src/app/api/ai/chat/route.ts` (system prompt handles 0 rows gracefully).
+
+## 2026-03-18 — Add Google Search grounding to AI chat
+
+**What changed:** Added `google_search` as a provider tool in the AI chat route using `config.provider.tools.googleSearch({})` from `@ai-sdk/google-vertex`. Updated the system prompt to instruct the model to use web search for current/real-time information. Added a dedicated "Searched the web" pill renderer in the chat panel with a GlobeSimple phosphor icon.
+
+**Why:** User wants the AI assistant to have web search access for answering questions about current events, latest docs, pricing, comparisons, etc. Google Search grounding via Vertex AI is the native approach — the model decides when to search and weaves results into its response automatically.
+
+**How it works:** The `googleSearch` tool is a Vertex AI provider tool (not a custom tool). The model invokes it internally when it needs real-time web data. The grounding metadata (source URLs, search queries) comes through as provider metadata. On the client side, the tool call shows up as a `tool-google_search` message part, rendered as a compact "Searched the web" status pill.
+
+**Scope:** `src/app/api/ai/chat/route.ts` (added google_search tool + system prompt update), `src/components/ai-chat-panel.tsx` (GlobeSimple icon import + google_search tool renderer).

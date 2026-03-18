@@ -54,7 +54,9 @@ ${fieldList}
 
 ${selectionBlock}
 
-You have access to Framer CMS tools that let you directly interact with the Framer project:
+You have access to Google Search for real-time web information. When the user asks about current events, latest documentation, pricing, comparisons, or anything that benefits from up-to-date web data, use the google_search tool.
+
+You also have access to Framer CMS tools that let you directly interact with the Framer project:
 - framer_get_project_info: Get project name and ID
 - framer_get_publish_info: Get current deployment info for staging/production
 - framer_publish: Publish the site (creates a new deployment)
@@ -111,6 +113,7 @@ export async function POST(request: Request) {
       messages: await convertToModelMessages(messages),
       stopWhen: stepCountIs(5),
       tools: {
+        google_search: config.provider.tools.googleSearch({}),
         propose_edits: tool({
           description: "Propose field edits for selected CMS rows. Use this when the user asks to change, update, or modify fields across the selected rows.",
           inputSchema: z.object({
@@ -139,7 +142,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return result.toUIMessageStreamResponse();
+    return result.toUIMessageStreamResponse({ sendSources: true });
   } catch (error) {
     logError("ai.bulk_edit.failed", error);
     return createErrorJsonResponse(error);
