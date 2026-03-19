@@ -2,14 +2,13 @@ import { generateText } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { auth } from "@clerk/nextjs/server";
-
 import { createErrorJsonResponse } from "@/lib/api";
 import { requireAIConfig } from "@/lib/ai-config";
 import { hardenUntrustedTextBlock } from "@/lib/ai-guardrails";
 import { checkQuota, trackTokenUsage } from "@/lib/billing";
 import { AppError } from "@/lib/errors";
 import { logEvent, logError } from "@/lib/logger";
+import { requireDashboardApiAccess } from "@/lib/product-access";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -51,7 +50,8 @@ export async function POST(request: Request) {
 
   try {
     const config = requireAIConfig();
-    const { orgId, userId } = await auth();
+    const access = await requireDashboardApiAccess();
+    const { organizationId: orgId, userId } = access;
     const body = await request.json();
     const parsed = requestSchema.safeParse(body);
 

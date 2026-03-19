@@ -92,6 +92,12 @@ export default defineSchema({
     .index("by_org", ["clerkOrganizationId"])
     .index("by_dodo_subscription", ["dodoSubscriptionId"]),
 
+  processedWebhooks: defineTable({
+    createdAt: v.number(),
+    provider: v.string(),
+    webhookId: v.string(),
+  }).index("by_provider_webhook", ["provider", "webhookId"]),
+
   sites: defineTable({
     clerkOrganizationId: v.string(),
     createdAt: v.number(),

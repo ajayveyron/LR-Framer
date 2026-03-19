@@ -42,6 +42,8 @@ interface CollectionContext {
   enumCases: EnumSnapshot[];
 }
 
+type RunInFramerContext = <T>(fn: () => Promise<T>) => Promise<T>;
+
 export interface AIContextSnapshot {
   project: { id: string; name: string } | null;
   collections: CollectionContext[];
@@ -95,7 +97,13 @@ async function mapWithConcurrency<T, R>(
  * Results are cached for 60s.
  */
 export async function getAIContextSnapshot(): Promise<AIContextSnapshot> {
-  if (snapshotCache && snapshotCache.expiresAt > Date.now()) {
+  return getAIContextSnapshotWithRunner();
+}
+
+export async function getAIContextSnapshotWithRunner(
+  runInFramerContext?: RunInFramerContext,
+): Promise<AIContextSnapshot> {
+  if (!runInFramerContext && snapshotCache && snapshotCache.expiresAt > Date.now()) {
     return snapshotCache.value;
   }
 
@@ -103,11 +111,17 @@ export async function getAIContextSnapshot(): Promise<AIContextSnapshot> {
 
   // Fetch project info + collection list in parallel
   const [project, rawCollections] = await Promise.all([
-    getProjectInfo().catch((err) => {
+    (runInFramerContext
+      ? runInFramerContext(() => getProjectInfo())
+      : getProjectInfo()
+    ).catch((err) => {
       logError("ai.context_snapshot.project_info_failed", err);
       return null;
     }),
-    getAllCollections().catch((err) => {
+    (runInFramerContext
+      ? runInFramerContext(() => getAllCollections())
+      : getAllCollections()
+    ).catch((err) => {
       logError("ai.context_snapshot.collections_failed", err);
       return [] as CollectionSnapshot[];
     }),
@@ -122,7 +136,9 @@ export async function getAIContextSnapshot(): Promise<AIContextSnapshot> {
       let enumCases: EnumSnapshot[] = [];
 
       try {
-        const rawFields = await getCollectionFields(col.id);
+        const rawFields = await (runInFramerContext
+          ? runInFramerContext(() => getCollectionFields(col.id))
+          : getCollectionFields(col.id));
         fields = rawFields.map((f: any) => ({
           id: f.id,
           name: f.name,
@@ -138,7 +154,9 @@ export async function getAIContextSnapshot(): Promise<AIContextSnapshot> {
             SNAPSHOT_ENUM_CONCURRENCY,
             async (field) => {
               try {
-                const cases = await getEnumFieldCases(col.id, field.id);
+                const cases = await (runInFramerContext
+                  ? runInFramerContext(() => getEnumFieldCases(col.id, field.id))
+                  : getEnumFieldCases(col.id, field.id));
                 return { fieldId: field.id, fieldName: field.name, cases };
               } catch (err) {
                 logError("ai.context_snapshot.enum_cases_failed", err, {
@@ -163,10 +181,12 @@ export async function getAIContextSnapshot(): Promise<AIContextSnapshot> {
 
   const snapshot: AIContextSnapshot = { project, collections };
 
-  snapshotCache = {
-    expiresAt: Date.now() + SNAPSHOT_CACHE_TTL_MS,
-    value: snapshot,
-  };
+  if (!runInFramerContext) {
+    snapshotCache = {
+      expiresAt: Date.now() + SNAPSHOT_CACHE_TTL_MS,
+      value: snapshot,
+    };
+  }
 
   logEvent("info", "ai.context_snapshot.built", {
     durationMs: Date.now() - startMs,

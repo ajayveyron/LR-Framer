@@ -126,13 +126,136 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
+const ALLOWED_EDITOR_TAGS = new Set([
+  "a",
+  "blockquote",
+  "br",
+  "code",
+  "div",
+  "em",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "li",
+  "ol",
+  "p",
+  "pre",
+  "strong",
+  "u",
+  "ul",
+]);
+
+const STRIP_CONTENT_TAGS = new Set([
+  "iframe",
+  "object",
+  "script",
+  "style",
+  "svg",
+]);
+
+function sanitizeLinkHref(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("#") ||
+    trimmed.startsWith("mailto:") ||
+    trimmed.startsWith("tel:")
+  ) {
+    return trimmed;
+  }
+
+  try {
+    const normalized = /^[a-z][a-z\d+.-]*:/i.test(trimmed)
+      ? new URL(trimmed)
+      : new URL(`https://${trimmed}`);
+
+    if (normalized.protocol === "http:" || normalized.protocol === "https:") {
+      return normalized.toString();
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
+function sanitizeEditorHtml(html: string) {
+  if (typeof document === "undefined" || !html.trim()) {
+    return html;
+  }
+
+  const container = document.createElement("div");
+  container.innerHTML = html;
+
+  const sanitizeNode = (node: Node) => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        continue;
+      }
+
+      if (!(child instanceof HTMLElement)) {
+        child.parentNode?.removeChild(child);
+        continue;
+      }
+
+      const tagName = child.tagName.toLowerCase();
+      if (STRIP_CONTENT_TAGS.has(tagName)) {
+        child.remove();
+        continue;
+      }
+
+      if (!ALLOWED_EDITOR_TAGS.has(tagName)) {
+        const fragment = document.createDocumentFragment();
+        while (child.firstChild) {
+          fragment.appendChild(child.firstChild);
+        }
+        child.replaceWith(fragment);
+        sanitizeNode(node);
+        continue;
+      }
+
+      for (const attribute of Array.from(child.attributes)) {
+        const name = attribute.name.toLowerCase();
+        if (name.startsWith("on") || name === "style") {
+          child.removeAttribute(attribute.name);
+          continue;
+        }
+
+        if (tagName === "a" && name === "href") {
+          const safeHref = sanitizeLinkHref(attribute.value);
+          if (safeHref) {
+            child.setAttribute("href", safeHref);
+          } else {
+            child.removeAttribute("href");
+          }
+          continue;
+        }
+
+        child.removeAttribute(attribute.name);
+      }
+
+      sanitizeNode(child);
+    }
+  };
+
+  sanitizeNode(container);
+  return container.innerHTML;
+}
+
 function toEditorHtml(value: string) {
   if (!value) {
     return "";
   }
 
   if (looksLikeHtml(value)) {
-    return value;
+    return sanitizeEditorHtml(value);
   }
 
   return value
@@ -258,20 +381,7 @@ function getMarkdownShortcut(value: string): MarkdownShortcut | null {
 }
 
 function normalizeLinkUrl(value: string) {
-  if (!value) {
-    return "";
-  }
-
-  if (
-    value.startsWith("/") ||
-    value.startsWith("#") ||
-    value.startsWith("mailto:") ||
-    value.startsWith("tel:")
-  ) {
-    return value;
-  }
-
-  return /^[a-z][a-z\d+.-]*:/i.test(value) ? value : `https://${value}`;
+  return sanitizeLinkHref(value);
 }
 
 function slugify(value: string) {
@@ -415,7 +525,7 @@ interface DiffSegment {
 
 function htmlToPlainText(html: string): string {
   const div = document.createElement("div");
-  div.innerHTML = html;
+  div.innerHTML = sanitizeEditorHtml(html);
   return (div.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
@@ -558,7 +668,7 @@ function RichTextInput({
       originalLength: value.length,
       rewrittenLength: rewrittenHtml.length,
     });
-    onChange(rewrittenHtml);
+    onChange(sanitizeEditorHtml(rewrittenHtml));
     resetRewrite();
   }
 
@@ -591,7 +701,7 @@ function RichTextInput({
   }, []);
 
   function syncValue() {
-    onChange(editorRef.current?.innerHTML ?? "");
+    onChange(sanitizeEditorHtml(editorRef.current?.innerHTML ?? ""));
   }
 
   function syncSelectionState() {

@@ -49,6 +49,13 @@ export const saveConversation = mutationGeneric({
       .unique();
 
     if (existing) {
+      if (
+        existing.clerkOrganizationId !== args.clerkOrganizationId ||
+        existing.clerkUserId !== args.clerkUserId
+      ) {
+        throw new Error("Conversation does not belong to the current user.");
+      }
+
       await ctx.db.patch(existing._id, {
         messages: args.messages,
         title: args.title,
@@ -71,6 +78,8 @@ export const saveConversation = mutationGeneric({
 
 export const deleteConversation = mutationGeneric({
   args: {
+    clerkOrganizationId: v.string(),
+    clerkUserId: v.string(),
     conversationId: v.string(),
   },
   handler: async (ctx, args) => {
@@ -82,6 +91,13 @@ export const deleteConversation = mutationGeneric({
       .unique();
 
     if (existing) {
+      if (
+        existing.clerkOrganizationId !== args.clerkOrganizationId ||
+        existing.clerkUserId !== args.clerkUserId
+      ) {
+        throw new Error("Conversation does not belong to the current user.");
+      }
+
       await ctx.db.delete(existing._id);
     }
   },

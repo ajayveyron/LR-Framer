@@ -75,14 +75,20 @@ interface SubscriptionPeriod {
 /**
  * Determine the billing cycle boundaries.
  *
- * - When a subscription with period dates is provided, those dates are used.
+ * - When a subscription with valid period dates is provided (end > start by
+ *   at least 1 hour), those dates are used.
  * - Otherwise falls back to calendar-month boundaries (start of current month
  *   through start of next month).
  */
 export function getBillingCycleDates(
   subscription?: SubscriptionPeriod | null,
 ): { cycleStart: number; cycleEnd: number } {
-  if (subscription?.currentPeriodStart && subscription?.currentPeriodEnd) {
+  if (
+    subscription?.currentPeriodStart &&
+    subscription?.currentPeriodEnd &&
+    // Guard against degenerate windows where start ≈ end (broken webhook data)
+    subscription.currentPeriodEnd - subscription.currentPeriodStart > 3_600_000
+  ) {
     return {
       cycleStart: subscription.currentPeriodStart,
       cycleEnd: subscription.currentPeriodEnd,
@@ -203,8 +209,13 @@ export async function checkQuota(organizationId: string): Promise<QuotaCheckResu
     { clerkOrganizationId: organizationId },
   );
 
-  const allowance = subscription?.monthlyTokenAllowance ?? PLAN_CONFIG.free.monthlyTokenAllowance;
-  const { cycleStart, cycleEnd } = getBillingCycleDates(subscription);
+  const isActive = subscription?.status === "active";
+  const allowance = isActive
+    ? (subscription.monthlyTokenAllowance || PLAN_CONFIG.free.monthlyTokenAllowance)
+    : PLAN_CONFIG.free.monthlyTokenAllowance;
+  const { cycleStart, cycleEnd } = getBillingCycleDates(
+    isActive ? subscription : null,
+  );
 
   const currentUsage = await fetchProductQuery(
     anyApi.billing.getOrgUsageForPeriod,
@@ -224,6 +235,7 @@ export async function checkQuota(organizationId: string): Promise<QuotaCheckResu
     allowance,
     percentUsed,
     allowed,
+    subscriptionStatus: subscription?.status ?? "none",
   });
 
   return { allowed, currentUsage, allowance, percentUsed };

@@ -34,7 +34,7 @@ export default async function MarketingHomePage() {
             className="font-heading text-[15px] uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelTitle-color)]"
             href="/"
           >
-            FramerLink
+            Framer Bot
           </Link>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             {isSignedIn ? (
@@ -64,14 +64,14 @@ export default async function MarketingHomePage() {
         </div>
 
         <div className="max-w-3xl px-3 pt-18 pb-14">
-          <span className="framer-kicker">Framer CMS Ops</span>
+          <span className="framer-kicker">AI-Native Framer Ops</span>
           <h1 className="mt-3 font-heading text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.04em] text-[color:var(--framer-fresco-panelTitle-color)]">
-            Invite contributors into Framer CMS workflows without buying more Framer seats.
+            Framer on steroids for AI-native teams shipping faster together.
           </h1>
           <p className="mt-4 text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]">
-            FramerLink gives power Framer teams a clean third-party control
-            panel for one user-managed CMS collection, with minimal onboarding
-            and a product surface built for content contributors.
+            Framer Bot gives your team an AI-native control room for Framer CMS:
+            faster content ops, shared workflows, and a clean workspace for the
+            people who actually ship updates every day.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button
@@ -91,24 +91,25 @@ export default async function MarketingHomePage() {
 
         <div className="grid gap-3.5 lg:grid-cols-3">
           <article className="framer-subtle-panel min-h-40 p-[18px]">
-            <span className="framer-kicker">One setup flow</span>
+            <span className="framer-kicker">One fast setup</span>
             <p className="mt-3 text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]">
               Paste a Framer API key, validate the project, choose a collection,
-              and FramerLink takes over the content surface.
+              and Framer Bot takes over the operating layer.
             </p>
           </article>
           <article className="framer-subtle-panel min-h-40 p-[18px]">
-            <span className="framer-kicker">Admin + contributor</span>
+            <span className="framer-kicker">Built for team members</span>
             <p className="mt-3 text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]">
-              Keep the permission model lean. Admins connect Framer and invite
-              teammates. Contributors focus on content.
+              Keep permissions lean. Admins connect Framer, invite teammates,
+              and let writers, editors, and operators move without friction.
             </p>
           </article>
           <article className="framer-subtle-panel min-h-40 p-[18px]">
-            <span className="framer-kicker">Legacy bridge preserved</span>
+            <span className="framer-kicker">AI-native by default</span>
             <p className="mt-3 text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]">
-              Your existing Notion to Framer webhook and sync pipeline stays
-              alive in the backend while the product shell grows around it.
+              AI workflows, content operations, and your existing backend syncs
+              live in one place, so the team works with Framer instead of
+              around it.
             </p>
           </article>
         </div>

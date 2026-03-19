@@ -410,3 +410,35 @@ Dodo Payments uses the Standard Webhooks spec, not a simple HMAC of the body. Th
 - Payload uses `type` field (not `event_type`) and has `business_id`, `timestamp`, `data` structure
 
 Also fixed the payload parsing to match Dodo's actual webhook format with nested `data` object containing `payload_type`, `subscription_id`, `customer`, `product_id`, `metadata`, etc.
+
+## 2026-03-19 — Fix Dodo webhook period dates: use previous/next_billing_date
+
+**What changed:** The webhook handler was looking for `current_period_start` / `current_period_end` in Dodo's subscription payload — fields that don't exist. Dodo uses `previous_billing_date` (cycle start) and `next_billing_date` (cycle end). Both `parsePeriodTimestamp` calls were falling back to `Date.now()`, storing near-identical timestamps as the billing cycle window.
+
+**Fix:**
+- Added `derivePeriodDates(data)` helper that reads `previous_billing_date` and `next_billing_date` from the webhook payload
+- Falls back to a 1-month window anchored at `created_at` (or now) when dates are missing
+- Updated all `upsertSubscription` calls to use `derivePeriodDates` instead of the broken direct field reads
+- Added `subscription.renewed` event handling (was previously unhandled) since renewals update the billing period
+- Added a degenerate-window guard in `getBillingCycleDates()` — if `currentPeriodEnd - currentPeriodStart < 1 hour`, falls back to calendar-month boundaries
+- Added wide-event logging for raw Dodo period fields and resolved cycle dates for debugging
+
+**Why:** After upgrading to Pro, the usage meter showed 100% because the stored period window was essentially zero-width (both start and end were the same `Date.now()` value). This caused the usage query to either return all historical tokens or zero tokens depending on timing, leading to incorrect percentage calculations.
+
+**Scope:** `src/app/api/billing/webhook/route.ts`, `src/lib/billing.ts`, `src/app/api/billing/usage/route.ts`.
+
+## 2026-03-19 — Cancelled/expired subscriptions fall back to Free plan
+
+**What changed:** The usage route and `checkQuota()` now check `subscription.status === "active"` before using the subscription's plan/allowance/period dates. Cancelled or expired subscriptions are treated as if the user is on the Free plan — Free allowance, calendar-month cycle, "Free" plan name.
+
+**Why:** When a subscription was cancelled from Dodo, the webhook correctly set `status: "cancelled"` and `monthlyTokenAllowance: 0`, but the usage route still resolved `planId: "pro"` → Pro plan definition and used the (broken) subscription period dates. This showed the user as still on Pro with 0% usage instead of dropping them to Free.
+
+**Scope:** `src/app/api/billing/usage/route.ts`, `src/lib/billing.ts` (`checkQuota`).
+
+## 2026-03-19 — Auto-sync subscription status from Dodo API
+
+**What changed:** Added a `/api/billing/sync` route that fetches the subscription directly from Dodo's GET `/subscriptions/{id}` API and updates Convex with the real status, period dates, and allowance. The `useBillingUsage` hook now calls this sync endpoint automatically before fetching usage data (throttled to once per 5 minutes, reset on force refresh / tab switch).
+
+**Why:** Dodo's cancellation webhook (`subscription.cancelled`) often doesn't reach the local dev server (ngrok not running, etc.), leaving the Convex subscription record stuck as `status: "active"` even after the subscription is cancelled in Dodo's dashboard. Without a way to sync, the platform shows stale Pro plan data indefinitely. The auto-sync ensures the platform always reflects the real Dodo subscription state within 5 minutes, regardless of whether webhooks arrive.
+
+**Scope:** `src/app/api/billing/sync/route.ts` (new), `src/lib/use-billing-usage.ts` (auto-sync before usage fetch).

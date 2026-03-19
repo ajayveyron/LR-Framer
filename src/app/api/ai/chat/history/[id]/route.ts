@@ -23,6 +23,8 @@ export async function DELETE(
     const { id: conversationId } = await params;
 
     await fetchProductMutation(anyApi.chat.deleteConversation, {
+      clerkOrganizationId: orgId,
+      clerkUserId: userId,
       conversationId,
     });
 

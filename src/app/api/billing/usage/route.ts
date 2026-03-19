@@ -29,12 +29,31 @@ export async function GET() {
       { clerkOrganizationId: orgId },
     );
 
-    const plan = subscription
+    // A cancelled/expired subscription means the user is back on Free
+    const isActive = subscription?.status === "active";
+
+    const plan = isActive
       ? getPlanById(subscription.planId) ?? PLAN_CONFIG.free
       : PLAN_CONFIG.free;
 
-    const allowance = subscription?.monthlyTokenAllowance ?? plan.monthlyTokenAllowance;
-    const { cycleStart, cycleEnd } = getBillingCycleDates(subscription);
+    const allowance = isActive
+      ? (subscription.monthlyTokenAllowance || plan.monthlyTokenAllowance)
+      : plan.monthlyTokenAllowance;
+
+    const { cycleStart, cycleEnd } = getBillingCycleDates(
+      isActive ? subscription : null,
+    );
+
+    logEvent("info", "billing.usage.cycle_resolved", {
+      organizationId: orgId,
+      planId: plan.id,
+      subscriptionStatus: subscription?.status ?? "none",
+      isActive,
+      storedPeriodStart: subscription?.currentPeriodStart ?? null,
+      storedPeriodEnd: subscription?.currentPeriodEnd ?? null,
+      resolvedCycleStart: new Date(cycleStart).toISOString(),
+      resolvedCycleEnd: new Date(cycleEnd).toISOString(),
+    });
 
     const [currentUsage, byFeature, byUser] = await Promise.all([
       fetchProductQuery(anyApi.billing.getOrgUsageForPeriod, {

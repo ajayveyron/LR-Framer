@@ -12,6 +12,7 @@ import { getDodoBillingEnv } from "@/lib/env";
 import { logError, logEvent } from "@/lib/logger";
 
 export const runtime = "nodejs";
+const WEBHOOK_TOLERANCE_MS = 5 * 60_000;
 
 // ---------------------------------------------------------------------------
 // Webhook payload shape (Standard Webhooks / Dodo format)
@@ -28,8 +29,12 @@ interface DodoWebhookPayload {
     product_id?: string;
     status?: string;
     metadata?: Record<string, string>;
-    current_period_start?: string;
-    current_period_end?: string;
+    // Dodo uses previous/next billing dates, NOT current_period_start/end
+    previous_billing_date?: string;
+    next_billing_date?: string;
+    created_at?: string;
+    payment_frequency_interval?: string;
+    payment_frequency_count?: number;
     // Flat fields that may appear at data level
     [key: string]: unknown;
   };
@@ -48,10 +53,59 @@ function findPlanByProductId(productId: string): PlanDefinition | undefined {
   return undefined;
 }
 
-function parsePeriodTimestamp(iso: string | undefined): number {
-  if (!iso) return Date.now();
+function parsePeriodTimestamp(iso: string | undefined): number | null {
+  if (!iso) return null;
   const ms = new Date(iso).getTime();
-  return Number.isNaN(ms) ? Date.now() : ms;
+  return Number.isNaN(ms) ? null : ms;
+}
+
+function parseWebhookTimestamp(value: string): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) {
+    return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+/**
+ * Derive billing cycle start/end from Dodo's webhook data.
+ *
+ * Dodo sends `previous_billing_date` (cycle start) and `next_billing_date`
+ * (cycle end). When either is missing we fall back to a calendar-month window
+ * anchored at the subscription's `created_at` or "now".
+ */
+function derivePeriodDates(data: DodoWebhookPayload["data"]): {
+  periodStart: number;
+  periodEnd: number;
+} {
+  const prev = parsePeriodTimestamp(data.previous_billing_date);
+  const next = parsePeriodTimestamp(data.next_billing_date);
+
+  if (prev && next && next > prev) {
+    return { periodStart: prev, periodEnd: next };
+  }
+
+  // Fallback: use created_at as anchor, build a 1-month window
+  const anchor = parsePeriodTimestamp(data.created_at) ?? Date.now();
+  const anchorDate = new Date(anchor);
+  const periodStart = new Date(
+    anchorDate.getFullYear(),
+    anchorDate.getMonth(),
+    anchorDate.getDate(),
+  ).getTime();
+  const periodEnd = new Date(
+    anchorDate.getFullYear(),
+    anchorDate.getMonth() + 1,
+    anchorDate.getDate(),
+  ).getTime();
+
+  return { periodStart, periodEnd };
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +128,18 @@ export async function POST(request: Request) {
   const webhookId = request.headers.get("webhook-id") ?? "";
   const webhookTimestamp = request.headers.get("webhook-timestamp") ?? "";
   const webhookSignature = request.headers.get("webhook-signature") ?? "";
+  const timestampMs = parseWebhookTimestamp(webhookTimestamp);
+
+  if (
+    timestampMs === null ||
+    Math.abs(Date.now() - timestampMs) > WEBHOOK_TOLERANCE_MS
+  ) {
+    logEvent("warn", "billing.webhook.timestamp_invalid", {
+      webhookId,
+      webhookTimestamp,
+    });
+    return NextResponse.json({ error: "Invalid timestamp" }, { status: 401 });
+  }
 
   if (
     !verifyDodoWebhookSignature(
@@ -90,6 +156,21 @@ export async function POST(request: Request) {
       timestampPresent: Boolean(webhookTimestamp),
     });
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  }
+
+  const replayCheck = await fetchProductMutation(
+    anyApi.billing.recordWebhookEventIfNew,
+    {
+      provider: "dodo",
+      webhookId,
+    },
+  );
+
+  if (!replayCheck.inserted) {
+    logEvent("warn", "billing.webhook.replayed", {
+      webhookId,
+    });
+    return NextResponse.json({ received: true });
   }
 
   let payload: DodoWebhookPayload;
@@ -121,6 +202,9 @@ export async function POST(request: Request) {
     productId,
     organizationId,
     businessId: payload.business_id,
+    previousBillingDate: data.previous_billing_date ?? null,
+    nextBillingDate: data.next_billing_date ?? null,
+    createdAt: data.created_at ?? null,
   });
 
   // Unknown organization — log warning, return 200 to prevent retries
@@ -146,6 +230,8 @@ export async function POST(request: Request) {
           return NextResponse.json({ received: true });
         }
 
+        const activePeriod = derivePeriodDates(data);
+
         await fetchProductMutation(anyApi.billing.upsertSubscription, {
           clerkOrganizationId: organizationId,
           dodoSubscriptionId: subscriptionId,
@@ -153,12 +239,8 @@ export async function POST(request: Request) {
           planId: plan.id,
           status: "active",
           monthlyTokenAllowance: plan.monthlyTokenAllowance,
-          currentPeriodStart: parsePeriodTimestamp(
-            data.current_period_start as string | undefined,
-          ),
-          currentPeriodEnd: parsePeriodTimestamp(
-            data.current_period_end as string | undefined,
-          ),
+          currentPeriodStart: activePeriod.periodStart,
+          currentPeriodEnd: activePeriod.periodEnd,
         });
 
         logEvent("info", "billing.webhook.subscription_activated", {
@@ -166,6 +248,8 @@ export async function POST(request: Request) {
           planId: plan.id,
           allowance: plan.monthlyTokenAllowance,
           subscriptionId,
+          periodStart: new Date(activePeriod.periodStart).toISOString(),
+          periodEnd: new Date(activePeriod.periodEnd).toISOString(),
         });
         break;
       }
@@ -176,6 +260,7 @@ export async function POST(request: Request) {
           eventType === "subscription.cancelled" ? "cancelled" : "expired";
         const plan = findPlanByProductId(productId);
         const planId = plan?.id ?? "unknown";
+        const cancelPeriod = derivePeriodDates(data);
 
         await fetchProductMutation(anyApi.billing.upsertSubscription, {
           clerkOrganizationId: organizationId,
@@ -184,12 +269,8 @@ export async function POST(request: Request) {
           planId,
           status,
           monthlyTokenAllowance: 0,
-          currentPeriodStart: parsePeriodTimestamp(
-            data.current_period_start as string | undefined,
-          ),
-          currentPeriodEnd: parsePeriodTimestamp(
-            data.current_period_end as string | undefined,
-          ),
+          currentPeriodStart: cancelPeriod.periodStart,
+          currentPeriodEnd: cancelPeriod.periodEnd,
         });
 
         logEvent("info", `billing.webhook.subscription_${status}`, {
@@ -200,7 +281,8 @@ export async function POST(request: Request) {
         break;
       }
 
-      case "subscription.updated": {
+      case "subscription.updated":
+      case "subscription.renewed": {
         const plan = findPlanByProductId(productId);
         if (!plan) {
           logError("billing.webhook.unknown_plan", new Error("Unknown plan ID"), {
@@ -211,6 +293,8 @@ export async function POST(request: Request) {
           return NextResponse.json({ received: true });
         }
 
+        const updatedPeriod = derivePeriodDates(data);
+
         await fetchProductMutation(anyApi.billing.upsertSubscription, {
           clerkOrganizationId: organizationId,
           dodoSubscriptionId: subscriptionId,
@@ -218,12 +302,8 @@ export async function POST(request: Request) {
           planId: plan.id,
           status: "active",
           monthlyTokenAllowance: plan.monthlyTokenAllowance,
-          currentPeriodStart: parsePeriodTimestamp(
-            data.current_period_start as string | undefined,
-          ),
-          currentPeriodEnd: parsePeriodTimestamp(
-            data.current_period_end as string | undefined,
-          ),
+          currentPeriodStart: updatedPeriod.periodStart,
+          currentPeriodEnd: updatedPeriod.periodEnd,
         });
 
         logEvent("info", "billing.webhook.subscription_updated", {
@@ -231,6 +311,8 @@ export async function POST(request: Request) {
           planId: plan.id,
           allowance: plan.monthlyTokenAllowance,
           subscriptionId,
+          periodStart: new Date(updatedPeriod.periodStart).toISOString(),
+          periodEnd: new Date(updatedPeriod.periodEnd).toISOString(),
         });
         break;
       }

@@ -266,3 +266,30 @@ export const listActiveSubscriptions = queryGeneric({
     return all.filter((s: any) => s.status === "active");
   },
 });
+
+export const recordWebhookEventIfNew = mutationGeneric({
+  args: {
+    provider: v.string(),
+    webhookId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("processedWebhooks")
+      .withIndex("by_provider_webhook", (q: any) =>
+        q.eq("provider", args.provider).eq("webhookId", args.webhookId),
+      )
+      .unique();
+
+    if (existing) {
+      return { inserted: false };
+    }
+
+    await ctx.db.insert("processedWebhooks", {
+      provider: args.provider,
+      webhookId: args.webhookId,
+      createdAt: Date.now(),
+    });
+
+    return { inserted: true };
+  },
+});

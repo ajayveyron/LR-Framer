@@ -8,7 +8,7 @@ export function ProductConfigRequiredState({
       <div className="framer-frame w-full max-w-7xl">
         <span className="framer-kicker">Configuration Required</span>
         <h1 className="mt-3 font-heading text-[clamp(30px,6vw,54px)] leading-[1.02] tracking-[-0.04em] text-[color:var(--framer-fresco-panelTitle-color)]">
-          FramerLink is missing product environment variables.
+          Framer Bot is missing product environment variables.
         </h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]">
           Add the missing auth, Convex, and encryption variables before using

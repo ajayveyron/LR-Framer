@@ -43,9 +43,28 @@ let cachedData: BillingUsageData | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL = 60_000; // 1 minute
 
+// Sync subscription status from Dodo once per session (or on force refresh)
+let lastSyncTimestamp = 0;
+const SYNC_TTL = 300_000; // 5 minutes — don't hammer Dodo
+
+async function syncSubscription(): Promise<void> {
+  const now = Date.now();
+  if (now - lastSyncTimestamp < SYNC_TTL) return;
+  lastSyncTimestamp = now;
+  try {
+    await fetch("/api/billing/sync", { method: "POST" });
+  } catch {
+    // Swallow — sync is best-effort, usage fetch still works
+  }
+}
+
 async function fetchUsage(force = false): Promise<BillingUsageData> {
   const now = Date.now();
   if (!force && cachedData && now - cacheTimestamp < CACHE_TTL) return cachedData;
+
+  // Sync subscription status from Dodo before fetching usage
+  if (force) lastSyncTimestamp = 0; // force sync too
+  await syncSubscription();
 
   const res = await fetch("/api/billing/usage");
   if (!res.ok) throw new Error("Failed to fetch usage");

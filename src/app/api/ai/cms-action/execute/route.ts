@@ -10,11 +10,17 @@ import {
   removeCollectionItem,
   setCollectionItemAttributes,
   addEnumCase,
+  getAllCollections,
   updateEnumCase,
   removeEnumCase,
   setEnumCaseOrder,
   publishSite,
 } from "@/lib/framer";
+import {
+  getSiteFramerRuntimeContext,
+  requireDashboardApiAccess,
+} from "@/lib/product-access";
+import { runWithFramerRuntimeContext } from "@/lib/framer-runtime";
 
 export const runtime = "nodejs";
 
@@ -81,6 +87,7 @@ export async function POST(request: Request) {
   const startMs = Date.now();
 
   try {
+    const access = await requireDashboardApiAccess();
     const body = await request.json();
     const parsed = payloadSchema.safeParse(body);
 
@@ -89,6 +96,22 @@ export async function POST(request: Request) {
     }
 
     const payload = parsed.data;
+    const baseContext = getSiteFramerRuntimeContext(access.site);
+    const runInFramerContext = <T,>(fn: () => Promise<T>) =>
+      runWithFramerRuntimeContext(baseContext, fn);
+
+    if ("collectionId" in payload) {
+      const collections = await runInFramerContext(() => getAllCollections());
+      const allowedCollectionIds = new Set(
+        collections
+          .filter((collection) => collection.managedBy === "user")
+          .map((collection) => collection.id),
+      );
+
+      if (!allowedCollectionIds.has(payload.collectionId)) {
+        throw new AppError("Invalid collection for the current site.", 400);
+      }
+    }
 
     logEvent("info", "ai.cms_action.execute", {
       action: payload.action,
@@ -98,40 +121,61 @@ export async function POST(request: Request) {
 
     switch (payload.action) {
       case "add_items":
-        result = await addCollectionItems(payload.collectionId, payload.items);
+        result = await runInFramerContext(() =>
+          addCollectionItems(payload.collectionId, payload.items),
+        );
         break;
       case "remove_items":
-        result = await removeCollectionItems(payload.collectionId, payload.itemIds);
+        result = await runInFramerContext(() =>
+          removeCollectionItems(payload.collectionId, payload.itemIds),
+        );
         break;
       case "remove_item":
-        result = await removeCollectionItem(payload.collectionId, payload.itemId);
+        result = await runInFramerContext(() =>
+          removeCollectionItem(payload.collectionId, payload.itemId),
+        );
         break;
       case "set_item_attributes": {
         const attrs: Record<string, unknown> = {};
         if (payload.slug !== undefined) attrs.slug = payload.slug;
         if (payload.draft !== undefined) attrs.draft = payload.draft;
         if (payload.fieldData) attrs.fieldData = payload.fieldData;
-        result = await setCollectionItemAttributes(
-          payload.collectionId,
-          payload.itemId,
-          attrs as Parameters<typeof setCollectionItemAttributes>[2],
+        result = await runInFramerContext(() =>
+          setCollectionItemAttributes(
+            payload.collectionId,
+            payload.itemId,
+            attrs as Parameters<typeof setCollectionItemAttributes>[2],
+          ),
         );
         break;
       }
       case "add_enum_case":
-        result = await addEnumCase(payload.collectionId, payload.fieldId, payload.name);
+        result = await runInFramerContext(() =>
+          addEnumCase(payload.collectionId, payload.fieldId, payload.name),
+        );
         break;
       case "update_enum_case":
-        result = await updateEnumCase(payload.collectionId, payload.fieldId, payload.caseId, payload.newName);
+        result = await runInFramerContext(() =>
+          updateEnumCase(
+            payload.collectionId,
+            payload.fieldId,
+            payload.caseId,
+            payload.newName,
+          ),
+        );
         break;
       case "remove_enum_case":
-        result = await removeEnumCase(payload.collectionId, payload.fieldId, payload.caseId);
+        result = await runInFramerContext(() =>
+          removeEnumCase(payload.collectionId, payload.fieldId, payload.caseId),
+        );
         break;
       case "set_enum_case_order":
-        result = await setEnumCaseOrder(payload.collectionId, payload.fieldId, payload.caseIds);
+        result = await runInFramerContext(() =>
+          setEnumCaseOrder(payload.collectionId, payload.fieldId, payload.caseIds),
+        );
         break;
       case "publish":
-        result = await publishSite();
+        result = await runInFramerContext(() => publishSite());
         break;
     }
 

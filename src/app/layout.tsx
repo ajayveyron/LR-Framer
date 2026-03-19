@@ -14,21 +14,23 @@ const heading = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "FramerLink | Framer CMS Operations",
+  title: "Framer Bot | Framer On Steroids",
   description:
-    "Hosted Framer CMS operations for one user-managed collection, with contributor access and preserved backend sync flows.",
-  keywords: ["Framer", "CMS", "Dashboard", "FramerLink"],
-  authors: [{ name: "FramerLink Team" }],
+    "Framer Bot is Framer on steroids: an AI-native workspace for teams managing Framer CMS, approvals, and backend sync flows together.",
+  keywords: ["Framer", "CMS", "Dashboard", "Framer Bot", "AI", "Team"],
+  authors: [{ name: "Framer Bot Team" }],
   openGraph: {
-    title: "FramerLink | Framer CMS Operations",
-    description: "Hosted Framer CMS operations for one user-managed collection, with contributor access and preserved backend sync flows.",
+    title: "Framer Bot | Framer On Steroids",
+    description:
+      "Framer Bot is Framer on steroids: an AI-native workspace for teams managing Framer CMS, approvals, and backend sync flows together.",
     type: "website",
-    siteName: "FramerLink",
+    siteName: "Framer Bot",
   },
   twitter: {
     card: "summary_large_image",
-    title: "FramerLink | Framer CMS Operations",
-    description: "Hosted Framer CMS operations for one user-managed collection, with contributor access and preserved backend sync flows.",
+    title: "Framer Bot | Framer On Steroids",
+    description:
+      "Framer Bot is Framer on steroids: an AI-native workspace for teams managing Framer CMS, approvals, and backend sync flows together.",
   },
   icons: {
     icon: process.env.NODE_ENV === "development" ? "/favicon-dev.png" : "/icon.png",

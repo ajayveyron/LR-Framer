@@ -1,4 +1,4 @@
-# FramerLink Product Shell Plan
+# Framer Bot Product Shell Plan
 
 ## Summary
 
@@ -11,14 +11,14 @@
 
 ## Phase 1 Decisions
 
-- Product name: `FramerLink`
+- Product name: `Framer Bot`
 - Roles: `admin`, `contributor`
 - One Framer project and one user-managed collection per team
 - No user-facing Notion integration in this phase
 - Do not redesign the existing dashboard/editor UI yet
 - Gate dashboard access until onboarding is complete and the Framer key has been validated
 
-## FramerLink Setup Flow
+## Framer Bot Setup Flow
 
 1. Sign up or sign in
 2. Create a team

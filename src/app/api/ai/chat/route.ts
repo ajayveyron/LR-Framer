@@ -2,18 +2,24 @@ import { convertToModelMessages, streamText, tool, stepCountIs } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { auth } from "@clerk/nextjs/server";
-
 import { createErrorJsonResponse } from "@/lib/api";
 import { requireAIConfig } from "@/lib/ai-config";
 import { sanitizeChatMessages } from "@/lib/ai-guardrails";
-import { getAIContextSnapshot, formatSnapshotForPrompt } from "@/lib/ai-context-snapshot";
+import {
+  formatSnapshotForPrompt,
+  getAIContextSnapshotWithRunner,
+} from "@/lib/ai-context-snapshot";
 import { checkQuota, trackTokenUsage } from "@/lib/billing";
 import { AppError } from "@/lib/errors";
-import { framerTools } from "@/lib/framer-tools";
-import { generateAndUploadImage } from "@/lib/ai-image-tool";
+import { createScopedFramerTools } from "@/lib/framer-tools";
+import { createScopedGenerateAndUploadImageTool } from "@/lib/ai-image-tool";
 import { webSearchTool } from "@/lib/ai-search-tool";
 import { logEvent, logError } from "@/lib/logger";
+import {
+  getSiteFramerRuntimeContext,
+  requireDashboardApiAccess,
+} from "@/lib/product-access";
+import { runWithFramerRuntimeContext } from "@/lib/framer-runtime";
 
 export const runtime = "nodejs";
 
@@ -143,7 +149,8 @@ export async function POST(request: Request) {
 
   try {
     const config = requireAIConfig();
-    const { orgId, userId } = await auth();
+    const access = await requireDashboardApiAccess();
+    const { organizationId: orgId, userId } = access;
     const body = await request.json();
     const { messages } = body;
 
@@ -181,11 +188,26 @@ export async function POST(request: Request) {
     const activeCollection = activeCollectionId && activeCollectionName
       ? { id: activeCollectionId, name: activeCollectionName }
       : undefined;
+    const baseContext = getSiteFramerRuntimeContext(
+      access.site,
+      activeCollection
+        ? {
+            collectionId: activeCollection.id,
+            collectionName: activeCollection.name,
+          }
+        : undefined,
+    );
+    const runInFramerContext = <T,>(fn: () => Promise<T>) =>
+      runWithFramerRuntimeContext(baseContext, fn);
 
     // Build a context snapshot so the agent starts with project info,
     // all collections, their fields, and enum cases already loaded.
-    const snapshot = await getAIContextSnapshot();
+    const snapshot = await getAIContextSnapshotWithRunner(runInFramerContext);
     const snapshotBlock = formatSnapshotForPrompt(snapshot);
+    const framerTools = createScopedFramerTools(runInFramerContext);
+    const generateAndUploadImage = createScopedGenerateAndUploadImageTool(
+      runInFramerContext,
+    );
 
     const sanitizedMessages = sanitizeChatMessages(messages);
 

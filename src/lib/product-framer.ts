@@ -44,7 +44,7 @@ export async function resolveCurrentSiteCollection(
   const access = await getDashboardAccess();
   if (access.kind === "config_error") {
     throw new AppError(
-      "FramerLink is missing required product environment variables.",
+      "Framer Bot is missing required product environment variables.",
       503,
       { fieldErrors: access.issues },
     );

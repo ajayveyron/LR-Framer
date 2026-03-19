@@ -127,7 +127,7 @@ export function OnboardingFlow({
         setOrganizationError(
           error instanceof Error
             ? error.message
-            : "FramerLink could not create the team yet.",
+            : "Framer Bot could not create the team yet.",
         );
       }
     });
@@ -199,9 +199,7 @@ export function OnboardingFlow({
         const data = (await response.json()) as { error?: string };
 
         if (!response.ok) {
-          throw new Error(
-            data.error ?? "FramerLink could not finish onboarding.",
-          );
+          throw new Error(data.error ?? "Framer Bot could not finish onboarding.");
         }
 
         router.push("/dashboard");
@@ -210,7 +208,7 @@ export function OnboardingFlow({
         setValidationError(
           error instanceof Error
             ? error.message
-            : "FramerLink could not finish onboarding.",
+            : "Framer Bot could not finish onboarding.",
         );
       }
     });
@@ -220,13 +218,14 @@ export function OnboardingFlow({
     <section className={shellClassName}>
       <div className={cardClassName}>
         <div className="max-w-3xl">
-          <span className={kickerClassName}>FramerLink Setup</span>
+          <span className={kickerClassName}>Framer Bot Setup</span>
           <h1 className="mt-3 font-heading text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.04em] text-[color:var(--framer-fresco-panelTitle-color)]">
-            Connect Framer once, then let contributors manage content here.
+            Connect Framer once, then let your team run it like an AI-native operation.
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]">
-            FramerLink only needs your Framer Server API key, the project URL or
-            ID, plus a default CMS collection for the first dashboard view.
+            Framer Bot needs your Framer Server API key, the project URL or ID,
+            plus a default CMS collection to turn your site into a faster,
+            team-ready workspace.
           </p>
         </div>
 
@@ -238,9 +237,9 @@ export function OnboardingFlow({
                 Create your team
               </h2>
               <p className="mt-3 max-w-2xl text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]">
-                This is the shared FramerLink space where admins and
-                contributors will manage the Framer CMS collections connected to
-                this project.
+                This is the shared Framer Bot workspace where admins and team
+                members manage the Framer CMS collections connected to this
+                project together.
               </p>
             </div>
 
@@ -313,7 +312,7 @@ export function OnboardingFlow({
                           Find your Framer project URL or ID
                         </DialogTitle>
                         <DialogDescription className={helpDialogTextClassName}>
-                          FramerLink accepts either the full project URL or the
+                          Framer Bot accepts either the full project URL or the
                           raw project ID from the same Framer project.
                         </DialogDescription>
                       </DialogHeader>

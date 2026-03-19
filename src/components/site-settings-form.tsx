@@ -266,7 +266,7 @@ export function SiteSettingsForm({
                     Find your Framer project URL or ID
                   </DialogTitle>
                   <DialogDescription className={helpDialogTextClassName}>
-                    FramerLink accepts either the full project URL or the raw
+                    Framer Bot accepts either the full project URL or the raw
                     project ID from the same Framer project.
                   </DialogDescription>
                 </DialogHeader>

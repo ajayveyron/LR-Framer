@@ -58,6 +58,42 @@ export async function POST(request: Request) {
       () => getBlogMetadata(),
     );
 
+    if (site.framerProjectId && site.framerProjectId !== validation.projectId) {
+      await fetchProductMutation(anyApi.billing.releaseFramerProject, {
+        clerkOrganizationId: orgId,
+      });
+
+      logEvent("info", "billing.framer_claim.released", {
+        clerkOrganizationId: orgId,
+      });
+
+      const claimResult = await fetchProductMutation(
+        anyApi.billing.claimFramerProject,
+        {
+          framerProjectId: validation.projectId,
+          clerkOrganizationId: orgId,
+        },
+      );
+
+      if (!claimResult.claimed) {
+        logEvent("warn", "billing.framer_claim.rejected", {
+          clerkOrganizationId: orgId,
+          framerProjectId: validation.projectId,
+          claimedByOrg: claimResult.claimedByOrg,
+        });
+
+        throw new AppError(
+          "This Framer project is already connected to another organization.",
+          409,
+        );
+      }
+
+      logEvent("info", "billing.framer_claim.claimed", {
+        clerkOrganizationId: orgId,
+        framerProjectId: validation.projectId,
+      });
+    }
+
     await fetchProductMutation(anyApi.product.saveSiteSetup, {
       clerkOrganizationId: orgId,
       clerkUserId: userId,

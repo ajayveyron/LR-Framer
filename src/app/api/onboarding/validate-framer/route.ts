@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const issues = getProductEnvIssues();
     if (issues.length > 0) {
       throw new AppError(
-        "FramerLink is missing required product environment variables.",
+        "Framer Bot is missing required product environment variables.",
         503,
         { fieldErrors: issues },
       );
