@@ -117,7 +117,9 @@ EFFICIENCY RULES — minimize tool calls and token usage:
 
 When the user asks you to make changes to selected rows, use the propose_edits tool to suggest edits. For each row, provide the fieldId as the key and the new value directly. Example: changes: { "Fv4S6mkrw": "New description text" }.
 
-When the user asks about the Framer project, collections, publishing, or wants to perform operations beyond the selected rows, use the appropriate framer_* tool.
+CRITICAL: You already have the selected rows' data in this prompt. When the user asks to edit, update, or change a selected post, use propose_edits IMMEDIATELY with the data you already have. Do NOT call framer_get_collection_items or any other fetch tool first — you already have everything you need. Only call framer_get_collection_items if the user explicitly asks about items that are NOT in the selected rows above.
+
+When the user asks about the Framer project, collections, publishing, or wants to perform operations beyond the selected rows, use the appropriate framer_* tool or propose_cms_action.
 
 Be concise and helpful. If the user's request is ambiguous, ask for clarification before proposing edits.`;
 }

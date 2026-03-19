@@ -783,6 +783,7 @@ export function DashboardTableView({
         metadata={metadata}
         onOpenChange={setChatOpen}
         onPostsUpdated={handlePostsUpdated}
+        onClearSelection={handleClearSelection}
         open={chatOpen}
         selectedPosts={selectedPosts}
       />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Check,
   X,
@@ -41,8 +41,36 @@ export function EditProposalView({
 }: EditProposalViewProps) {
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState<BulkApplyResult | null>(null);
+  const [fetchedTitles, setFetchedTitles] = useState<Record<string, string>>({});
   const postMap = new Map(posts.map((p) => [p.id, p]));
   const fieldMap = new Map(fieldDefinitions.map((f) => [f.id, f]));
+
+  // Fetch titles for rows not in the local selection
+  useEffect(() => {
+    const missingIds = edits
+      .map((e) => e.rowId)
+      .filter((id) => !postMap.has(id) && !fetchedTitles[id]);
+    if (missingIds.length === 0) return;
+
+    let cancelled = false;
+    Promise.allSettled(
+      missingIds.map(async (id) => {
+        const res = await fetch(`/api/posts/${id}`);
+        if (!res.ok) return { id, title: id };
+        const data = (await res.json()) as { post?: { title?: string } };
+        return { id, title: data.post?.title ?? id };
+      }),
+    ).then((results) => {
+      if (cancelled) return;
+      const titles: Record<string, string> = {};
+      for (const r of results) {
+        if (r.status === "fulfilled") titles[r.value.id] = r.value.title;
+      }
+      setFetchedTitles((prev) => ({ ...prev, ...titles }));
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edits]);
 
   // Check if a proposed value actually differs from the current value
   function isRealChange(post: BlogPostRecord | undefined, fieldId: string, newValue: DashboardFieldValue): boolean {
@@ -127,7 +155,7 @@ export function EditProposalView({
           <tbody>
             {edits.map((edit) => {
               const post = postMap.get(edit.rowId);
-              const title = post?.title ?? edit.rowId;
+              const title = post?.title ?? fetchedTitles[edit.rowId] ?? edit.rowId;
               const status = rowStatus(edit.rowId);
 
               return (

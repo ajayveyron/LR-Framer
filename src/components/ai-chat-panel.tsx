@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Sparkle, X, WarningCircle, ArrowClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop, GlobeSimple, ImageSquare, DownloadSimple, Plus, ClockCounterClockwise, PlusIcon, Coins } from "@phosphor-icons/react";
+import { Sparkle, X, WarningCircle, ArrowClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop, GlobeSimple, ImageSquare, DownloadSimple, Plus, ClockCounterClockwise, PlusIcon, Coins, Rows } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { AIChatMessage, ChatMessageMetadata } from "@/lib/ai-chat-types";
@@ -34,7 +34,6 @@ import { EditProposalView } from "@/components/edit-proposal-view";
 import { CmsActionConfirmation } from "@/components/cms-action-confirmation";
 import type { CmsActionProposal } from "@/lib/cms-action-types";
 import { renderFramerToolOutput, type FieldNameMap } from "@/components/ai-tool-renderers";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -55,6 +54,7 @@ interface AIChatPanelProps {
   selectedPosts: BlogPostRecord[];
   metadata: BlogCollectionMetadata;
   onPostsUpdated: (updatedPosts: BlogPostRecord[]) => void;
+  onClearSelection?: () => void;
 }
 
 function AttachmentPreviewStrip() {
@@ -104,7 +104,7 @@ function DirectAttachButton() {
   );
 }
 
-export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPostsUpdated }: AIChatPanelProps) {
+export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPostsUpdated, onClearSelection }: AIChatPanelProps) {
   const [chatKey, setChatKey] = useState(() => crypto.randomUUID());
   const [showHistory, setShowHistory] = useState(false);
 
@@ -243,9 +243,6 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
     }
   }
 
-  const truncatedTitles = selectedPosts.slice(0, 3).map((p) => p.title).join(", ");
-  const moreCount = selectedPosts.length - 3;
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -261,12 +258,6 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
           <Sparkle className="size-5 shrink-0 text-[color:var(--framer-fresco-tint-color)]" weight="duotone" />
           <div className="min-w-0 flex-1">
             <span className="text-sm font-semibold">AI Assistant</span>
-            {selectedPosts.length > 0 && (
-              <div className="flex items-center gap-1.5 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
-                <Badge className="h-5 px-1.5 text-[10px] font-semibold" variant="secondary">{selectedPosts.length}</Badge>
-                <span className="truncate">{truncatedTitles}{moreCount > 0 && ` +${moreCount} more`}</span>
-              </div>
-            )}
           </div>
           <Button aria-label="Chat history" className="size-8 shrink-0" onClick={() => setShowHistory((v) => !v)} size="icon-sm" title="Chat history" type="button" variant="ghost">
             <ClockCounterClockwise className="size-4" />
@@ -290,7 +281,7 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
                 {messages.length === 0 && (
                   <ConversationEmptyState
                     title="How can I help?"
-                    description={selectedPosts.length > 0 ? `${selectedPosts.length} row${selectedPosts.length === 1 ? "" : "s"} selected. You can ask me to edit them, or ask anything about your site.` : "Ask me anything — manage your CMS, publish your site, explore collections, and more."}
+                    description="Ask me anything — manage your CMS, publish your site, explore collections, and more."
                     icon={<Sparkle className="size-8 text-[color:var(--framer-fresco-panelSubtitle-color)]" weight="duotone" />}
                   />
                 )}
@@ -417,6 +408,8 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
                             const toolName = rawToolName.replace(/_/g, " ");
                             const hasOutput = "output" in part && part.output != null;
                             const isFramerTool = rawToolName.startsWith("framer_");
+                            // A tool call is "stale" if the stream finished but it never got output
+                            const isStale = !hasOutput && (!isLastMessage || !isStreaming);
 
                             // Try rich UI for completed Framer tool calls
                             if (hasOutput) {
@@ -442,8 +435,8 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
                             }
 
                             return (
-                              <div key={i} className="mt-1 flex items-center gap-2 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
-                                {hasOutput ? <CheckCircle className="size-3.5 shrink-0 text-emerald-400" weight="fill" /> : <CircleNotch className="size-3.5 shrink-0 animate-spin" />}
+                              <div key={i} className={`mt-1 flex items-center gap-2 rounded-md border ${isStale ? "border-amber-500/30 bg-amber-500/5" : "border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)]"} px-3 py-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]`}>
+                                {hasOutput ? <CheckCircle className="size-3.5 shrink-0 text-emerald-400" weight="fill" /> : isStale ? <WarningCircle className="size-3.5 shrink-0 text-amber-400" weight="fill" /> : <CircleNotch className="size-3.5 shrink-0 animate-spin" />}
                                 {isFramerTool ? (
                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="33 23 75 97" className="size-3.5 shrink-0" aria-hidden="true">
                                     <path d="M 44.65 33.992 L 95.35 33.992 L 95.35 59.341 L 70 59.341 Z M 44.65 59.341 L 70 59.341 L 95.35 84.691 L 44.65 84.691 Z M 44.65 84.691 L 70 84.691 L 70 110.041 Z" fill="currentColor" />
@@ -504,6 +497,24 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
                 }}
               >
                 <AttachmentPreviewStrip />
+                {selectedPosts.length > 0 && (
+                  <div className="flex w-full items-start px-3 pt-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] py-0.5 pl-2 pr-1 text-[11px] text-[color:var(--framer-fresco-panelDescription-color)]">
+                      <Rows className="size-3 shrink-0" weight="bold" />
+                      {selectedPosts.length} row{selectedPosts.length !== 1 ? "s" : ""} selected
+                      {onClearSelection && (
+                        <button
+                          type="button"
+                          className="ml-0.5 rounded p-0.5 transition-colors hover:bg-[var(--framer-fresco-panelDivider-color)] hover:text-[color:var(--framer-fresco-panelTitle-color)]"
+                          onClick={onClearSelection}
+                          aria-label="Clear selection"
+                        >
+                          <X className="size-3" weight="bold" />
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                )}
                 <PromptInputTextarea placeholder={selectedPosts.length > 0 ? "Describe the changes you want…" : "Ask me anything…"} className="min-h-10 text-sm" />
                 <PromptInputFooter>
                   <DirectAttachButton />
