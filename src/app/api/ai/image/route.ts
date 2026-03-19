@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { createErrorJsonResponse } from "@/lib/api";
 import { requireAIConfig } from "@/lib/ai-config";
+import { hardenUntrustedTextBlock } from "@/lib/ai-guardrails";
 import { buildImagePrompt } from "@/lib/ai-image-prompt";
 import { getImageSystemPrompt } from "@/lib/brand";
 import { AppError } from "@/lib/errors";
@@ -51,7 +52,23 @@ export async function POST(request: Request) {
     // ── USER PROMPT ──
     // Built from what the user typed + CMS context (title, slug, body).
     // See: buildImagePrompt() in src/lib/ai-image-prompt.ts
-    const userPrompt = buildImagePrompt(prompt, context);
+    const userPrompt = buildImagePrompt(
+      hardenUntrustedTextBlock("image prompt", prompt),
+      context
+        ? {
+            ...context,
+            title: context.title
+              ? hardenUntrustedTextBlock("image title context", context.title)
+              : context.title,
+            slug: context.slug
+              ? hardenUntrustedTextBlock("image slug context", context.slug)
+              : context.slug,
+            bodyText: context.bodyText
+              ? hardenUntrustedTextBlock("image body context", context.bodyText)
+              : context.bodyText,
+          }
+        : context,
+    );
 
     const systemPrompt = await getImageSystemPrompt();
 
