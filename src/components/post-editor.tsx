@@ -6,6 +6,7 @@ import {
   type KeyboardEvent,
   useEffect,
   useEffectEvent,
+  useMemo,
   useRef,
   useState,
   useTransition,
@@ -22,6 +23,10 @@ import {
   ListNumbers as ListOrderedIcon,
   Quotes as TextQuoteIcon,
   Sparkle,
+  SpinnerGap,
+  Check as CheckIcon,
+  X as XIcon,
+  ArrowCounterClockwise,
 } from "@phosphor-icons/react";
 
 import { AIImageDialog } from "@/components/ai-image-dialog";
@@ -54,6 +59,7 @@ import type {
   DashboardFieldValue,
 } from "@/lib/cms-types";
 import { cn } from "@/lib/utils";
+import { logEvent, logError } from "@/lib/logger";
 import { buildPostInputSchema, type PostInputPayload } from "@/lib/post-schema";
 
 type FormValues = PostInputPayload;
@@ -355,7 +361,7 @@ function FieldLabel({
 }) {
   return (
     <Label
-      className="text-[13px] font-bold tracking-[-0.01em] text-[color:var(--framer-fresco-panelTitle-color)]"
+      className="text-[13px] tracking-wide text-[color:var(--framer-fresco-panelTitle-color)]"
       htmlFor={htmlFor}
     >
       {name}
@@ -400,14 +406,75 @@ function ReadOnlyField({
   );
 }
 
+// ── Inline rewrite diff helpers ──
+
+interface DiffSegment {
+  type: "unchanged" | "removed" | "added";
+  text: string;
+}
+
+function htmlToPlainText(html: string): string {
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return (div.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
+function computeWordDiff(oldText: string, newText: string): DiffSegment[] {
+  const oldWords = oldText.split(/\s+/).filter(Boolean);
+  const newWords = newText.split(/\s+/).filter(Boolean);
+  const m = oldWords.length;
+  const n = newWords.length;
+
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    new Array<number>(n + 1).fill(0),
+  );
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] =
+        oldWords[i - 1] === newWords[j - 1]
+          ? dp[i - 1][j - 1] + 1
+          : Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+
+  const raw: DiffSegment[] = [];
+  let i = m;
+  let j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldWords[i - 1] === newWords[j - 1]) {
+      raw.push({ type: "unchanged", text: oldWords[i - 1] });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      raw.push({ type: "added", text: newWords[j - 1] });
+      j--;
+    } else {
+      raw.push({ type: "removed", text: oldWords[i - 1] });
+      i--;
+    }
+  }
+  raw.reverse();
+
+  const segments: DiffSegment[] = [];
+  for (const seg of raw) {
+    const last = segments[segments.length - 1];
+    if (last && last.type === seg.type) {
+      last.text += " " + seg.text;
+    } else {
+      segments.push({ ...seg });
+    }
+  }
+  return segments;
+}
+
 function RichTextInput({
   onChange,
-  onAIImage,
+  rewriteContext,
   placeholder,
   value,
 }: {
   onChange: (value: string) => void;
-  onAIImage?: () => void;
+  rewriteContext?: { title?: string; slug?: string };
   placeholder: string;
   value: string;
 }) {
@@ -422,6 +489,89 @@ function RichTextInput({
     left: number;
     top: number;
   } | null>(null);
+
+  // ── Inline rewrite state ──
+  const [rewriteStatus, setRewriteStatus] = useState<
+    "idle" | "loading" | "diff" | "error"
+  >("idle");
+  const [rewrittenHtml, setRewrittenHtml] = useState<string | null>(null);
+  const [rewriteError, setRewriteError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const diffSegments = useMemo(() => {
+    if (!rewrittenHtml) return null;
+    return computeWordDiff(htmlToPlainText(value), htmlToPlainText(rewrittenHtml));
+  }, [value, rewrittenHtml]);
+
+  async function triggerRewrite() {
+    setRewriteStatus("loading");
+    setRewriteError(null);
+    setRewrittenHtml(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    logEvent("info", "ai.rewrite.inline_requested", {
+      htmlLength: value.length,
+      hasContext: Boolean(rewriteContext),
+    });
+
+    try {
+      const res = await fetch("/api/ai/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ html: value, context: rewriteContext }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? `Rewrite failed (${res.status})`);
+      }
+
+      const data = (await res.json()) as { rewritten: string };
+      setRewrittenHtml(data.rewritten);
+      setRewriteStatus("diff");
+
+      logEvent("info", "ai.rewrite.inline_completed", {
+        originalLength: value.length,
+        rewrittenLength: data.rewritten.length,
+      });
+    } catch (err) {
+      if (controller.signal.aborted) {
+        setRewriteStatus("idle");
+        logEvent("info", "ai.rewrite.inline_cancelled", {});
+        return;
+      }
+      const msg = err instanceof Error ? err.message : "Rewrite failed.";
+      setRewriteError(msg);
+      setRewriteStatus("error");
+      logError("ai.rewrite.inline_failed", err);
+    } finally {
+      abortRef.current = null;
+    }
+  }
+
+  function acceptRewrite() {
+    if (!rewrittenHtml) return;
+    logEvent("info", "ai.rewrite.inline_accepted", {
+      originalLength: value.length,
+      rewrittenLength: rewrittenHtml.length,
+    });
+    onChange(rewrittenHtml);
+    resetRewrite();
+  }
+
+  function rejectRewrite() {
+    logEvent("info", "ai.rewrite.inline_rejected", {});
+    resetRewrite();
+  }
+
+  function resetRewrite() {
+    setRewriteStatus("idle");
+    setRewrittenHtml(null);
+    setRewriteError(null);
+  }
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -811,74 +961,181 @@ function RichTextInput({
           </Button>
         </div>
 
-        {onAIImage ? (
+        {/* {rewriteContext ? (
           <div className={toolbarActionGroupClassName}>
             <Button
-              aria-label="Generate image with AI"
+              aria-label="Rewrite with AI"
               className={toolbarActionButtonClassName}
+              disabled={rewriteStatus === "loading" || rewriteStatus === "diff"}
               onMouseDown={(event) => {
                 event.preventDefault();
-                onAIImage();
+                triggerRewrite();
               }}
               size="xs"
-              title="Generate image with AI"
+              title="Rewrite with AI"
               type="button"
               variant="ghost"
             >
-              <Sparkle className="size-4" weight="duotone" />
+              {rewriteStatus === "loading" ? (
+                <SpinnerGap className="size-4 animate-spin" />
+              ) : (
+                <Sparkle className="size-4" weight="duotone" />
+              )}
             </Button>
           </div>
-        ) : null}
+        ) : null} */}
       </div>
-      <div
-        className={editorContentClassName}
-        contentEditable
-        data-placeholder={placeholder}
-        onBlur={syncValue}
-        onInput={syncValue}
-        onKeyDown={handleKeyDown}
-        onKeyUp={syncSelectionState}
-        onMouseLeave={() => setHoveredLink(null)}
-        onMouseMove={(event) => updateHoveredLink(event.target)}
-        onMouseUp={syncSelectionState}
-        ref={editorRef}
-        suppressContentEditableWarning
-      />
-      {hoveredLink ? (
-        <div
-          className="absolute z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 rounded-lg border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-menuBackground-color)] px-2.5 py-2 text-xs text-[color:var(--framer-fresco-menuText-color)] shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
-          style={{ left: hoveredLink.left, top: hoveredLink.top }}
-        >
-          <span className="max-w-52 truncate text-[color:var(--framer-fresco-panelSubtitle-color)]">
-            {hoveredLink.href}
-          </span>
+
+      {/* ── Diff view (replaces editor when active) ── */}
+      {rewriteStatus === "loading" && (
+        <div className={cn(editorContentClassName, "flex flex-col items-center justify-center gap-2 text-[color:var(--framer-fresco-panelSubtitle-color)]")}>
+          <SpinnerGap className="size-6 animate-spin" />
+          <span className="text-xs">Optimizing for SEO, GEO &amp; AEO…</span>
           <Button
-            onMouseDown={(event) => {
-              event.preventDefault();
-              selectHoveredLink();
-              handleLink();
-            }}
+            className="mt-1"
+            onClick={() => abortRef.current?.abort()}
             size="xs"
             type="button"
             variant="ghost"
           >
-            Edit
-          </Button>
-          <Button
-            onMouseDown={(event) => {
-              event.preventDefault();
-              selectHoveredLink();
-              applyCommand("unlink");
-              setHoveredLink(null);
-            }}
-            size="xs"
-            type="button"
-            variant="ghost"
-          >
-            Remove
+            <XIcon className="size-3.5" />
+            Cancel
           </Button>
         </div>
-      ) : null}
+      )}
+
+      {rewriteStatus === "diff" && diffSegments && (
+        <>
+          <div className={cn(editorContentClassName, "select-text")}>
+            {diffSegments.map((seg, idx) => {
+              if (seg.type === "removed") {
+                return (
+                  <span key={idx} className="text-red-400 line-through decoration-red-400/60">
+                    {seg.text}{" "}
+                  </span>
+                );
+              }
+              if (seg.type === "added") {
+                return (
+                  <span key={idx} className="text-emerald-400">
+                    {seg.text}{" "}
+                  </span>
+                );
+              }
+              return (
+                <span key={idx} className="text-[color:var(--framer-fresco-panelDescription-color)]">
+                  {seg.text}{" "}
+                </span>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-end gap-2 border-t border-[var(--framer-fresco-panelDivider-color)] px-3 py-2">
+            <Button
+              onClick={rejectRewrite}
+              size="xs"
+              type="button"
+              variant="ghost"
+            >
+              <XIcon className="size-3.5" />
+              Reject
+            </Button>
+            <Button
+              onClick={() => {
+                resetRewrite();
+                triggerRewrite();
+              }}
+              size="xs"
+              type="button"
+              variant="ghost"
+            >
+              <ArrowCounterClockwise className="size-3.5" />
+              Regenerate
+            </Button>
+            <Button
+              onClick={acceptRewrite}
+              size="xs"
+              type="button"
+              variant="ghost"
+            >
+              <CheckIcon className="size-3.5" />
+              Accept
+            </Button>
+          </div>
+        </>
+      )}
+
+      {rewriteStatus === "error" && (
+        <div className={cn(editorContentClassName, "flex flex-col items-center justify-center gap-2")}>
+          <p className="text-xs text-red-400">{rewriteError}</p>
+          <Button
+            onClick={() => {
+              resetRewrite();
+              triggerRewrite();
+            }}
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
+            <ArrowCounterClockwise className="size-3.5" />
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {/* ── Normal editor (hidden during rewrite) ── */}
+      {rewriteStatus === "idle" && (
+        <>
+          <div
+            className={editorContentClassName}
+            contentEditable
+            data-placeholder={placeholder}
+            onBlur={syncValue}
+            onInput={syncValue}
+            onKeyDown={handleKeyDown}
+            onKeyUp={syncSelectionState}
+            onMouseLeave={() => setHoveredLink(null)}
+            onMouseMove={(event) => updateHoveredLink(event.target)}
+            onMouseUp={syncSelectionState}
+            ref={editorRef}
+            suppressContentEditableWarning
+          />
+          {hoveredLink ? (
+            <div
+              className="absolute z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 rounded-lg border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-menuBackground-color)] px-2.5 py-2 text-xs text-[color:var(--framer-fresco-menuText-color)] shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+              style={{ left: hoveredLink.left, top: hoveredLink.top }}
+            >
+              <span className="max-w-52 truncate text-[color:var(--framer-fresco-panelSubtitle-color)]">
+                {hoveredLink.href}
+              </span>
+              <Button
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  selectHoveredLink();
+                  handleLink();
+                }}
+                size="xs"
+                type="button"
+                variant="ghost"
+              >
+                Edit
+              </Button>
+              <Button
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  selectHoveredLink();
+                  applyCommand("unlink");
+                  setHoveredLink(null);
+                }}
+                size="xs"
+                type="button"
+                variant="ghost"
+              >
+                Remove
+              </Button>
+            </div>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
@@ -904,7 +1161,6 @@ export function PostEditor({
     {},
   );
   const [aiImageFieldId, setAiImageFieldId] = useState<string | null>(null);
-  const [aiImageRichTextFieldId, setAiImageRichTextFieldId] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const titleFieldId = metadata.logicalFields.title;
   const bodyFieldId = metadata.logicalFields.body;
@@ -1386,7 +1642,10 @@ export function PostEditor({
             name={path}
             render={({ field: controllerField }) => (
               <RichTextInput
-                onAIImage={() => setAiImageRichTextFieldId(field.id)}
+                rewriteContext={{
+                  title: typeof titleValue === "string" ? titleValue : undefined,
+                  slug: form.getValues("slug") || undefined,
+                }}
                 onChange={controllerField.onChange}
                 placeholder={`Write ${field.name.toLowerCase()}`}
                 value={
@@ -1866,39 +2125,6 @@ export function PostEditor({
         }
       />
 
-      {/* AI Image Generation Dialog — rich text inline */}
-      <AIImageDialog
-        context={{
-          title: typeof titleValue === "string" ? titleValue : undefined,
-          slug: form.getValues("slug") || undefined,
-          bodyText: aiImageRichTextFieldId
-            ? (typeof watchedFieldValues?.[aiImageRichTextFieldId] === "string"
-              ? (watchedFieldValues[aiImageRichTextFieldId] as string).replace(/<[^>]*>/g, " ").slice(0, 500)
-              : undefined)
-            : undefined,
-        }}
-        defaultPrompt=""
-        onAccept={(imageUrl, altText) => {
-          if (aiImageRichTextFieldId) {
-            const fieldPath = `fieldValues.${aiImageRichTextFieldId}` as const;
-            const currentHtml =
-              (typeof watchedFieldValues?.[aiImageRichTextFieldId] === "string"
-                ? (watchedFieldValues[aiImageRichTextFieldId] as string)
-                : "") ?? "";
-            const imgTag = `<img src="${imageUrl}" alt="${altText.replace(/"/g, "&quot;")}" />`;
-            form.setValue(fieldPath, currentHtml + imgTag, {
-              shouldDirty: true,
-              shouldTouch: true,
-              shouldValidate: true,
-            });
-            notify.success("AI image inserted.");
-          }
-        }}
-        onOpenChange={(open) => {
-          if (!open) setAiImageRichTextFieldId(null);
-        }}
-        open={aiImageRichTextFieldId !== null}
-      />
     </section>
   );
 }

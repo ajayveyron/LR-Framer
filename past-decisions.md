@@ -286,3 +286,32 @@ The chat panel's catch-all `tool-*` renderer now tries `renderFramerToolOutput()
 **Why:** The AI previously had unrestricted write access to the Framer CMS — asking it to add/remove items or publish would fire immediately with no confirmation. This is dangerous for a production CMS. The user wanted both a system prompt guardrail AND a proper confirmation UI (option 3).
 
 **Scope:** `src/lib/cms-action-types.ts` (new), `src/components/cms-action-confirmation.tsx` (new), `src/app/api/ai/cms-action/execute/route.ts` (new), `src/lib/framer-tools.ts` (replaced write tools with propose_cms_action), `src/app/api/ai/chat/route.ts` (system prompt), `src/components/ai-chat-panel.tsx` (rendering).
+
+---
+
+### Rich Text Sparkle Icon: Image Generation → AI Rewrite (SEO/GEO/AEO)
+
+**Date:** 2026-03-19
+
+**Decision:** The sparkle icon in the rich text editor toolbar was repurposed from "Generate Image with AI" to "Rewrite with AI". The rewrite feature sends the current content to Gemini for SEO, GEO (Generative Engine Optimization), and AEO (Answer Engine Optimization) optimization, then shows a word-level diff comparison with accept/reject controls.
+
+**What changed:**
+- Sparkle button in `RichTextInput` now triggers `onAIRewrite` instead of `onAIImage`
+- New `AIRewriteDialog` component shows inline diff (strikethrough red for removed, green for added)
+- New `/api/ai/rewrite` route handles the LLM call using the text model (not image model)
+- The second `AIImageDialog` (rich text inline) was removed and replaced with `AIRewriteDialog`
+- The first `AIImageDialog` (for image fields) remains untouched
+
+**Why:** The user wanted the sparkle icon to optimize content for search engines and AI answer engines rather than generate images inline. Image generation is still available on dedicated image fields.
+**Scope:** `src/components/ai-rewrite-dialog.tsx` (new), `src/app/api/ai/rewrite/route.ts` (new), `src/components/post-editor.tsx` (modified).
+
+---
+
+### AI Rewrite: Inline in Editor, Not a Dialog
+
+**Date:** 2026-03-19
+
+**Decision:** The AI rewrite feature was moved from a separate dialog to being fully inline within the rich text editor. Click sparkle → fires immediately → editor area swaps to show the word-level diff (strikethrough red / green new) → accept/reject/regenerate bar appears at the bottom of the editor panel. No modal, no extra confirmation step.
+
+**Why:** The user wanted zero friction — no dialog context switch, no "click to start" confirmation. The rewrite should feel native to the editor, not like a separate tool. The dialog file (`ai-rewrite-dialog.tsx`) was deleted entirely.
+**Scope:** `src/components/post-editor.tsx` (RichTextInput now owns the full rewrite flow inline), `src/components/ai-rewrite-dialog.tsx` (deleted).

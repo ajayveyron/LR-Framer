@@ -28,6 +28,8 @@ import {
   PromptInputHeader,
   PromptInputSubmit,
   PromptInputButton,
+  PromptInputProvider,
+  usePromptInputController,
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
 import { EditProposalView } from "@/components/edit-proposal-view";
@@ -56,6 +58,58 @@ interface AIChatPanelProps {
   onPostsUpdated: (updatedPosts: BlogPostRecord[]) => void;
   onClearSelection?: () => void;
 }
+
+type ChatSuggestion = {
+  description: string;
+  prompt: string;
+  title: string;
+};
+
+const EMPTY_CHAT_SUGGESTIONS: ChatSuggestion[] = [
+  {
+    title: "Review the collection",
+    description: "Spot structure issues, missing fields, or weak patterns.",
+    prompt: "Review this collection and tell me what looks off or incomplete.",
+  },
+  {
+    title: "Improve CMS fields",
+    description: "Ask for a practical Framer field mapping or cleanup plan.",
+    prompt: "Help me map these CMS fields to a better Framer setup.",
+  },
+  {
+    title: "Draft something new",
+    description: "Generate a fresh post idea for this collection.",
+    prompt: "Draft a new blog post idea that fits this collection.",
+  },
+  {
+    title: "Find content gaps",
+    description: "See what topics or metadata the collection is missing.",
+    prompt: "Show me the biggest content or metadata gaps in this collection.",
+  },
+];
+
+const SELECTED_CHAT_SUGGESTIONS: ChatSuggestion[] = [
+  {
+    title: "Rewrite the selection",
+    description: "Make the selected rows clearer and more consistent.",
+    prompt: "Rewrite the selected rows to be clearer, tighter, and more consistent.",
+  },
+  {
+    title: "Improve SEO metadata",
+    description: "Generate better titles, slugs, or descriptions.",
+    prompt: "Suggest better titles, slugs, and SEO metadata for the selected rows.",
+  },
+  {
+    title: "Find issues",
+    description: "Call out missing fields, format drift, or weak copy.",
+    prompt: "Find missing metadata, formatting issues, or weak copy in the selected rows.",
+  },
+  {
+    title: "Batch edit",
+    description: "Turn the selected rows into a polished editorial batch.",
+    prompt: "Help me turn the selected rows into a polished editorial batch.",
+  },
+];
 
 function AttachmentPreviewStrip() {
   const attachments = usePromptInputAttachments();
@@ -104,7 +158,50 @@ function DirectAttachButton() {
   );
 }
 
-export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPostsUpdated, onClearSelection }: AIChatPanelProps) {
+function ChatPromptSuggestions({ selectedCount }: { selectedCount: number }) {
+  const controller = usePromptInputController();
+  const draft = controller.textInput.value.trim();
+  const suggestions = selectedCount > 0 ? SELECTED_CHAT_SUGGESTIONS : EMPTY_CHAT_SUGGESTIONS;
+
+  if (draft.length > 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-1 space-y-2">
+      <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+        Quick starts
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {suggestions.map((suggestion) => (
+          <button
+            key={suggestion.title}
+            className="flex flex-col items-start gap-1 rounded-xl border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-left transition-colors hover:border-[var(--framer-fresco-tint-color)] hover:bg-[var(--framer-fresco-panelDivider-color)]"
+            onClick={() => {
+              controller.textInput.setInput(suggestion.prompt);
+              window.requestAnimationFrame(() => {
+                const textarea = document.querySelector('textarea[name="message"]') as HTMLTextAreaElement | null;
+                textarea?.focus();
+                textarea?.setSelectionRange(suggestion.prompt.length, suggestion.prompt.length);
+              });
+            }}
+            type="button"
+          >
+            <span className="text-sm font-medium text-[color:var(--framer-fresco-panelTitle-color)]">
+              {suggestion.title}
+            </span>
+            <span className="text-xs leading-snug text-[color:var(--framer-fresco-panelDescription-color)]">
+              {suggestion.description}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPostsUpdated, onClearSelection }: AIChatPanelProps) {
+  const { textInput } = usePromptInputController();
   const [chatKey, setChatKey] = useState(() => crypto.randomUUID());
   const [showHistory, setShowHistory] = useState(false);
 
@@ -209,9 +306,10 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
     if (messages.length > 0) void saveConversation(chatKey, messages);
     clearError();
     setMessages([]);
+    textInput.clear();
     setChatKey(crypto.randomUUID());
     setShowHistory(false);
-  }, [setMessages, messages, chatKey, clearError]);
+  }, [setMessages, messages, chatKey, clearError, textInput]);
 
   // Persist conversation after each assistant turn completes
   const prevStatusRef = useRef(status);
@@ -227,10 +325,11 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
       if (messages.length > 0) void saveConversation(chatKey, messages);
       clearError();
       setMessages(conv.messages as AIChatMessage[]);
+      textInput.clear();
       setChatKey(conv.id);
       setShowHistory(false);
     },
-    [setMessages, messages, chatKey, clearError],
+    [setMessages, messages, chatKey, clearError, textInput],
   );
 
   const isStreaming = status === "streaming" || status === "submitted";
@@ -280,10 +379,19 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
               <ConversationContent className="gap-6 px-4 py-4">
                 {messages.length === 0 && (
                   <ConversationEmptyState
-                    title="How can I help?"
-                    description="Ask me anything — manage your CMS, publish your site, explore collections, and more."
-                    icon={<Sparkle className="size-8 text-[color:var(--framer-fresco-panelSubtitle-color)]" weight="duotone" />}
-                  />
+                    className="items-stretch"
+                  >
+                    <div className="mx-auto flex max-w-2xl flex-col items-center gap-3 text-center">
+                      <Sparkle className="size-8 text-[color:var(--framer-fresco-panelSubtitle-color)]" weight="duotone" />
+                      <div className="space-y-1">
+                        <h3 className="font-medium text-sm text-[color:var(--framer-fresco-panelTitle-color)]">How can I help?</h3>
+                        <p className="text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
+                          Ask me anything about this CMS, the active Framer collection, or the rows you&apos;ve selected.
+                        </p>
+                      </div>
+                      <ChatPromptSuggestions selectedCount={selectedPosts.length} />
+                    </div>
+                  </ConversationEmptyState>
                 )}
 
                 {messages.map((message) => {
@@ -528,5 +636,13 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+export function AIChatPanel(props: AIChatPanelProps) {
+  return (
+    <PromptInputProvider>
+      <AIChatPanelContent {...props} />
+    </PromptInputProvider>
   );
 }
