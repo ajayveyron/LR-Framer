@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { anyApi } from "convex/server";
 import { auth } from "@clerk/nextjs/server";
 
 import { createErrorJsonResponse } from "@/lib/api";
-import { fetchProductQuery } from "@/lib/convex";
-import { getDodoBillingEnv, getDodoApiBase } from "@/lib/env";
+import { getDodoBillingEnv } from "@/lib/env";
 import { AppError } from "@/lib/errors";
-import { logError, logEvent } from "@/lib/logger";
+import { logEvent } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -28,64 +26,23 @@ export async function POST() {
       throw new AppError("Billing is not configured.", 503);
     }
 
-    const subscription = await fetchProductQuery(
-      anyApi.billing.getSubscriptionByOrg,
-      { clerkOrganizationId: orgId },
-    );
+    // Dodo customer portal uses a static link per business.
+    // Test: https://test.customer.dodopayments.com/login/{business_id}
+    // Live: https://customer.dodopayments.com/login/{business_id}
+    const testMode = process.env.DODO_TEST_MODE === "true" || process.env.DODO_TEST_MODE === "1";
+    const portalBase = testMode
+      ? "https://test.customer.dodopayments.com"
+      : "https://customer.dodopayments.com";
+    const portalUrl = `${portalBase}/login/${billingEnv.DODO_BUSINESS_ID}`;
 
-    if (!subscription) {
-      throw new AppError("No active subscription found for this organization.", 404);
-    }
-
-    const dodoBase = getDodoApiBase();
-    const response = await fetch(
-      `${dodoBase}/customers/${subscription.dodoCustomerId}/customer-portal/sessions`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${billingEnv.DODO_API_KEY}`,
-        },
-        body: JSON.stringify({
-          send_email: false,
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      logError("billing.portal.dodo_api_failed", new Error(errorBody), {
-        organizationId: orgId,
-        userId,
-        customerId: subscription.dodoCustomerId,
-        status: response.status,
-      });
-      throw new AppError("Failed to create portal session.", 502);
-    }
-
-    const data = await response.json();
-    const portalUrl = data.link ?? data.url;
-
-    if (!portalUrl) {
-      logError("billing.portal.no_url", new Error("Dodo response missing portal URL"), {
-        organizationId: orgId,
-        userId,
-        customerId: subscription.dodoCustomerId,
-        responseKeys: Object.keys(data),
-      });
-      throw new AppError("Failed to create portal session.", 502);
-    }
-
-    logEvent("info", "billing.portal.created", {
+    logEvent("info", "billing.portal.redirect", {
       organizationId: orgId,
       userId,
-      customerId: subscription.dodoCustomerId,
-      subscriptionId: subscription.dodoSubscriptionId,
+      businessId: billingEnv.DODO_BUSINESS_ID,
     });
 
     return NextResponse.json({ url: portalUrl });
   } catch (error) {
-    logError("billing.portal.failed", error);
     return createErrorJsonResponse(error);
   }
 }
