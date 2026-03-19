@@ -4,9 +4,9 @@ import { runWithCurrentSiteFramerContext } from "@/lib/product-framer";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    return await runWithCurrentSiteFramerContext(() => handleListPosts());
+    return await runWithCurrentSiteFramerContext(request, () => handleListPosts());
   } catch (error) {
     return createErrorJsonResponse(error);
   }
@@ -14,7 +14,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    return await runWithCurrentSiteFramerContext(() => handleCreatePost(request));
+    return await runWithCurrentSiteFramerContext(request, () => handleCreatePost(request));
   } catch (error) {
     return createErrorJsonResponse(error);
   }

@@ -226,7 +226,7 @@ export function OnboardingFlow({
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]">
             FramerLink only needs your Framer Server API key, the project URL or
-            ID, and the CMS collection you want this team to manage.
+            ID, plus a default CMS collection for the first dashboard view.
           </p>
         </div>
 
@@ -239,7 +239,8 @@ export function OnboardingFlow({
               </h2>
               <p className="mt-3 max-w-2xl text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]">
                 This is the shared FramerLink space where admins and
-                contributors will manage one Framer CMS collection.
+                contributors will manage the Framer CMS collections connected to
+                this project.
               </p>
             </div>
 
@@ -468,7 +469,7 @@ export function OnboardingFlow({
               {collections.length > 0 ? (
                 <div className={fieldClassName}>
                   <Label htmlFor="collection-select">
-                    User-managed collection
+                    Default collection
                   </Label>
                   <Select
                     onValueChange={setSelectedCollectionId}
@@ -489,8 +490,8 @@ export function OnboardingFlow({
                     </SelectContent>
                   </Select>
                   <p className={helperTextClassName}>
-                    FramerLink only supports one user-managed collection per
-                    team in this phase.
+                    You can switch between all validated user-managed
+                    collections from the dashboard after setup.
                   </p>
                 </div>
               ) : null}

@@ -1,23 +1,27 @@
 import { getDashboardOverview } from "@/lib/framer";
 import { runWithFramerRuntimeContext } from "@/lib/framer-runtime";
-import { getDashboardAccess, getSiteFramerRuntimeContext } from "@/lib/product-access";
 import { getDefaultColumns } from "@/lib/dashboard-columns";
 import { isTransientFramerError } from "@/lib/framer-errors";
 import { logError } from "@/lib/logger";
+import { getSiteFramerRuntimeContext } from "@/lib/product-access";
+import { resolveCurrentSiteCollection } from "@/lib/product-framer";
 
-export async function loadDashboardScreen() {
-  const access = await getDashboardAccess();
-  if (access.kind === "config_error") {
-    return access;
-  }
+export async function loadDashboardScreen(requestedCollectionId?: string) {
+  const { access, activeCollection, collections } =
+    await resolveCurrentSiteCollection(requestedCollectionId);
 
   try {
     return await runWithFramerRuntimeContext(
-      getSiteFramerRuntimeContext(access.site),
+      getSiteFramerRuntimeContext(access.site, {
+        collectionId: activeCollection.id,
+        collectionName: activeCollection.name,
+      }),
       async () => {
         const overview = await getDashboardOverview();
         return {
           access,
+          activeCollection,
+          collections,
           initialColumns: getDefaultColumns(overview.metadata),
           kind: "ready" as const,
           metadata: overview.metadata,

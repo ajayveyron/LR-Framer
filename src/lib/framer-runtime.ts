@@ -6,7 +6,7 @@ import { getLegacyFramerApiKey } from "@/lib/env";
 export interface FramerRuntimeContext {
   apiKey: string;
   collectionId?: string | null;
-  collectionName: string;
+  collectionName?: string | null;
   projectId: string;
 }
 

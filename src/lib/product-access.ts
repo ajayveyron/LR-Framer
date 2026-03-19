@@ -155,9 +155,7 @@ export const getOnboardingAccess = cache(
     if (
       site?.onboardingStatus === "ready" &&
       site.framerApiKeyCiphertext &&
-      site.framerProjectId &&
-      site.framerCollectionId &&
-      site.framerCollectionName
+      site.framerProjectId
     ) {
       redirect("/dashboard");
     }
@@ -205,9 +203,7 @@ export const getDashboardAccess = cache(
       !site ||
       site.onboardingStatus !== "ready" ||
       !site.framerApiKeyCiphertext ||
-      !site.framerProjectId ||
-      !site.framerCollectionId ||
-      !site.framerCollectionName
+      !site.framerProjectId
     ) {
       redirect("/onboarding");
     }
@@ -237,20 +233,22 @@ export async function requireAdminAccess() {
 
 export function getSiteFramerRuntimeContext(
   site: ProductSite,
+  selection?: {
+    collectionId?: string | null;
+    collectionName?: string | null;
+  },
 ): FramerRuntimeContext {
   if (
     !site.framerApiKeyCiphertext ||
-    !site.framerProjectId ||
-    !site.framerCollectionId ||
-    !site.framerCollectionName
+    !site.framerProjectId
   ) {
     throw new Error("The current FramerLink site is not fully configured.");
   }
 
   return {
     apiKey: decryptSecret(site.framerApiKeyCiphertext),
-    collectionId: site.framerCollectionId,
-    collectionName: site.framerCollectionName,
+    collectionId: selection?.collectionId ?? site.framerCollectionId,
+    collectionName: selection?.collectionName ?? site.framerCollectionName,
     projectId: site.framerProjectId,
   };
 }

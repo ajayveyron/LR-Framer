@@ -246,17 +246,24 @@ async function withFramerProject<T>(callback: (framer: Framer) => Promise<T>) {
 
 async function getBlogCollection(framer: Framer) {
   const runtimeContext = getFramerRuntimeContext();
+  if (!runtimeContext.collectionId && !runtimeContext.collectionName) {
+    throw new AppError(
+      "A Framer collection must be selected before loading CMS data.",
+      400,
+    );
+  }
+
   const collection = runtimeContext.collectionId
     ? await framer.getCollection(runtimeContext.collectionId)
     : (await framer.getCollections()).find(
         (entry) =>
           normalizeLabel(entry.name) ===
-          normalizeLabel(runtimeContext.collectionName),
+          normalizeLabel(runtimeContext.collectionName ?? ""),
       );
 
   if (!collection) {
     throw new AppError(
-      `Collection "${runtimeContext.collectionName}" was not found in the Framer project.`,
+      `Collection "${runtimeContext.collectionName ?? runtimeContext.collectionId}" was not found in the Framer project.`,
       404,
     );
   }

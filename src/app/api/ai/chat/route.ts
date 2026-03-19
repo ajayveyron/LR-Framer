@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { createErrorJsonResponse } from "@/lib/api";
 import { requireAIConfig } from "@/lib/ai-config";
+import { getAIContextSnapshot, formatSnapshotForPrompt } from "@/lib/ai-context-snapshot";
 import { AppError } from "@/lib/errors";
 import { framerTools } from "@/lib/framer-tools";
 import { generateAndUploadImage } from "@/lib/ai-image-tool";
@@ -38,6 +39,7 @@ function buildSystemPrompt(
   rows: z.infer<typeof bodyDataSchema>["selectedRows"],
   fields: z.infer<typeof bodyDataSchema>["fieldDefinitions"],
   activeCollection?: { id: string; name: string },
+  snapshotBlock?: string,
 ) {
   const fieldList = fields
     .map((f) => `- ${f.name} (id: ${f.id}, type: ${f.type})`)
@@ -67,7 +69,7 @@ Available fields in the active collection:
 ${fieldList}
 
 ${selectionBlock}
-
+${snapshotBlock ? `\n${snapshotBlock}\n` : ""}
 PRESENTATION RULE — never show internal IDs to the user:
 - When referring to collections, fields, items, or enum cases in your responses, use their human-readable names only (e.g. "Blogs", "Title", "Author").
 - Never include raw IDs like (id: esdNAc4Vu) or field IDs in your messages. IDs are for your internal use when calling tools — users don't need to see them.
@@ -109,11 +111,12 @@ NEVER try to call the old direct write tools (framer_add_collection_items, frame
 When proposing actions, write a clear, concise description that tells the user exactly what will happen. For example: "Add a new blog post titled 'Getting Started' as a draft" or "Remove 3 outdated changelog entries".
 
 EFFICIENCY RULES — minimize tool calls and token usage:
-- When the user asks about items in the active collection, call framer_get_collection_items ONCE with the active collection ID. Do NOT enumerate all collections and fetch items from each one.
+- You have PRE-LOADED CONTEXT above with project info, all collections, their fields, and enum cases. Use that data directly instead of calling framer_get_project_info, framer_get_collections, framer_get_collection_fields, or framer_get_enum_cases. Only call these tools if you need to REFRESH the data after a mutation.
+- When the user asks about items in a collection, call framer_get_collection_items ONCE with the collection ID from the pre-loaded context. Do NOT enumerate all collections and fetch items from each one.
 - If the user asks to "find 1 item" or "find a few items" matching some criteria, fetch items from the active collection ONCE, scan the results yourself, and act on what you find. Do not make redundant calls.
 - Only call framer_get_collections when the user explicitly asks about other collections or you genuinely don't know which collection to use.
 - Prefer fewer, targeted tool calls over many exploratory ones.
-- IMPORTANT: Always call framer_get_collection_fields BEFORE framer_get_collection_items when fetching items from a collection that is NOT the active collection. This ensures the UI can display human-readable field names instead of raw IDs.
+- IMPORTANT: You already have field definitions for every collection in the pre-loaded context. When fetching items from any collection, the UI can use those field names directly — no need to call framer_get_collection_fields first.
 
 When the user asks you to make changes to selected rows, use the propose_edits tool to suggest edits. For each row, provide the fieldId as the key and the new value directly. Example: changes: { "Fv4S6mkrw": "New description text" }.
 
@@ -146,6 +149,11 @@ export async function POST(request: Request) {
     const activeCollection = activeCollectionId && activeCollectionName
       ? { id: activeCollectionId, name: activeCollectionName }
       : undefined;
+
+    // Build a context snapshot so the agent starts with project info,
+    // all collections, their fields, and enum cases already loaded.
+    const snapshot = await getAIContextSnapshot();
+    const snapshotBlock = formatSnapshotForPrompt(snapshot);
 
     // Server-side safety: sanitize incoming message history to prevent
     // massive payloads from blowing up the model context or SSE stream.
@@ -208,7 +216,7 @@ export async function POST(request: Request) {
 
     const result = streamText({
       model: config.provider(config.textModel),
-      system: buildSystemPrompt(selectedRows, fieldDefinitions, activeCollection),
+      system: buildSystemPrompt(selectedRows, fieldDefinitions, activeCollection, snapshotBlock),
       messages: await convertToModelMessages(sanitizedMessages),
       stopWhen: stepCountIs(10),
       tools: {

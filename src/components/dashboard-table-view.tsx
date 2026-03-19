@@ -8,6 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { useRouter } from "next/navigation";
 
 import { AIChatPanel } from "@/components/ai-chat-panel";
 import { BlogTable } from "@/components/blog-table";
@@ -34,7 +35,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import type { BlogCollectionMetadata, BlogPostRecord } from "@/lib/cms-types";
-import type { SiteRole } from "@/lib/product-types";
+import { ACTIVE_COLLECTION_COOKIE } from "@/lib/product-framer-shared";
+import type { FramerCollectionOption, SiteRole } from "@/lib/product-types";
 import { toggleRow, toggleAllRows, shiftClickRange } from "@/lib/selection";
 import { cn } from "@/lib/utils";
 
@@ -217,13 +219,16 @@ function writeStoredColumns(columns: string[]) {
 }
 
 export function DashboardTableView({
+  activeCollectionId,
   bridgeStatus,
+  collections,
   initialDrawerState = null,
   initialColumns,
   metadata,
   posts,
   role,
 }: {
+  activeCollectionId: string;
   bridgeStatus?: {
     configured: boolean;
     issues: Array<{ path: string; message: string }>;
@@ -236,12 +241,14 @@ export function DashboardTableView({
     framerItemIdPropertyName: string;
     fieldMap: Record<string, string>;
   };
+  collections: FramerCollectionOption[];
   initialDrawerState?: DrawerState | null;
   initialColumns: string[];
   metadata: BlogCollectionMetadata;
   posts: BlogPostRecord[];
   role: SiteRole;
 }) {
+  const router = useRouter();
   const columnOptions = buildColumnOptions(metadata);
   const allowedColumnKeys = columnOptions.map((column) => column.key);
   const fallbackColumnsRaw = JSON.stringify(initialColumns);
@@ -253,6 +260,9 @@ export function DashboardTableView({
   const [editorRevision, setEditorRevision] = useState(0);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [activeCollectionSelection, setActiveCollectionSelection] = useState(
+    activeCollectionId,
+  );
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [chatOpen, setChatOpen] = useState(false);
@@ -289,6 +299,10 @@ export function DashboardTableView({
   useEffect(() => {
     setCachedPosts(sortPostsByRecency(posts));
   }, [posts]);
+
+  useEffect(() => {
+    setActiveCollectionSelection(activeCollectionId);
+  }, [activeCollectionId]);
 
   useEffect(() => {
     setSearchIndex(buildSearchIndex(cachedPosts, metadata));
@@ -376,6 +390,13 @@ export function DashboardTableView({
 
   function handleOpenCreate() {
     commitDrawerState({ mode: "create" });
+  }
+
+  function handleCollectionChange(nextCollectionId: string) {
+    setActiveCollectionSelection(nextCollectionId);
+    document.cookie = `${ACTIVE_COLLECTION_COOKIE}=${encodeURIComponent(nextCollectionId)}; path=/; max-age=31536000; samesite=lax`;
+    router.push(`/dashboard?collectionId=${encodeURIComponent(nextCollectionId)}`);
+    router.refresh();
   }
 
   function handleOpenPost(postId: string) {
@@ -485,6 +506,27 @@ export function DashboardTableView({
               <span>New Item</span>
             </Button>
             <div className="ml-auto flex w-full flex-wrap items-center justify-between gap-2.5 md:w-auto md:justify-end">
+              {collections.length > 1 ? (
+                <Select
+                  onValueChange={handleCollectionChange}
+                  value={activeCollectionSelection}
+                >
+                  <SelectTrigger
+                    aria-label="Select collection"
+                    className="min-w-48 rounded-full"
+                    size="sm"
+                  >
+                    <SelectValue placeholder="Select collection" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {collections.map((collection) => (
+                      <SelectItem key={collection.id} value={collection.id}>
+                        {collection.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
               {bridgeStatus ? (
                 <Badge
                   className="flex h-11 items-center gap-2.5 rounded-full border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-4 text-[13px] font-semibold text-[color:var(--framer-fresco-panelDescription-color)]"

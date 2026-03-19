@@ -315,3 +315,19 @@ The chat panel's catch-all `tool-*` renderer now tries `renderFramerToolOutput()
 
 **Why:** The user wanted zero friction — no dialog context switch, no "click to start" confirmation. The rewrite should feel native to the editor, not like a separate tool. The dialog file (`ai-rewrite-dialog.tsx`) was deleted entirely.
 **Scope:** `src/components/post-editor.tsx` (RichTextInput now owns the full rewrite flow inline), `src/components/ai-rewrite-dialog.tsx` (deleted).
+
+---
+
+### AI Context Snapshot: Pre-load project/collection/enum data into system prompt
+
+**Date:** 2026-03-19
+
+**Decision:** Added a server-side "context snapshot" that pre-fetches project info, ALL collections (not just the active one), their fields, and enum cases for every enum field across all collections. This is injected directly into the AI chat system prompt so the agent starts every conversation already knowing the full CMS schema.
+
+**What changed:**
+- New `src/lib/ai-context-snapshot.ts` — `getAIContextSnapshot()` fetches project info + all collections + fields per collection + enum cases per enum field, all in parallel. Cached for 60s in-memory. `formatSnapshotForPrompt()` formats it as a structured system prompt block.
+- `src/app/api/ai/chat/route.ts` — imports snapshot, builds it before streaming, passes the formatted block into `buildSystemPrompt()`. Updated efficiency rules to tell the agent to use pre-loaded data instead of calling `framer_get_project_info`, `framer_get_collections`, `framer_get_collection_fields`, or `framer_get_enum_cases`.
+
+**Why:** Every new chat session, the agent was making 2-6 redundant tool calls just to discover collections, fields, project info, and enum options — data that barely changes. With multi-collection support, this would get even worse (N collections × field/enum fetches). The snapshot eliminates all discovery calls. The agent can still call the tools to refresh after a mutation.
+
+**Scope:** `src/lib/ai-context-snapshot.ts` (new), `src/app/api/ai/chat/route.ts` (modified system prompt + snapshot injection).

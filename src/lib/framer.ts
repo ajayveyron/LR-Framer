@@ -50,7 +50,7 @@ let cachedMetadata:
 
 function getMetadataCacheKey() {
   const runtimeContext = getFramerRuntimeContext();
-  return `${runtimeContext.projectId}::${runtimeContext.collectionId ?? runtimeContext.collectionName}`;
+  return `${runtimeContext.projectId}::${runtimeContext.collectionId ?? runtimeContext.collectionName ?? "__project__"}`;
 }
 
 function readMetadataCache() {

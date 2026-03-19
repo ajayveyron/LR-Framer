@@ -6,9 +6,9 @@ import { runWithCurrentSiteFramerContext } from "@/lib/product-framer";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const metadata = await runWithCurrentSiteFramerContext(() => getBlogMetadata());
+    const metadata = await runWithCurrentSiteFramerContext(request, () => getBlogMetadata());
     return NextResponse.json(metadata);
   } catch (error) {
     const mapped = getErrorResponse(error);

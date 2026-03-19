@@ -110,7 +110,7 @@ export function SiteSettingsForm({
           </div>
           <div className="grid gap-1">
             <dt className="settings-label">
-              Collection
+              Default collection
             </dt>
             <dd className="text-[color:var(--framer-fresco-panelTitle-color)]">
               {initialCollectionName}
@@ -405,7 +405,7 @@ export function SiteSettingsForm({
         </div>
 
         <div className={fieldClassName}>
-          <Label className="settings-label" htmlFor="settings-collection-select">CMS collection</Label>
+          <Label className="settings-label" htmlFor="settings-collection-select">Default collection</Label>
           <Select onValueChange={setSelectedCollectionId} value={selectedCollectionId}>
             <SelectTrigger
               className="settings-input h-10 rounded-lg px-3 text-sm leading-[1.4]"
@@ -427,6 +427,11 @@ export function SiteSettingsForm({
               ))}
             </SelectContent>
           </Select>
+          <p className={helperTextClassName}>
+            This only sets the default dashboard collection. Contributors can
+            switch between all validated user-managed collections from the top
+            bar.
+          </p>
         </div>
 
         {error ? <div className="framer-callout-danger">{error}</div> : null}
