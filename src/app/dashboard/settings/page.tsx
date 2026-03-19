@@ -5,6 +5,7 @@ import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import { ProductConfigRequiredState } from "@/components/product-config-required-state";
 import { SiteSettingsForm } from "@/components/site-settings-form";
 import { TeamManager } from "@/components/team-manager";
+import { UsageMeter } from "@/components/usage-meter";
 import { Button } from "@/components/ui/button";
 import { getDashboardAccess } from "@/lib/product-access";
 
@@ -38,6 +39,11 @@ export default async function SettingsPage() {
             access.site.framerProjectUrl ?? access.site.framerProjectId ?? ""
           }
         />
+
+        <div className="settings-section grid gap-6">
+          <h2 className="settings-heading">AI Usage &amp; Billing</h2>
+          <UsageMeter isAdmin={isAdmin} />
+        </div>
 
         {isAdmin && (
           <div className="settings-section grid gap-6">

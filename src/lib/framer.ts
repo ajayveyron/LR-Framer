@@ -39,49 +39,112 @@ import {
 import { getFramerRuntimeContext } from "@/lib/framer-runtime";
 
 const METADATA_CACHE_TTL_MS = 5 * 60_000;
+const COLLECTIONS_CACHE_TTL_MS = 5 * 60_000;
+const DASHBOARD_OVERVIEW_CACHE_TTL_MS = 30_000;
 
-let cachedMetadata:
-  | {
-      cacheKey: string;
-      expiresAt: number;
-      value: BlogCollectionMetadata;
-    }
-  | null = null;
+type CacheEntry<T> = {
+  expiresAt: number;
+  value: T;
+};
+
+const metadataCache = new Map<string, CacheEntry<BlogCollectionMetadata>>();
+const collectionsCache = new Map<string, CacheEntry<Awaited<ReturnType<typeof getAllCollectionsCore>>>>();
+const dashboardOverviewCache = new Map<
+  string,
+  CacheEntry<Awaited<ReturnType<typeof getDashboardOverviewCore>>>
+>();
+
+function getProjectCacheKey() {
+  const runtimeContext = getFramerRuntimeContext();
+  return runtimeContext.projectId;
+}
 
 function getMetadataCacheKey() {
   const runtimeContext = getFramerRuntimeContext();
   return `${runtimeContext.projectId}::${runtimeContext.collectionId ?? runtimeContext.collectionName ?? "__project__"}`;
 }
 
-function readMetadataCache() {
-  if (
-    cachedMetadata &&
-    cachedMetadata.cacheKey === getMetadataCacheKey() &&
-    cachedMetadata.expiresAt > Date.now()
-  ) {
-    return cachedMetadata.value;
+function getDashboardOverviewCacheKey(limit?: number) {
+  return `${getMetadataCacheKey()}::overview::${limit ?? "all"}`;
+}
+
+function readCache<T>(cache: Map<string, CacheEntry<T>>, key: string) {
+  const entry = cache.get(key);
+  if (entry && entry.expiresAt > Date.now()) {
+    return entry.value;
   }
 
-  cachedMetadata = null;
+  cache.delete(key);
   return null;
 }
 
-function writeMetadataCache(value: BlogCollectionMetadata) {
-  cachedMetadata = {
-    cacheKey: getMetadataCacheKey(),
-    expiresAt: Date.now() + METADATA_CACHE_TTL_MS,
+function writeCache<T>(
+  cache: Map<string, CacheEntry<T>>,
+  key: string,
+  ttlMs: number,
+  value: T,
+) {
+  cache.set(key, {
+    expiresAt: Date.now() + ttlMs,
     value,
-  };
+  });
 
   return value;
 }
 
+function writeMetadataCache(value: BlogCollectionMetadata) {
+  return writeCache(
+    metadataCache,
+    getMetadataCacheKey(),
+    METADATA_CACHE_TTL_MS,
+    value,
+  );
+}
+
+function invalidateProjectCaches(projectId: string) {
+  collectionsCache.delete(projectId);
+
+  for (const key of metadataCache.keys()) {
+    if (key.startsWith(`${projectId}::`)) {
+      metadataCache.delete(key);
+    }
+  }
+
+  for (const key of dashboardOverviewCache.keys()) {
+    if (key.startsWith(`${projectId}::`)) {
+      dashboardOverviewCache.delete(key);
+    }
+  }
+}
+
+function invalidateCurrentProjectCaches() {
+  invalidateProjectCaches(getProjectCacheKey());
+}
+
+export function clearFramerCaches() {
+  metadataCache.clear();
+  collectionsCache.clear();
+  dashboardOverviewCache.clear();
+}
+
 export async function getBlogMetadata() {
-  return readMetadataCache() ?? writeMetadataCache(await getBlogMetadataCore());
+  return (
+    readCache(metadataCache, getMetadataCacheKey()) ??
+    writeMetadataCache(await getBlogMetadataCore())
+  );
 }
 
 export async function getDashboardOverview(limit?: number) {
-  return getDashboardOverviewCore(limit);
+  const cacheKey = getDashboardOverviewCacheKey(limit);
+  return (
+    readCache(dashboardOverviewCache, cacheKey) ??
+    writeCache(
+      dashboardOverviewCache,
+      cacheKey,
+      DASHBOARD_OVERVIEW_CACHE_TTL_MS,
+      await getDashboardOverviewCore(limit),
+    )
+  );
 }
 
 export async function listBlogPosts() {
@@ -100,7 +163,9 @@ export async function createBlogPost(
   input: UpsertBlogPostInput,
   actor: string,
 ) {
-  return createBlogPostCore(input, actor);
+  const result = await createBlogPostCore(input, actor);
+  invalidateCurrentProjectCaches();
+  return result;
 }
 
 export async function updateBlogPost(
@@ -108,11 +173,15 @@ export async function updateBlogPost(
   input: UpsertBlogPostInput,
   actor: string,
 ) {
-  return updateBlogPostCore(id, input, actor);
+  const result = await updateBlogPostCore(id, input, actor);
+  invalidateCurrentProjectCaches();
+  return result;
 }
 
 export async function deleteBlogPost(id: string, actor: string) {
-  return deleteBlogPostCore(id, actor);
+  const result = await deleteBlogPostCore(id, actor);
+  invalidateCurrentProjectCaches();
+  return result;
 }
 
 export async function syncBridgePosts(
@@ -124,7 +193,9 @@ export async function syncBridgePosts(
     return { results: [] };
   }
 
-  return syncBridgePostsCore(inputs, actor, publishRequested);
+  const result = await syncBridgePostsCore(inputs, actor, publishRequested);
+  invalidateCurrentProjectCaches();
+  return result;
 }
 
 export async function removeBridgePosts(
@@ -135,7 +206,9 @@ export async function removeBridgePosts(
     return { results: [] };
   }
 
-  return removeBridgePostsCore(inputs, actor);
+  const result = await removeBridgePostsCore(inputs, actor);
+  invalidateCurrentProjectCaches();
+  return result;
 }
 
 export async function syncBridgePostsFromRaw<T>(
@@ -170,7 +243,15 @@ export async function publishSite() {
 }
 
 export async function getAllCollections() {
-  return getAllCollectionsCore();
+  return (
+    readCache(collectionsCache, getProjectCacheKey()) ??
+    writeCache(
+      collectionsCache,
+      getProjectCacheKey(),
+      COLLECTIONS_CACHE_TTL_MS,
+      await getAllCollectionsCore(),
+    )
+  );
 }
 
 export async function getCollectionById(collectionId: string) {
@@ -194,14 +275,18 @@ export async function addCollectionItems(
     fieldData?: Record<string, { type: string; value: unknown }>;
   }>,
 ) {
-  return addCollectionItemsCore(collectionId, items);
+  const result = await addCollectionItemsCore(collectionId, items);
+  invalidateCurrentProjectCaches();
+  return result;
 }
 
 export async function removeCollectionItems(
   collectionId: string,
   itemIds: string[],
 ) {
-  return removeCollectionItemsCore(collectionId, itemIds);
+  const result = await removeCollectionItemsCore(collectionId, itemIds);
+  invalidateCurrentProjectCaches();
+  return result;
 }
 
 export async function setCollectionItemAttributes(
@@ -213,14 +298,18 @@ export async function setCollectionItemAttributes(
     fieldData?: Record<string, { type: string; value: unknown }>;
   },
 ) {
-  return setCollectionItemAttributesCore(collectionId, itemId, attributes);
+  const result = await setCollectionItemAttributesCore(collectionId, itemId, attributes);
+  invalidateCurrentProjectCaches();
+  return result;
 }
 
 export async function removeCollectionItem(
   collectionId: string,
   itemId: string,
 ) {
-  return removeCollectionItemCore(collectionId, itemId);
+  const result = await removeCollectionItemCore(collectionId, itemId);
+  invalidateCurrentProjectCaches();
+  return result;
 }
 
 export async function getEnumFieldCases(
@@ -235,7 +324,9 @@ export async function addEnumCase(
   fieldId: string,
   name: string,
 ) {
-  return addEnumCaseCore(collectionId, fieldId, name);
+  const result = await addEnumCaseCore(collectionId, fieldId, name);
+  invalidateCurrentProjectCaches();
+  return result;
 }
 
 export async function setEnumCaseOrder(
@@ -243,7 +334,9 @@ export async function setEnumCaseOrder(
   fieldId: string,
   caseIds: string[],
 ) {
-  return setEnumCaseOrderCore(collectionId, fieldId, caseIds);
+  const result = await setEnumCaseOrderCore(collectionId, fieldId, caseIds);
+  invalidateCurrentProjectCaches();
+  return result;
 }
 
 export async function updateEnumCase(
@@ -252,7 +345,9 @@ export async function updateEnumCase(
   caseId: string,
   newName: string,
 ) {
-  return updateEnumCaseCore(collectionId, fieldId, caseId, newName);
+  const result = await updateEnumCaseCore(collectionId, fieldId, caseId, newName);
+  invalidateCurrentProjectCaches();
+  return result;
 }
 
 export async function removeEnumCase(
@@ -260,9 +355,13 @@ export async function removeEnumCase(
   fieldId: string,
   caseId: string,
 ) {
-  return removeEnumCaseCore(collectionId, fieldId, caseId);
+  const result = await removeEnumCaseCore(collectionId, fieldId, caseId);
+  invalidateCurrentProjectCaches();
+  return result;
 }
 
 export async function setCollectionAsActive(collectionId: string) {
-  return setCollectionAsActiveCore(collectionId);
+  const result = await setCollectionAsActiveCore(collectionId);
+  invalidateCurrentProjectCaches();
+  return result;
 }

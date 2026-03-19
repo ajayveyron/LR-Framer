@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useBillingUsage, deriveMeterState, METER_COLORS } from "@/lib/use-billing-usage";
 
 function getInitials(name: string) {
   const parts = name
@@ -35,6 +36,47 @@ function getInitials(name: string) {
     .join("");
 }
 
+/**
+ * SVG ring overlay that shows usage percentage around the avatar.
+ * Only renders for free plan users.
+ */
+function UsageRing() {
+  const { data, loading } = useBillingUsage();
+  if (loading || !data || data.planName !== "Free") return null;
+
+  const state = deriveMeterState(data.percentUsed);
+  const color = METER_COLORS[state];
+
+  // SVG circle math: radius 20, circumference ≈ 125.66
+  const R = 20;
+  const C = 2 * Math.PI * R;
+  const filled = (Math.min(data.percentUsed, 100) / 100) * C;
+  const gap = C - filled;
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -rotate-90"
+      viewBox="0 0 44 44"
+      fill="none"
+    >
+      {/* Track */}
+      <circle cx="22" cy="22" r={R} stroke="rgba(255,255,255,0.06)" strokeWidth="2" />
+      {/* Fill */}
+      <circle
+        cx="22"
+        cy="22"
+        r={R}
+        stroke={color}
+        strokeWidth="2"
+        strokeDasharray={`${filled} ${gap}`}
+        strokeLinecap="round"
+        style={{ transition: "stroke-dasharray 0.5s ease-out" }}
+      />
+    </svg>
+  );
+}
+
 export function DashboardAccountLink() {
   const clerk = useClerk();
   const { isLoaded, user } = useUser();
@@ -47,27 +89,30 @@ export function DashboardAccountLink() {
   return (
     <>
       <div className="group relative">
-        <Button
-          aria-label="Open account menu"
-          className="size-11 rounded-full p-0"
-          size="icon-lg"
-          type="button"
-          variant="outline"
-        >
-          <span className="inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelTitle-color)]">
-            {user?.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                alt={fullName}
-                className="size-full object-cover"
-                loading="lazy"
-                src={user.imageUrl}
-              />
-            ) : (
-              <span>{getInitials(fullName)}</span>
-            )}
-          </span>
-        </Button>
+        <div className="relative">
+          <UsageRing />
+          <Button
+            aria-label="Open account menu"
+            className="size-11 rounded-full p-0"
+            size="icon-lg"
+            type="button"
+            variant="outline"
+          >
+            <span className="inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelTitle-color)]">
+              {user?.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  alt={fullName}
+                  className="size-full object-cover"
+                  loading="lazy"
+                  src={user.imageUrl}
+                />
+              ) : (
+                <span>{getInitials(fullName)}</span>
+              )}
+            </span>
+          </Button>
+        </div>
         <div className="pointer-events-none absolute right-0 top-full z-30 pt-2 opacity-0 transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
           <div className="w-44 border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-menuBackground-color)] p-1.5 shadow-[0_20px_48px_rgba(0,0,0,0.42)]">
             <Link

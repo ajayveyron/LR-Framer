@@ -2,13 +2,16 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Sparkle, X, WarningCircle, ArrowClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop, GlobeSimple, ImageSquare, DownloadSimple, Plus, ClockCounterClockwise, PlusIcon, Coins, Rows } from "@phosphor-icons/react";
+import { Sparkle, X, WarningCircle, ArrowClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop, GlobeSimple, ImageSquare, DownloadSimple, Plus, ClockCounterClockwise, PlusIcon, Rows, Gauge } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { useBillingUsage, deriveMeterState, METER_COLORS, METER_BG_COLORS, invalidateBillingUsage } from "@/lib/use-billing-usage";
 
 import type { AIChatMessage, ChatMessageMetadata } from "@/lib/ai-chat-types";
 
 import { ChatHistoryPanel } from "@/components/chat-history-panel";
 import { saveConversation, type SavedConversation } from "@/lib/chat-history";
+import { UpgradeButton } from "@/components/upgrade-button";
 
 import {
   Conversation,
@@ -67,6 +70,14 @@ type ChatSuggestion = {
   description: string;
   prompt: string;
   title: string;
+};
+
+const AI_CHAT_SESSION_STORAGE_KEY = "lr:dashboard:ai-chat-session";
+
+type PersistedChatSession = {
+  id: string;
+  messages: AIChatMessage[];
+  showHistory: boolean;
 };
 
 const EMPTY_CHAT_SUGGESTIONS: ChatSuggestion[] = [
@@ -204,10 +215,61 @@ function ChatPromptSuggestions({ selectedCount }: { selectedCount: number }) {
   );
 }
 
+function readPersistedChatSession(): PersistedChatSession | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const raw = window.localStorage.getItem(AI_CHAT_SESSION_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<PersistedChatSession>;
+    if (
+      !parsed ||
+      typeof parsed.id !== "string" ||
+      !Array.isArray(parsed.messages)
+    ) {
+      return null;
+    }
+
+    return {
+      id: parsed.id,
+      messages: parsed.messages as AIChatMessage[],
+      showHistory: parsed.showHistory === true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedChatSession(session: PersistedChatSession) {
+  window.localStorage.setItem(
+    AI_CHAT_SESSION_STORAGE_KEY,
+    JSON.stringify(session),
+  );
+}
+
+function clearPersistedChatSession() {
+  window.localStorage.removeItem(AI_CHAT_SESSION_STORAGE_KEY);
+}
+
 function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPostsUpdated, onClearSelection }: AIChatPanelProps) {
   const { textInput } = usePromptInputController();
-  const [chatKey, setChatKey] = useState(() => crypto.randomUUID());
-  const [showHistory, setShowHistory] = useState(false);
+  const initialSessionRef = useRef<PersistedChatSession | null | undefined>(
+    undefined,
+  );
+  if (initialSessionRef.current === undefined && typeof window !== "undefined") {
+    initialSessionRef.current = readPersistedChatSession();
+  }
+  const [chatKey, setChatKey] = useState(
+    () => initialSessionRef.current?.id ?? crypto.randomUUID(),
+  );
+  const [showHistory, setShowHistory] = useState(
+    () => initialSessionRef.current?.showHistory ?? false,
+  );
 
   const bodyData = useMemo(
     () => ({
@@ -270,6 +332,16 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
       console.log(JSON.stringify({ ts: new Date().toISOString(), level: "error", event: "ai.chat_panel.error", message: err.message }));
     },
   });
+
+  useEffect(() => {
+    const initialSession = initialSessionRef.current;
+    if (!initialSession || initialSession.messages.length === 0) {
+      return;
+    }
+
+    setMessages(initialSession.messages);
+    initialSessionRef.current = null;
+  }, [setMessages]);
 
   // Map field IDs → human-readable names for rich tool output rendering
   // Scans all messages for framer_get_collection_fields outputs to cover any collection
@@ -334,6 +406,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
     textInput.clear();
     setChatKey(crypto.randomUUID());
     setShowHistory(false);
+    clearPersistedChatSession();
   }, [setMessages, messages, chatKey, clearError, textInput]);
 
   // Persist conversation after each assistant turn completes
@@ -341,9 +414,27 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
   useEffect(() => {
     const wasActive = prevStatusRef.current === "streaming" || prevStatusRef.current === "submitted";
     const nowIdle = status === "ready" || status === "error";
-    if (wasActive && nowIdle && messages.length > 0) void saveConversation(chatKey, messages);
+    if (wasActive && nowIdle && messages.length > 0) {
+      void saveConversation(chatKey, messages);
+      invalidateBillingUsage();
+    }
     prevStatusRef.current = status;
   }, [status, messages, chatKey]);
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      if (!showHistory) {
+        clearPersistedChatSession();
+      }
+      return;
+    }
+
+    writePersistedChatSession({
+      id: chatKey,
+      messages,
+      showHistory,
+    });
+  }, [chatKey, messages, showHistory]);
 
   const handleRestoreConversation = useCallback(
     (conv: SavedConversation) => {
@@ -602,14 +693,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                 )}
 
                 {error && !isStreaming && (
-                  <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
-                    <WarningCircle className="size-3.5 shrink-0" weight="fill" />
-                    <span className="min-w-0 flex-1 truncate">{error.message}</span>
-                    <button type="button" className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-red-300 transition-colors hover:bg-red-500/20 hover:text-red-200" onClick={() => { clearError(); regenerate(); }}>
-                      <ArrowClockwise className="size-3.5" weight="bold" />
-                      <span>Retry</span>
-                    </button>
-                  </div>
+                  <QuotaOrError error={error} onRetry={() => { clearError(); regenerate(); }} />
                 )}
               </ConversationContent>
               <ConversationScrollButton />
@@ -617,55 +701,186 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
 
             {/* Input */}
             <div className="border-t border-[var(--framer-fresco-panelDivider-color)] p-4 pb-8">
-              {totalTokens.total > 0 && (
-                <div className="mb-2 flex items-center gap-1.5 text-[11px] text-[color:var(--framer-fresco-panelDescription-color)]">
-                  <Coins className="size-3.5 shrink-0" weight="duotone" />
-                  <span>{totalTokens.total.toLocaleString()} tokens</span>
-                  <span className="opacity-50">({totalTokens.input.toLocaleString()} in · {totalTokens.output.toLocaleString()} out)</span>
-                </div>
-              )}
-              <PromptInput
-                accept="image/*,application/pdf,text/plain,text/html,text/css,text/csv,text/xml,text/markdown,application/json,application/xml,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,audio/*,video/*"
-                maxFiles={5}
-                maxFileSize={10 * 1024 * 1024}
-                onSubmit={async ({ text, files }) => {
-                  if (!text.trim() && files.length === 0) return;
-                  if (isStreaming) return;
-                  sendMessage({ text, files });
-                }}
-              >
-                <AttachmentPreviewStrip />
-                {selectedPosts.length > 0 && (
-                  <div className="flex w-full items-start px-3 pt-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] py-0.5 pl-2 pr-1 text-[11px] text-[color:var(--framer-fresco-panelDescription-color)]">
-                      <Rows className="size-3 shrink-0" weight="bold" />
-                      {selectedPosts.length} row{selectedPosts.length !== 1 ? "s" : ""} selected
-                      {onClearSelection && (
-                        <button
-                          type="button"
-                          className="ml-0.5 rounded p-0.5 transition-colors hover:bg-[var(--framer-fresco-panelDivider-color)] hover:text-[color:var(--framer-fresco-panelTitle-color)]"
-                          onClick={onClearSelection}
-                          aria-label="Clear selection"
-                        >
-                          <X className="size-3" weight="bold" />
-                        </button>
-                      )}
-                    </span>
-                  </div>
-                )}
-                <PromptInputTextarea placeholder={selectedPosts.length > 0 ? "Describe the changes you want…" : "Ask me anything…"} className="min-h-10 text-sm" />
-                <PromptInputFooter>
-                  <DirectAttachButton />
-                  <PromptInputSubmit status={isStreaming ? "streaming" : "ready"} onStop={() => stop()}>
-                    {isStreaming ? <Stop className="size-4" weight="fill" /> : <PaperPlaneRight className="size-4" weight="fill" />}
-                  </PromptInputSubmit>
-                </PromptInputFooter>
-              </PromptInput>
+              <ChatInputOrQuotaGate
+                totalTokens={totalTokens}
+                selectedPosts={selectedPosts}
+                isStreaming={isStreaming}
+                sendMessage={sendMessage}
+                onClearSelection={onClearSelection}
+                stop={stop}
+              />
             </div>
           </>
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/**
+ * Proactively gates the chat input when the free-plan quota is exhausted.
+ * If usage >= 100% on the Free plan, replaces the input with an upgrade callout.
+ * Otherwise renders the normal PromptInput with token counter and usage bar.
+ */
+function ChatInputOrQuotaGate({
+  totalTokens,
+  selectedPosts,
+  isStreaming,
+  sendMessage,
+  onClearSelection,
+  stop,
+}: {
+  totalTokens: { input: number; output: number; total: number };
+  selectedPosts: BlogPostRecord[];
+  isStreaming: boolean;
+  sendMessage: (msg: { text: string }) => void;
+  onClearSelection?: () => void;
+  stop: () => void;
+}) {
+  const { data } = useBillingUsage();
+  const isExhausted = data && data.planName === "Free" && data.percentUsed >= 100;
+
+  if (isExhausted) {
+    return (
+      <div className="flex flex-col gap-3 rounded-lg border border-[var(--framer-fresco-errorTint-color)]/20 bg-[var(--framer-fresco-errorTint-color)]/5 px-4 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <Gauge className="size-5 shrink-0 text-[color:var(--framer-fresco-errorTint-color)]" weight="fill" />
+          <span className="text-sm font-medium text-[color:var(--framer-fresco-panelTitle-color)]">
+            Monthly AI allowance reached
+          </span>
+        </div>
+        <p className="text-xs leading-relaxed text-[color:var(--framer-fresco-panelDescription-color)]">
+          Your team has used 100% of this month&apos;s AI tokens. Upgrade to Pro for 100× more capacity.
+        </p>
+        <UpgradeButton className="w-fit" />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {totalTokens.total > 0 && (
+        <div className="mb-1.5 flex items-center justify-between text-[10px] tabular-nums text-[color:var(--framer-fresco-panelSubtitle-color)]">
+          <span>
+            <Rows className="mr-1 inline size-3 align-[-2px]" weight="bold" />
+            {totalTokens.total.toLocaleString()} tokens this session
+          </span>
+        </div>
+      )}
+      <PromptInput
+        onSubmit={(message) => {
+          if (!message.text.trim()) return;
+          sendMessage({ text: message.text });
+        }}
+      >
+        <AttachmentPreviewStrip />
+        <PromptInputTextarea
+          autoFocus
+          name="message"
+          placeholder={
+            selectedPosts.length > 0
+              ? `Ask about ${selectedPosts.length} selected post${selectedPosts.length > 1 ? "s" : ""}…`
+              : "Ask anything about this collection…"
+          }
+          rows={2}
+        />
+        <PromptInputFooter>
+          <DirectAttachButton />
+          {selectedPosts.length > 0 && onClearSelection && (
+            <button
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-[color:var(--framer-fresco-tint-color)] transition-colors hover:bg-[var(--framer-fresco-panelDivider-color)]"
+              onClick={onClearSelection}
+              type="button"
+            >
+              <X className="size-3" />
+              {selectedPosts.length} selected
+            </button>
+          )}
+          <div className="flex-1" />
+          {isStreaming ? (
+            <Button
+              aria-label="Stop generating"
+              className="size-8 shrink-0"
+              onClick={stop}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              <Stop className="size-4" weight="fill" />
+            </Button>
+          ) : (
+            <PromptInputSubmit aria-label="Send message" className="size-8 shrink-0" size="icon-sm" type="submit">
+              <PaperPlaneRight className="size-4" weight="fill" />
+            </PromptInputSubmit>
+          )}
+        </PromptInputFooter>
+      </PromptInput>
+      <ChatUsageBar />
+    </>
+  );
+}
+
+/**
+ * Detects whether an error is a quota-exhaustion 429 and renders either
+ * a polished upgrade prompt or the generic error pill.
+ */
+function QuotaOrError({ error, onRetry }: { error: Error; onRetry: () => void }) {
+  const isQuota = /allowance|exhausted|429/i.test(error.message);
+
+  if (isQuota) {
+    return (
+      <div className="flex flex-col gap-3 rounded-lg border border-[var(--framer-fresco-errorTint-color)]/20 bg-[var(--framer-fresco-errorTint-color)]/5 px-4 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <Gauge className="size-5 shrink-0 text-[color:var(--framer-fresco-errorTint-color)]" weight="fill" />
+          <span className="text-sm font-medium text-[color:var(--framer-fresco-panelTitle-color)]">
+            Monthly AI allowance reached
+          </span>
+        </div>
+        <p className="text-xs leading-relaxed text-[color:var(--framer-fresco-panelDescription-color)]">
+          Your team has used 100% of this month&apos;s AI tokens. Upgrade to Pro for 100× more capacity.
+        </p>
+        <UpgradeButton className="w-fit" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+      <WarningCircle className="size-3.5 shrink-0" weight="fill" />
+      <span className="min-w-0 flex-1 truncate">{error.message}</span>
+      <button type="button" className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-red-300 transition-colors hover:bg-red-500/20 hover:text-red-200" onClick={onRetry}>
+        <ArrowClockwise className="size-3.5" weight="bold" />
+        <span>Retry</span>
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Subtle usage bar below the chat input for free plan users.
+ * Uses the shared billing hook which auto-refreshes when
+ * invalidateBillingUsage() fires after each chat turn.
+ */
+function ChatUsageBar() {
+  const { data, loading } = useBillingUsage();
+  if (loading || !data || data.planName !== "Free") return null;
+
+  const state = deriveMeterState(data.percentUsed);
+  const color = METER_COLORS[state];
+  const bg = METER_BG_COLORS[state];
+
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full" style={{ backgroundColor: bg }}>
+        <div
+          className="h-full rounded-full transition-all duration-500 ease-out"
+          style={{ width: `${Math.min(data.percentUsed, 100)}%`, backgroundColor: color }}
+        />
+      </div>
+      <span className="shrink-0 text-[10px] tabular-nums" style={{ color }}>
+        {data.percentUsed}% used
+      </span>
+    </div>
   );
 }
 

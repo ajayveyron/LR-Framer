@@ -1,5 +1,6 @@
 "use client";
 
+import { FramerTemporaryUnavailableState } from "@/components/framer-temporary-unavailable-state";
 import { Button } from "@/components/ui/button";
 
 function formatErrorMessage(message: string) {
@@ -22,6 +23,17 @@ function formatErrorMessage(message: string) {
   return message;
 }
 
+function isTransientFramerMessage(message: string) {
+  const normalized = message.toLowerCase();
+
+  return (
+    normalized.includes("no connection to the server") ||
+    normalized.includes("framer is temporarily unavailable") ||
+    normalized.includes("session expired") ||
+    normalized.includes("project_closed")
+  );
+}
+
 export default function GlobalError({
   error,
   reset,
@@ -29,6 +41,12 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const formattedMessage = formatErrorMessage(error.message);
+
+  if (isTransientFramerMessage(formattedMessage)) {
+    return <FramerTemporaryUnavailableState onRetry={reset} />;
+  }
+
   return (
     <main className="mx-auto my-14 w-[min(620px,calc(100vw-32px))]">
       <section className="framer-card flex flex-col gap-4 p-7">
@@ -37,7 +55,7 @@ export default function GlobalError({
           The dashboard hit an unexpected error.
         </h1>
         <pre className="framer-code-panel whitespace-pre-wrap">
-          {formatErrorMessage(error.message)}
+          {formattedMessage}
         </pre>
         <Button onClick={reset} type="button">
           Try again

@@ -386,3 +386,27 @@ The chat panel's catch-all `tool-*` renderer now tries `renderFramerToolOutput()
 **Why:** Prevents abuse where someone connects the same Framer project to multiple orgs to double-dip on free tiers or circumvent billing. One Framer project = one organization = one plan.
 
 **Scope:** Affects onboarding/project setup flow and the billing spec (Requirement 12).
+
+
+## 2026-03-19 — Bumped FALLBACK_IMAGE_TOKEN_COST from 1,000 to 2,000
+
+**What changed:** `FALLBACK_IMAGE_TOKEN_COST` in `src/lib/billing.ts` increased from 1,000 to 2,000 tokens per image generation.
+
+**Why:** At 1,000 tokens, free plan users (100K allowance) could generate ~100 images — way too generous. Real Gemini 3 Pro Image pricing is ~560 input tokens + 1,120–2,000 output tokens depending on resolution. 2,000 covers the common 1K/2K case with a small buffer for 4K outputs. Free plan now allows ~50 image gens max (less in practice since chat also consumes tokens).
+
+**Scope:** `src/lib/billing.ts` only — the `FALLBACK_IMAGE_TOKEN_COST` constant.
+
+## 2026-03-19 — Use Dodo Checkout Sessions API instead of direct subscription creation
+
+The original checkout route called `POST /subscriptions` directly, which requires the customer to already exist in Dodo. This caused a 404 "Customer does not exist" error for new users. Switched to `POST /checkouts` (Checkout Sessions API) which handles customer creation, payment collection, and subscription setup in a single hosted flow. The response returns `checkout_url` instead of `payment_link`. Clerk org/user IDs are passed in metadata so the webhook can link the subscription back.
+
+## 2026-03-19 — Fix Dodo webhook signature verification to use Standard Webhooks spec
+
+Dodo Payments uses the Standard Webhooks spec, not a simple HMAC of the body. The correct approach:
+- Headers: `webhook-id`, `webhook-timestamp`, `webhook-signature` (not `x-dodo-signature`)
+- Signed message: `{webhook-id}.{webhook-timestamp}.{body}`
+- Secret is base64-encoded (optionally prefixed with `whsec_`)
+- Signature header format: `v1,<base64sig>` (can have multiple space-separated entries)
+- Payload uses `type` field (not `event_type`) and has `business_id`, `timestamp`, `data` structure
+
+Also fixed the payload parsing to match Dodo's actual webhook format with nested `data` object containing `payload_type`, `subscription_id`, `customer`, `product_id`, `metadata`, etc.

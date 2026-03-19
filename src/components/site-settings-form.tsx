@@ -253,19 +253,6 @@ export function SiteSettingsForm({
         className="grid gap-4"
         onSubmit={(event) => event.preventDefault()}
       >
-        <div
-          aria-hidden="true"
-          className="absolute -m-px h-px w-px overflow-hidden whitespace-nowrap border-0 p-0 [clip:rect(0,0,0,0)]"
-        >
-          <input autoComplete="username" name="username" tabIndex={-1} type="text" />
-          <input
-            autoComplete="current-password"
-            name="password"
-            tabIndex={-1}
-            type="password"
-          />
-        </div>
-
         <div className={fieldClassName}>
           <div className={labelRowClassName}>
             <Label className="settings-label" htmlFor="settings-project-input">Framer project URL or ID</Label>
@@ -388,7 +375,7 @@ export function SiteSettingsForm({
           </div>
           <Input
             autoCapitalize="none"
-            autoComplete="new-password"
+            autoComplete="off"
             autoCorrect="off"
             className={formControlClassName}
             data-1p-ignore="true"

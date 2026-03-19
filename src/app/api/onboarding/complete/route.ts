@@ -71,6 +71,46 @@ export async function POST(request: Request) {
       () => getBlogMetadata(),
     );
 
+    // --- Framer project uniqueness enforcement (Tasks 12.1 & 12.2) ---
+
+    // 1. Release any existing claim for this org (idempotent — no-op if none)
+    await fetchProductMutation(anyApi.billing.releaseFramerProject, {
+      clerkOrganizationId: orgId,
+    });
+
+    logEvent("info", "billing.framer_claim.released", {
+      clerkOrganizationId: orgId,
+    });
+
+    // 2. Claim the new project
+    const claimResult = await fetchProductMutation(
+      anyApi.billing.claimFramerProject,
+      {
+        framerProjectId: validation.projectId,
+        clerkOrganizationId: orgId,
+      },
+    );
+
+    // 3. If claim fails (another org has it), reject with 409
+    if (!claimResult.claimed) {
+      logEvent("warn", "billing.framer_claim.rejected", {
+        clerkOrganizationId: orgId,
+        framerProjectId: validation.projectId,
+        claimedByOrg: claimResult.claimedByOrg,
+      });
+
+      throw new AppError(
+        "This Framer project is already connected to another organization.",
+        409,
+      );
+    }
+
+    // 4. Claim succeeded — log and proceed
+    logEvent("info", "billing.framer_claim.claimed", {
+      clerkOrganizationId: orgId,
+      framerProjectId: validation.projectId,
+    });
+
     await fetchProductMutation(anyApi.product.saveSiteSetup, {
       clerkOrganizationId: orgId,
       clerkUserId: userId,

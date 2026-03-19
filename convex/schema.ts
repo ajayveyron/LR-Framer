@@ -42,6 +42,56 @@ export default defineSchema({
     .index("by_org_user", ["clerkOrganizationId", "clerkUserId"])
     .index("by_user", ["clerkUserId"]),
 
+  aiUsageRecords: defineTable({
+    clerkOrganizationId: v.string(),
+    clerkUserId: v.string(),
+    featureType: v.union(
+      v.literal("chat"),
+      v.literal("image"),
+      v.literal("image_tool"),
+      v.literal("rewrite"),
+    ),
+    promptTokens: v.number(),
+    completionTokens: v.number(),
+    totalTokens: v.number(),
+    model: v.string(),
+    conversationId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_org_period", ["clerkOrganizationId", "createdAt"])
+    .index("by_org_user_period", [
+      "clerkOrganizationId",
+      "clerkUserId",
+      "createdAt",
+    ]),
+
+  framerProjectClaims: defineTable({
+    framerProjectId: v.string(),
+    clerkOrganizationId: v.string(),
+    claimedAt: v.number(),
+  })
+    .index("by_project", ["framerProjectId"])
+    .index("by_org", ["clerkOrganizationId"]),
+
+  subscriptions: defineTable({
+    clerkOrganizationId: v.string(),
+    dodoSubscriptionId: v.string(),
+    dodoCustomerId: v.string(),
+    planId: v.string(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("cancelled"),
+      v.literal("expired"),
+      v.literal("past_due"),
+    ),
+    monthlyTokenAllowance: v.number(),
+    currentPeriodStart: v.number(),
+    currentPeriodEnd: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["clerkOrganizationId"])
+    .index("by_dodo_subscription", ["dodoSubscriptionId"]),
+
   sites: defineTable({
     clerkOrganizationId: v.string(),
     createdAt: v.number(),

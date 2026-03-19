@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils";
 const PAGE_SIZE = 20;
 const COLUMN_STORAGE_KEY = "lr:dashboard:columns";
 const COLUMN_STORAGE_EVENT = "lr:dashboard:columns:changed";
+const AI_CHAT_OPEN_STORAGE_KEY = "lr:dashboard:ai-chat-open";
 const TITLE_COLUMN_KEY = "title";
 
 type DrawerState =
@@ -228,6 +229,14 @@ function writeStoredColumns(columns: string[]) {
   window.dispatchEvent(new Event(COLUMN_STORAGE_EVENT));
 }
 
+function readStoredAIChatOpen() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.localStorage.getItem(AI_CHAT_OPEN_STORAGE_KEY) === "true";
+}
+
 export function DashboardTableView({
   activeCollectionId,
   bridgeStatus,
@@ -277,7 +286,7 @@ export function DashboardTableView({
   const stickyHeaderRef = useRef<HTMLDivElement | null>(null);
   const [stickyHeaderHeight, setStickyHeaderHeight] = useState(0);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(readStoredAIChatOpen);
   const lastClickedIndexRef = useRef<number | null>(null);
   const [searchIndex, setSearchIndex] = useState(() =>
     buildSearchIndex(posts, metadata),
@@ -330,6 +339,13 @@ export function DashboardTableView({
   useEffect(() => {
     setSearchIndex(buildSearchIndex(cachedPosts, metadata));
   }, [cachedPosts, metadata]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      AI_CHAT_OPEN_STORAGE_KEY,
+      chatOpen ? "true" : "false",
+    );
+  }, [chatOpen]);
 
   useEffect(() => {
     const handlePopState = () => {

@@ -1612,17 +1612,24 @@ export async function getCollectionItems(collectionId: string) {
     if (!collection) {
       throw new AppError(`Collection "${collectionId}" not found.`, 404);
     }
-    const [items, fields] = await Promise.all([
-      collection.getItems(),
-      collection.getFields(),
-    ]);
+    const items = await collection.getItems();
+
     // Include field metadata so the chat UI can render human-readable columns and image cells.
     const _fieldNames: Record<string, string> = {};
     const _fieldTypes: Record<string, string> = {};
-    for (const f of fields) {
-      _fieldNames[f.id] = f.name;
-      _fieldTypes[f.id] = f.type;
+
+    try {
+      const fields = await collection.getFields();
+      for (const f of fields) {
+        _fieldNames[f.id] = f.name;
+        _fieldTypes[f.id] = f.type;
+      }
+    } catch (error) {
+      logError("framer.collection.getItems.fields_failed", error, {
+        collectionId,
+      });
     }
+
     return {
       _fieldNames,
       _fieldTypes,

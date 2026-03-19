@@ -2,9 +2,12 @@ import { generateText } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { auth } from "@clerk/nextjs/server";
+
 import { createErrorJsonResponse } from "@/lib/api";
 import { requireAIConfig } from "@/lib/ai-config";
 import { hardenUntrustedTextBlock } from "@/lib/ai-guardrails";
+import { checkQuota, trackTokenUsage } from "@/lib/billing";
 import { AppError } from "@/lib/errors";
 import { logEvent, logError } from "@/lib/logger";
 
@@ -48,6 +51,7 @@ export async function POST(request: Request) {
 
   try {
     const config = requireAIConfig();
+    const { orgId, userId } = await auth();
     const body = await request.json();
     const parsed = requestSchema.safeParse(body);
 
@@ -59,6 +63,26 @@ export async function POST(request: Request) {
     }
 
     const { html, context } = parsed.data;
+
+    // ── QUOTA CHECK (fail-open) ──
+    if (orgId) {
+      try {
+        const quota = await checkQuota(orgId);
+        if (!quota.allowed) {
+          logEvent("warn", "billing.quota.rejected", {
+            organizationId: orgId,
+            currentUsage: quota.currentUsage,
+            allowance: quota.allowance,
+          });
+          return NextResponse.json(
+            { error: "Your organization's AI allowance has been exhausted this month" },
+            { status: 429 },
+          );
+        }
+      } catch (error) {
+        logError("billing.quota.check_failed", error, { organizationId: orgId });
+      }
+    }
 
     logEvent("info", "ai.rewrite.requested", {
       htmlLength: html.length,
@@ -92,6 +116,18 @@ export async function POST(request: Request) {
       originalLength: html.length,
       rewrittenLength: rewritten.length,
     });
+
+    if (orgId && userId) {
+      void trackTokenUsage({
+        organizationId: orgId,
+        userId,
+        featureType: "rewrite",
+        promptTokens: result.usage?.inputTokens ?? 0,
+        completionTokens: result.usage?.outputTokens ?? 0,
+        totalTokens: (result.usage?.inputTokens ?? 0) + (result.usage?.outputTokens ?? 0),
+        model: config.textModel,
+      });
+    }
 
     return NextResponse.json({ rewritten });
   } catch (error) {

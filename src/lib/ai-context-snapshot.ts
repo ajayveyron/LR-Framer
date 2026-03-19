@@ -49,11 +49,45 @@ export interface AIContextSnapshot {
 
 // In-memory cache with TTL — snapshot data changes rarely
 const SNAPSHOT_CACHE_TTL_MS = 60_000;
+const SNAPSHOT_COLLECTION_CONCURRENCY = 2;
+const SNAPSHOT_ENUM_CONCURRENCY = 2;
 
 let snapshotCache: {
   expiresAt: number;
   value: AIContextSnapshot;
 } | null = null;
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) {
+    return [];
+  }
+
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (true) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+
+      if (currentIndex >= items.length) {
+        return;
+      }
+
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
+  );
+
+  return results;
+}
 
 /**
  * Build a full context snapshot for the AI system prompt.
@@ -80,8 +114,10 @@ export async function getAIContextSnapshot(): Promise<AIContextSnapshot> {
   ]);
 
   // For each collection, fetch fields (and enum cases for any enum fields)
-  const collections = await Promise.all(
-    rawCollections.map(async (col): Promise<CollectionContext> => {
+  const collections = await mapWithConcurrency(
+    rawCollections,
+    SNAPSHOT_COLLECTION_CONCURRENCY,
+    async (col): Promise<CollectionContext> => {
       let fields: FieldSnapshot[] = [];
       let enumCases: EnumSnapshot[] = [];
 
@@ -97,8 +133,10 @@ export async function getAIContextSnapshot(): Promise<AIContextSnapshot> {
         // Fetch enum cases for all enum fields in this collection
         const enumFields = fields.filter((f) => f.type === "enum");
         if (enumFields.length > 0) {
-          const enumResults = await Promise.all(
-            enumFields.map(async (field) => {
+          const enumResults = await mapWithConcurrency(
+            enumFields,
+            SNAPSHOT_ENUM_CONCURRENCY,
+            async (field) => {
               try {
                 const cases = await getEnumFieldCases(col.id, field.id);
                 return { fieldId: field.id, fieldName: field.name, cases };
@@ -109,7 +147,7 @@ export async function getAIContextSnapshot(): Promise<AIContextSnapshot> {
                 });
                 return null;
               }
-            }),
+            },
           );
           enumCases = enumResults.filter((r): r is EnumSnapshot => r !== null);
         }
@@ -120,7 +158,7 @@ export async function getAIContextSnapshot(): Promise<AIContextSnapshot> {
       }
 
       return { collection: col, fields, enumCases };
-    }),
+    },
   );
 
   const snapshot: AIContextSnapshot = { project, collections };

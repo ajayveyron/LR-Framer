@@ -1,10 +1,14 @@
 import { convertToModelMessages, streamText, tool, stepCountIs } from "ai";
+import { NextResponse } from "next/server";
 import { z } from "zod";
+
+import { auth } from "@clerk/nextjs/server";
 
 import { createErrorJsonResponse } from "@/lib/api";
 import { requireAIConfig } from "@/lib/ai-config";
 import { sanitizeChatMessages } from "@/lib/ai-guardrails";
 import { getAIContextSnapshot, formatSnapshotForPrompt } from "@/lib/ai-context-snapshot";
+import { checkQuota, trackTokenUsage } from "@/lib/billing";
 import { AppError } from "@/lib/errors";
 import { framerTools } from "@/lib/framer-tools";
 import { generateAndUploadImage } from "@/lib/ai-image-tool";
@@ -139,6 +143,7 @@ export async function POST(request: Request) {
 
   try {
     const config = requireAIConfig();
+    const { orgId, userId } = await auth();
     const body = await request.json();
     const { messages } = body;
 
@@ -152,6 +157,26 @@ export async function POST(request: Request) {
     }
 
     const { selectedRows, fieldDefinitions, activeCollectionId, activeCollectionName } = dataResult.data;
+
+    // ── QUOTA CHECK (fail-open) ──
+    if (orgId) {
+      try {
+        const quota = await checkQuota(orgId);
+        if (!quota.allowed) {
+          logEvent("warn", "billing.quota.rejected", {
+            organizationId: orgId,
+            currentUsage: quota.currentUsage,
+            allowance: quota.allowance,
+          });
+          return NextResponse.json(
+            { error: "Your organization's AI allowance has been exhausted this month" },
+            { status: 429 },
+          );
+        }
+      } catch (error) {
+        logError("billing.quota.check_failed", error, { organizationId: orgId });
+      }
+    }
 
     const activeCollection = activeCollectionId && activeCollectionName
       ? { id: activeCollectionId, name: activeCollectionName }
@@ -203,6 +228,18 @@ export async function POST(request: Request) {
           inputTokens: usage?.inputTokens,
           outputTokens: usage?.outputTokens,
         });
+
+        if (orgId && userId && usage) {
+          void trackTokenUsage({
+            organizationId: orgId,
+            userId,
+            featureType: "chat",
+            promptTokens: usage.inputTokens ?? 0,
+            completionTokens: usage.outputTokens ?? 0,
+            totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+            model: config.textModel,
+          });
+        }
       },
     });
 

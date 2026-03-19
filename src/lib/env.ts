@@ -195,3 +195,108 @@ export function getAIEnv(): AIEnv | undefined {
 
   return cachedAIEnv;
 }
+
+// ---------------------------------------------------------------------------
+// Dodo Payments billing environment (optional — billing degrades gracefully)
+// ---------------------------------------------------------------------------
+
+const dodoBillingEnvSchema = z.object({
+  DODO_API_KEY: z.string().optional(),
+  DODO_WEBHOOK_SECRET: z.string().optional(),
+  DODO_PRO_PRODUCT_ID: z.string().optional(),
+  DODO_BUSINESS_ID: z.string().optional(),
+});
+
+export interface DodoBillingEnv {
+  DODO_API_KEY: string;
+  DODO_WEBHOOK_SECRET: string;
+  DODO_PRO_PRODUCT_ID: string;
+  DODO_BUSINESS_ID: string;
+}
+
+let cachedDodoBillingEnv: DodoBillingEnv | undefined | null = null; // null = not yet resolved
+
+/**
+ * Returns diagnostics for Dodo billing env vars.
+ * Empty array means either billing is fully configured or not attempted at all.
+ * Issues are only reported when at least one DODO_ var is provided but the
+ * set is incomplete.
+ */
+export function getDodoBillingEnvIssues(): Array<{ path: string; message: string }> {
+  const schemaResult = dodoBillingEnvSchema.safeParse(process.env);
+  if (!schemaResult.success) {
+    return mapIssues(schemaResult.error.issues);
+  }
+
+  const apiKey = normalizeOptionalValue(process.env.DODO_API_KEY);
+  const webhookSecret = normalizeOptionalValue(process.env.DODO_WEBHOOK_SECRET);
+  const proProductId = normalizeOptionalValue(process.env.DODO_PRO_PRODUCT_ID);
+  const businessId = normalizeOptionalValue(process.env.DODO_BUSINESS_ID);
+
+  // If none are set, billing is simply not configured — no issues.
+  if (!apiKey && !webhookSecret && !proProductId && !businessId) {
+    return [];
+  }
+
+  const issues: Array<{ path: string; message: string }> = [];
+
+  const requiredEntries = [
+    ["DODO_API_KEY", apiKey],
+    ["DODO_WEBHOOK_SECRET", webhookSecret],
+    ["DODO_PRO_PRODUCT_ID", proProductId],
+    ["DODO_BUSINESS_ID", businessId],
+  ] as const;
+
+  for (const [key, value] of requiredEntries) {
+    if (!value) {
+      issues.push({
+        path: key,
+        message: `${key} is required when any DODO_ billing var is set.`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Returns the validated Dodo billing env vars, or `undefined` if billing is
+ * not configured. The dashboard continues to work normally when this returns
+ * `undefined` — billing features degrade gracefully.
+ */
+export function getDodoBillingEnv(): DodoBillingEnv | undefined {
+  if (cachedDodoBillingEnv !== null) {
+    return cachedDodoBillingEnv;
+  }
+
+  const apiKey = normalizeOptionalValue(process.env.DODO_API_KEY);
+  const webhookSecret = normalizeOptionalValue(process.env.DODO_WEBHOOK_SECRET);
+  const proProductId = normalizeOptionalValue(process.env.DODO_PRO_PRODUCT_ID);
+  const businessId = normalizeOptionalValue(process.env.DODO_BUSINESS_ID);
+
+  if (!apiKey || !webhookSecret || !proProductId || !businessId) {
+    cachedDodoBillingEnv = undefined;
+    return undefined;
+  }
+
+  cachedDodoBillingEnv = {
+    DODO_API_KEY: apiKey,
+    DODO_WEBHOOK_SECRET: webhookSecret,
+    DODO_PRO_PRODUCT_ID: proProductId,
+    DODO_BUSINESS_ID: businessId,
+  };
+
+  return cachedDodoBillingEnv;
+}
+
+/**
+ * Returns the correct Dodo API base URL based on `DODO_TEST_MODE` env var.
+ * - Test: https://test.dodopayments.com
+ * - Live: https://live.dodopayments.com
+ */
+export function getDodoApiBase(): string {
+  const testMode = normalizeOptionalValue(process.env.DODO_TEST_MODE);
+  return testMode === "true" || testMode === "1"
+    ? "https://test.dodopayments.com"
+    : "https://live.dodopayments.com";
+}

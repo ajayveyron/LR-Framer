@@ -4,7 +4,11 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 
-export function FramerTemporaryUnavailableState() {
+export function FramerTemporaryUnavailableState({
+  onRetry,
+}: {
+  onRetry?: () => void;
+}) {
   const router = useRouter();
 
   return (
@@ -12,14 +16,14 @@ export function FramerTemporaryUnavailableState() {
       <section className="framer-card flex flex-col gap-4 p-7">
         <span className="framer-kicker w-fit">Framer Reconnecting</span>
         <h1 className="font-heading text-[clamp(36px,7vw,56px)] leading-[1.1] tracking-[-0.04em] text-[color:var(--framer-fresco-panelTitle-color)]">
-          Framer is temporarily unavailable.
+          Framer’s API is temporarily unavailable.
         </h1>
         <p className="text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]">
-          The connection validated, but Framer briefly returned a session-expired
-          response while the dashboard was loading. Retry in a few seconds.
+          The dashboard is up and running, but Framer is not responding right
+          now. Your content has not been changed. Retry in a few seconds.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button onClick={() => router.refresh()} type="button">
+          <Button onClick={() => onRetry?.() ?? router.refresh()} type="button">
             Retry now
           </Button>
           <Button

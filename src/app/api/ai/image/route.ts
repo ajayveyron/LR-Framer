@@ -2,10 +2,13 @@ import { generateText } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { auth } from "@clerk/nextjs/server";
+
 import { createErrorJsonResponse } from "@/lib/api";
 import { requireAIConfig } from "@/lib/ai-config";
 import { hardenUntrustedTextBlock } from "@/lib/ai-guardrails";
 import { buildImagePrompt } from "@/lib/ai-image-prompt";
+import { checkQuota, trackTokenUsage, FALLBACK_IMAGE_TOKEN_COST } from "@/lib/billing";
 import { getImageSystemPrompt } from "@/lib/brand";
 import { AppError } from "@/lib/errors";
 import { logEvent, logError } from "@/lib/logger";
@@ -29,6 +32,7 @@ export async function POST(request: Request) {
 
   try {
     const config = requireAIConfig();
+    const { orgId, userId } = await auth();
     const body = await request.json();
     const parsed = requestSchema.safeParse(body);
 
@@ -40,6 +44,26 @@ export async function POST(request: Request) {
     }
 
     const { prompt, referenceImageUrl, context } = parsed.data;
+
+    // ── QUOTA CHECK (fail-open) ──
+    if (orgId) {
+      try {
+        const quota = await checkQuota(orgId);
+        if (!quota.allowed) {
+          logEvent("warn", "billing.quota.rejected", {
+            organizationId: orgId,
+            currentUsage: quota.currentUsage,
+            allowance: quota.allowance,
+          });
+          return NextResponse.json(
+            { error: "Your organization's AI allowance has been exhausted this month" },
+            { status: 429 },
+          );
+        }
+      } catch (error) {
+        logError("billing.quota.check_failed", error, { organizationId: orgId });
+      }
+    }
 
     logEvent("info", "ai.image_gen.requested", {
       promptLength: prompt.length,
@@ -166,6 +190,25 @@ export async function POST(request: Request) {
       durationMs: Date.now() - startMs,
       success: true,
     });
+
+    if (orgId && userId) {
+      const promptTokens = result.usage?.inputTokens ?? 0;
+      const completionTokens = result.usage?.outputTokens ?? 0;
+      const hasUsage = promptTokens > 0 || completionTokens > 0;
+      const totalTokens = hasUsage
+        ? promptTokens + completionTokens
+        : FALLBACK_IMAGE_TOKEN_COST;
+
+      void trackTokenUsage({
+        organizationId: orgId,
+        userId,
+        featureType: "image",
+        promptTokens: hasUsage ? promptTokens : FALLBACK_IMAGE_TOKEN_COST,
+        completionTokens: hasUsage ? completionTokens : 0,
+        totalTokens,
+        model: config.imageModel,
+      });
+    }
 
     return NextResponse.json({
       imageBase64: imageFile.base64,
