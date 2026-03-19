@@ -1563,15 +1563,24 @@ export async function getCollectionItems(collectionId: string) {
     if (!collection) {
       throw new AppError(`Collection "${collectionId}" not found.`, 404);
     }
-    const items = await collection.getItems();
-    return items.map((item) => ({
-      id: item.id,
-      slug: item.slug,
-      draft: item.draft,
-      fieldData: serializeFieldData(
-        item.fieldData as unknown as Record<string, { type: string; value: unknown }>,
-      ),
-    }));
+    const [items, fields] = await Promise.all([
+      collection.getItems(),
+      collection.getFields(),
+    ]);
+    // Include a field ID → name map so the UI can show human-readable column headers
+    const _fieldNames: Record<string, string> = {};
+    for (const f of fields) _fieldNames[f.id] = f.name;
+    return {
+      _fieldNames,
+      items: items.map((item) => ({
+        id: item.id,
+        slug: item.slug,
+        draft: item.draft,
+        fieldData: serializeFieldData(
+          item.fieldData as unknown as Record<string, { type: string; value: unknown }>,
+        ),
+      })),
+    };
   });
 }
 

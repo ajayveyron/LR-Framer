@@ -15,7 +15,7 @@ import { ColumnControls } from "@/components/column-controls";
 import { DashboardAccountLink } from "@/components/dashboard-account-link";
 import { PostEditor } from "@/components/post-editor";
 import { SelectionToolbar } from "@/components/selection-toolbar";
-import { Sparkle } from "@phosphor-icons/react";
+import { Sparkle, PlusIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,61 +46,9 @@ type DrawerState =
   | { mode: "create" }
   | { mode: "edit"; postId: string };
 
-function PlusIcon() {
-  return (
-    <svg
-      fill="none"
-      height="16"
-      viewBox="0 0 16 16"
-      width="16"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <rect
-        fill="currentColor"
-        fillOpacity="0.18"
-        height="13"
-        rx="3"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        width="13"
-        x="1.5"
-        y="1.5"
-      />
-      <path
-        d="M8 4.75V11.25"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.2"
-      />
-      <path
-        d="M4.75 8H11.25"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.2"
-      />
-    </svg>
-  );
-}
 
-function SearchIcon() {
-  return (
-    <svg
-      fill="none"
-      height="16"
-      viewBox="0 0 16 16"
-      width="16"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.4" />
-      <path
-        d="M10.5 10.5L14 14"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.4"
-      />
-    </svg>
-  );
-}
+
+
 
 function buildColumnOptions(metadata: BlogCollectionMetadata) {
   const titleFieldId = metadata.logicalFields.title;
@@ -532,7 +480,7 @@ export function DashboardTableView({
                 aria-hidden="true"
                 className="inline-flex items-center justify-center"
               >
-                <PlusIcon />
+                <PlusIcon weight="bold" />
               </span>
               <span>New Item</span>
             </Button>
@@ -576,7 +524,7 @@ export function DashboardTableView({
               aria-hidden="true"
               className="inline-flex items-center justify-center"
             >
-              <SearchIcon />
+              <MagnifyingGlassIcon />
             </span>
             <Input
               aria-label="Search items"

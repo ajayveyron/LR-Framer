@@ -6,6 +6,7 @@ import { requireAIConfig } from "@/lib/ai-config";
 import { AppError } from "@/lib/errors";
 import { framerTools } from "@/lib/framer-tools";
 import { generateAndUploadImage } from "@/lib/ai-image-tool";
+import { webSearchTool } from "@/lib/ai-search-tool";
 import { logEvent, logError } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -29,15 +30,22 @@ const bodyDataSchema = z.object({
       type: z.string(),
     }),
   ),
+  activeCollectionId: z.string().optional(),
+  activeCollectionName: z.string().optional(),
 });
 
 function buildSystemPrompt(
   rows: z.infer<typeof bodyDataSchema>["selectedRows"],
   fields: z.infer<typeof bodyDataSchema>["fieldDefinitions"],
+  activeCollection?: { id: string; name: string },
 ) {
   const fieldList = fields
     .map((f) => `- ${f.name} (id: ${f.id}, type: ${f.type})`)
     .join("\n");
+
+  const collectionBlock = activeCollection
+    ? `The active collection is "${activeCollection.name}" (id: ${activeCollection.id}). When the user refers to "blog", "posts", or "items" without specifying a collection, they mean this one. Use this collection ID directly — do NOT call framer_get_collections first.`
+    : "No active collection is set. You may need to call framer_get_collections to discover available collections.";
 
   const selectionBlock =
     rows.length > 0
@@ -53,12 +61,24 @@ function buildSystemPrompt(
 
   return `You are an AI assistant for a CMS dashboard powered by Framer.
 
+${collectionBlock}
+
 Available fields in the active collection:
 ${fieldList}
 
 ${selectionBlock}
 
-You have access to Google Search for real-time web information. When the user asks about current events, latest documentation, pricing, comparisons, or anything that benefits from up-to-date web data, use the google_search tool.
+PRESENTATION RULE — never show internal IDs to the user:
+- When referring to collections, fields, items, or enum cases in your responses, use their human-readable names only (e.g. "Blogs", "Title", "Author").
+- Never include raw IDs like (id: esdNAc4Vu) or field IDs in your messages. IDs are for your internal use when calling tools — users don't need to see them.
+- When listing collections or items, present them as clean, readable lists with just names and relevant details.
+
+TOOL RESULT DISPLAY RULE — do not repeat tool output data:
+- The following tool results are automatically rendered as rich UI components in the chat: framer_get_collections (card grid), framer_get_collection_fields (field chips), framer_get_collection_items (table), framer_get_enum_cases (chips).
+- When these tools return data, NEVER list, enumerate, or repeat the same data in your text response. The user already sees it rendered visually above your message.
+- Your text response after these tools should ONLY be a brief one-sentence summary like "Here are your 6 collections" or "Found 12 items in the Blogs collection." Do NOT list names, titles, slugs, field names, or any item-level details — the UI already shows all of that.
+
+You have access to web search via the web_search tool. When the user asks about current events, latest documentation, pricing, comparisons, or anything that benefits from up-to-date web data, use it. It returns a grounded answer with source URLs.
 
 You can generate images using the generate_and_upload_image tool. It creates an AI image from a text prompt and uploads it to Framer as an asset. The tool returns the uploaded image URL. To set it on a CMS item's image field, chain it with framer_set_item_attributes using fieldData: { fieldId: { type: "image", value: returnedUrl } }.
 
@@ -66,24 +86,34 @@ If the user has attached an image in their message, pass its URL as the referenc
 
 IMPORTANT: You may only call generate_and_upload_image ONCE per user message. If the user asks for images for multiple items, generate one image and reuse it, or ask the user to send separate messages for each image. Never batch multiple image generation calls in a single turn.
 
-You also have access to Framer CMS tools that let you directly interact with the Framer project:
+You have access to Framer CMS tools that let you directly interact with the Framer project:
 - framer_get_project_info: Get project name and ID
 - framer_get_publish_info: Get current deployment info for staging/production
-- framer_publish: Publish the site (creates a new deployment)
 - framer_get_collections: List all CMS collections
 - framer_get_collection: Get a specific collection by ID
 - framer_get_collection_fields: Get all fields in a collection
 - framer_get_collection_items: Get all items in a collection
-- framer_add_collection_items: Add or upsert items in a collection
-- framer_remove_collection_items: Remove items by ID
-- framer_set_item_attributes: Update a single item's slug, draft status, or field data
-- framer_remove_item: Remove a single item
 - framer_get_enum_cases: Get cases for an enum field
-- framer_add_enum_case: Add a new enum case
-- framer_set_enum_case_order: Reorder enum cases
-- framer_update_enum_case: Rename an enum case
-- framer_remove_enum_case: Remove an enum case
 - framer_set_collection_as_active: Set a collection as active in the Framer UI
+
+WRITE OPERATIONS — all mutations require user confirmation:
+For ANY operation that creates, updates, deletes, or publishes data, you MUST use the propose_cms_action tool. This includes:
+- Adding or upserting items → action: "add_items"
+- Removing items → action: "remove_item" or "remove_items"
+- Updating item attributes (slug, draft, field data) → action: "set_item_attributes"
+- Adding/renaming/removing/reordering enum cases → action: "add_enum_case", "update_enum_case", "remove_enum_case", "set_enum_case_order"
+- Publishing the site → action: "publish"
+
+NEVER try to call the old direct write tools (framer_add_collection_items, framer_publish, etc.) — they no longer exist. Always use propose_cms_action with a clear description of what you're doing and why. The user will see a confirmation card and must click Approve before the action executes.
+
+When proposing actions, write a clear, concise description that tells the user exactly what will happen. For example: "Add a new blog post titled 'Getting Started' as a draft" or "Remove 3 outdated changelog entries".
+
+EFFICIENCY RULES — minimize tool calls and token usage:
+- When the user asks about items in the active collection, call framer_get_collection_items ONCE with the active collection ID. Do NOT enumerate all collections and fetch items from each one.
+- If the user asks to "find 1 item" or "find a few items" matching some criteria, fetch items from the active collection ONCE, scan the results yourself, and act on what you find. Do not make redundant calls.
+- Only call framer_get_collections when the user explicitly asks about other collections or you genuinely don't know which collection to use.
+- Prefer fewer, targeted tool calls over many exploratory ones.
+- IMPORTANT: Always call framer_get_collection_fields BEFORE framer_get_collection_items when fetching items from a collection that is NOT the active collection. This ensures the UI can display human-readable field names instead of raw IDs.
 
 When the user asks you to make changes to selected rows, use the propose_edits tool to suggest edits. For each row, provide the fieldId as the key and the new value directly. Example: changes: { "Fv4S6mkrw": "New description text" }.
 
@@ -109,7 +139,11 @@ export async function POST(request: Request) {
       throw new AppError("Invalid data payload: " + dataResult.error.message, 400);
     }
 
-    const { selectedRows, fieldDefinitions } = dataResult.data;
+    const { selectedRows, fieldDefinitions, activeCollectionId, activeCollectionName } = dataResult.data;
+
+    const activeCollection = activeCollectionId && activeCollectionName
+      ? { id: activeCollectionId, name: activeCollectionName }
+      : undefined;
 
     // Server-side safety: sanitize incoming message history to prevent
     // massive payloads from blowing up the model context or SSE stream.
@@ -127,37 +161,40 @@ export async function POST(request: Request) {
       if (!Array.isArray(msg.parts)) return msg;
       return {
         ...msg,
-        parts: msg.parts.map((p: any) => {
-          // Convert data: URL file parts to inline base64 so Vertex AI
-          // doesn't try to fetch them as HTTP URLs
-          if (p.type === "file" && typeof p.url === "string" && p.url.startsWith("data:")) {
-            // Strip old images from history — only keep the current message's
-            if (idx !== lastUserIdx) {
+        parts: msg.parts
+          .map((p: any) => {
+            // Convert data: URL file parts to inline base64 so Vertex AI
+            // doesn't try to fetch them as HTTP URLs
+            if (p.type === "file" && typeof p.url === "string" && p.url.startsWith("data:")) {
+              // Strip old images from history — only keep the current message's
+              if (idx !== lastUserIdx) {
+                return { type: "text", text: `[User attached an image: ${p.filename || "image"}]` };
+              }
+              // Parse data URL: data:<mediaType>;base64,<data>
+              const match = p.url.match(/^data:([^;]+);base64,(.+)$/s);
+              if (match) {
+                return { ...p, url: match[2], mediaType: match[1] };
+              }
+              return p;
+            }
+            // Strip non-data-URL large file parts from history
+            if (idx !== lastUserIdx && p.type === "file" && typeof p.url === "string" && p.url.length > MAX_FILE_URL) {
               return { type: "text", text: `[User attached an image: ${p.filename || "image"}]` };
             }
-            // Parse data URL: data:<mediaType>;base64,<data>
-            const match = p.url.match(/^data:([^;]+);base64,(.+)$/s);
-            if (match) {
-              // Set url to raw base64 — convertToModelMessages passes
-              // url as the `data` field of a FilePart, which expects
-              // raw base64 (not a full data: URL)
-              return { ...p, url: match[2], mediaType: match[1] };
+            // Patch dangling tool invocations (stopped mid-stream) with a
+            // cancellation result so the model doesn't error on missing results
+            if (p.type === "tool-invocation" && p.state !== "output-available") {
+              return { ...p, state: "output-available", output: { _cancelled: true, message: "Tool call was cancelled by the user." } };
+            }
+            // Truncate oversized tool results
+            if (p.type === "tool-invocation" && p.result !== undefined) {
+              const s = JSON.stringify(p.result);
+              if (s.length > MAX_TOOL_RESULT) {
+                return { ...p, result: { _truncated: true, preview: s.slice(0, MAX_TOOL_RESULT) } };
+              }
             }
             return p;
-          }
-          // Strip non-data-URL large file parts from history
-          if (idx !== lastUserIdx && p.type === "file" && typeof p.url === "string" && p.url.length > MAX_FILE_URL) {
-            return { type: "text", text: `[User attached an image: ${p.filename || "image"}]` };
-          }
-          // Truncate oversized tool results
-          if (p.type === "tool-invocation" && p.result !== undefined) {
-            const s = JSON.stringify(p.result);
-            if (s.length > MAX_TOOL_RESULT) {
-              return { ...p, result: { _truncated: true, preview: s.slice(0, MAX_TOOL_RESULT) } };
-            }
-          }
-          return p;
-        }),
+          }),
       };
     });
 
@@ -169,11 +206,10 @@ export async function POST(request: Request) {
 
     const result = streamText({
       model: config.provider(config.textModel),
-      system: buildSystemPrompt(selectedRows, fieldDefinitions),
+      system: buildSystemPrompt(selectedRows, fieldDefinitions, activeCollection),
       messages: await convertToModelMessages(sanitizedMessages),
       stopWhen: stepCountIs(10),
       tools: {
-        google_search: config.provider.tools.googleSearch({}),
         propose_edits: tool({
           description: "Propose field edits for selected CMS rows. Use this when the user asks to change, update, or modify fields across the selected rows.",
           inputSchema: z.object({
@@ -192,6 +228,7 @@ export async function POST(request: Request) {
         }),
         ...framerTools,
         generate_and_upload_image: generateAndUploadImage,
+        web_search: webSearchTool,
       },
       onFinish: ({ usage }) => {
         logEvent("info", "ai.bulk_edit.completed", {
@@ -203,7 +240,19 @@ export async function POST(request: Request) {
       },
     });
 
-    return result.toUIMessageStreamResponse({ sendSources: true });
+    return result.toUIMessageStreamResponse({
+      sendSources: true,
+      messageMetadata: ({ part }) => {
+        if (part.type === "finish") {
+          return {
+            inputTokens: part.totalUsage.inputTokens,
+            outputTokens: part.totalUsage.outputTokens,
+            totalTokens: part.totalUsage.totalTokens,
+          };
+        }
+        return undefined;
+      },
+    });
   } catch (error) {
     logError("ai.bulk_edit.failed", error);
     return createErrorJsonResponse(error);

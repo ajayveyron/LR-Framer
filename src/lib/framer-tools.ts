@@ -323,25 +323,95 @@ export const framerSetCollectionAsActive = tool({
 });
 
 // ---------------------------------------------------------------------------
+// Propose CMS Action — confirmation-gated tool for all write operations
+// ---------------------------------------------------------------------------
+
+const cmsActionPayloadSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("add_items"),
+    collectionId: z.string().describe("The ID of the collection"),
+    items: z.array(
+      z.object({
+        id: z.string().optional().describe("Existing item ID to update (omit for new items)"),
+        slug: z.string().describe("Unique slug for the item"),
+        draft: z.boolean().optional().describe("Whether the item is a draft"),
+        fieldData: z.record(z.string(), z.object({ type: z.string(), value: z.unknown() })).optional(),
+      }),
+    ).describe("Items to add or upsert"),
+  }),
+  z.object({
+    action: z.literal("remove_items"),
+    collectionId: z.string().describe("The ID of the collection"),
+    itemIds: z.array(z.string()).describe("Array of item IDs to remove"),
+  }),
+  z.object({
+    action: z.literal("remove_item"),
+    collectionId: z.string().describe("The ID of the collection"),
+    itemId: z.string().describe("The ID of the item to remove"),
+  }),
+  z.object({
+    action: z.literal("set_item_attributes"),
+    collectionId: z.string().describe("The ID of the collection"),
+    itemId: z.string().describe("The ID of the item to update"),
+    slug: z.string().optional().describe("New slug value"),
+    draft: z.boolean().optional().describe("New draft status"),
+    fieldData: z.record(z.string(), z.object({ type: z.string(), value: z.unknown() })).optional(),
+  }),
+  z.object({
+    action: z.literal("add_enum_case"),
+    collectionId: z.string().describe("The ID of the collection"),
+    fieldId: z.string().describe("The ID of the enum field"),
+    name: z.string().describe("Display name for the new enum case"),
+  }),
+  z.object({
+    action: z.literal("update_enum_case"),
+    collectionId: z.string().describe("The ID of the collection"),
+    fieldId: z.string().describe("The ID of the enum field"),
+    caseId: z.string().describe("The ID of the enum case to update"),
+    newName: z.string().describe("The new display name"),
+  }),
+  z.object({
+    action: z.literal("remove_enum_case"),
+    collectionId: z.string().describe("The ID of the collection"),
+    fieldId: z.string().describe("The ID of the enum field"),
+    caseId: z.string().describe("The ID of the enum case to remove"),
+  }),
+  z.object({
+    action: z.literal("set_enum_case_order"),
+    collectionId: z.string().describe("The ID of the collection"),
+    fieldId: z.string().describe("The ID of the enum field"),
+    caseIds: z.array(z.string()).describe("Case IDs in the desired order"),
+  }),
+  z.object({ action: z.literal("publish") }),
+]);
+
+export const proposeCmsAction = tool({
+  description:
+    "Propose a CMS write operation that requires user confirmation before executing. " +
+    "Use this for ALL mutations: adding/removing/updating items, enum cases, and publishing. " +
+    "The user will see a confirmation card and must approve before the action runs.",
+  inputSchema: z.object({
+    description: z.string().describe("Human-readable summary of what this action does and why"),
+    payload: cmsActionPayloadSchema.describe("The action payload to execute if approved"),
+  }),
+  // No-op — rendered client-side, executed via /api/ai/cms-action/execute on approval
+  execute: async (input) => input,
+});
+
+// ---------------------------------------------------------------------------
 // All tools map (for easy import into chat route)
 // ---------------------------------------------------------------------------
 
 export const framerTools = {
+  // Read-only tools — execute immediately
   framer_get_project_info: framerGetProjectInfo,
   framer_get_publish_info: framerGetPublishInfo,
-  framer_publish: framerPublish,
   framer_get_collections: framerGetCollections,
   framer_get_collection: framerGetCollection,
   framer_get_collection_fields: framerGetCollectionFields,
   framer_get_collection_items: framerGetCollectionItems,
-  framer_add_collection_items: framerAddCollectionItems,
-  framer_remove_collection_items: framerRemoveCollectionItems,
-  framer_set_item_attributes: framerSetItemAttributes,
-  framer_remove_item: framerRemoveItem,
   framer_get_enum_cases: framerGetEnumCases,
-  framer_add_enum_case: framerAddEnumCase,
-  framer_set_enum_case_order: framerSetEnumCaseOrder,
-  framer_update_enum_case: framerUpdateEnumCase,
-  framer_remove_enum_case: framerRemoveEnumCase,
   framer_set_collection_as_active: framerSetCollectionAsActive,
+  // Confirmation-gated write tool
+  propose_cms_action: proposeCmsAction,
 } as const;

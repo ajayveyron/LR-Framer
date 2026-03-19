@@ -27,13 +27,28 @@ export async function applyBulkEdits(
   // Separate edits with valid posts from missing ones
   const validEdits: Array<{ edit: ProposedEdit; post: BlogPostRecord }> = [];
 
-  for (const edit of edits) {
-    const post = postMap.get(edit.rowId);
-    if (!post) {
-      failed.push({ rowId: edit.rowId, error: "Post not found in local cache." });
-      continue;
+  // For posts not in local cache, try fetching from the API
+  const fetchResults = await Promise.allSettled(
+    edits.map(async (edit) => {
+      const local = postMap.get(edit.rowId);
+      if (local) return { edit, post: local };
+
+      const res = await fetch(`/api/posts/${edit.rowId}`);
+      if (!res.ok) throw new Error(`Could not fetch post ${edit.rowId}`);
+      const data = await res.json() as { post: BlogPostRecord };
+      return { edit, post: data.post };
+    }),
+  );
+
+  for (const result of fetchResults) {
+    if (result.status === "fulfilled") {
+      validEdits.push(result.value);
+    } else {
+      const msg = result.reason instanceof Error ? result.reason.message : "Post not found";
+      // Find the edit that failed — use index from the original array
+      const idx = fetchResults.indexOf(result);
+      failed.push({ rowId: edits[idx]!.rowId, error: msg });
     }
-    validEdits.push({ edit, post });
   }
 
   // Fire all PUTs in parallel

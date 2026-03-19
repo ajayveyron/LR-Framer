@@ -219,3 +219,70 @@ Also added `referenceImageUrl` support to the `generate_and_upload_image` tool s
 **Pricing model:** Token-based AI usage tracked via Dodo's metered billing. Subscriptions with monthly token allowances. UI shows usage as a percentage meter, not raw token counts.
 
 **Scope:** Affects future billing/payment integration. No code changes yet.
+
+## 2026-03-18 — Remove google_search provider tool, add active collection context to AI chat
+
+**What changed:** 
+1. Removed `google_search` (Vertex AI provider-defined tool) from the AI chat tools map.
+2. The client now sends `activeCollectionId` and `activeCollectionName` in the request body.
+3. The system prompt now includes the active collection ID and name, with explicit instructions to use it directly instead of calling `framer_get_collections` first.
+4. Added "EFFICIENCY RULES" section to the system prompt telling the model to minimize tool calls — fetch items from the active collection once, don't enumerate all collections, prefer fewer targeted calls.
+
+**Why:** Two issues:
+- `gemini-3.1-flash-lite-preview` doesn't support mixing provider-defined tools (like `google_search`) with function tools. The error `"combination of function and provider-defined tools" is not supported` caused the stream to abort with only 27 output tokens after 10 tool call steps.
+- Without knowing the active collection ID, the model was calling `framer_get_collections` to discover all collections, then calling `framer_get_collection_items` for each one (10 calls for 10 collections). A simple "find 1 blog with no description" burned 210K tokens across 10 redundant fetches when it only needed 1 call to the Blog collection.
+
+**Scope:** `src/app/api/ai/chat/route.ts` (removed google_search, added activeCollection to body schema + system prompt + efficiency rules), `src/components/ai-chat-panel.tsx` (sends activeCollectionId/Name in bodyData).
+
+## 2026-03-19 — Web search as function tool + dangling tool call cleanup
+
+**What changed:**
+1. Created `src/lib/ai-search-tool.ts` — a regular AI SDK function tool called `web_search` that internally makes a separate `generateText` call with ONLY the `googleSearch` provider tool, then returns the grounded answer + source URLs as the tool result.
+2. Wired `web_search` into the chat route tools map and updated the system prompt to mention it.
+3. Added dangling tool call cleanup on both client and server: when a tool invocation is in a non-completed state (anything other than `"output-available"`), it gets patched to `"output-available"` with a `{ _cancelled: true }` output before being sent to the model. This prevents the "Tool result is missing for tool call" error that happened when the user stopped a stream mid-tool-call and then sent a new message.
+
+**Why:**
+- Web search: `gemini-3.1-flash-lite-preview` can't mix provider-defined tools (like `googleSearch` grounding) with function calling tools in the same `streamText` call. By wrapping the search in a separate `generateText` call that ONLY uses the provider tool, the main `streamText` only has function tools — no conflict.
+- Dangling tool calls: When the user hits stop during a tool execution, the assistant message has a tool invocation part stuck in `"input-available"` or `"input-streaming"` state with no output. Sending this back to the model on the next message causes a "Tool result is missing" error. The cleanup patches these to look like completed-but-cancelled calls.
+
+**Scope:** `src/lib/ai-search-tool.ts` (new file), `src/app/api/ai/chat/route.ts` (import + tool + system prompt + server-side dangling cleanup), `src/components/ai-chat-panel.tsx` (client-side dangling cleanup in `prepareSendMessagesRequest` + `web_search` tool renderer with source URL pills).
+
+## 2026-03-19 — Hide internal IDs from AI chat responses
+
+**What changed:** Added a "PRESENTATION RULE" to the AI chat system prompt instructing the model to never show internal IDs (collection IDs, field IDs, item IDs, enum case IDs) in user-facing responses. The model should use human-readable names only (e.g. "Blogs", "Title", "Author") and keep IDs for internal tool call use only.
+
+**Why:** Users don't care about IDs like `esdNAc4Vu` or `nZzlIcBuJ`. When the AI listed collections or items, it was parroting the raw ID format from the system prompt context (e.g. "Testimonials (id: esdNAc4Vu)"). Clean, readable output is what matters.
+
+**Scope:** `src/app/api/ai/chat/route.ts` (system prompt only — added presentation rule block after the field/selection context).
+
+## 2026-03-19 — Rich UI renderers for Framer tool call outputs in AI chat
+
+**What changed:** Added `src/components/ai-tool-renderers.tsx` with three custom renderers for Framer tool outputs in the AI chat panel:
+1. Collections → card grid (2-col) with Database icon, name, readonly/managedBy badges
+2. Collection items → compact table with slug, draft/published status badge, and auto-picked display columns (first 3 string fields), capped at 20 rows with overflow indicator
+3. Enum cases → wrapped row of chips with Tag icon
+
+The chat panel's catch-all `tool-*` renderer now tries `renderFramerToolOutput()` first for completed tool calls. If it returns rich UI, it renders a small label + the custom component. Otherwise falls back to the standard status pill.
+
+**Why:** Users don't want to see raw JSON dumps from tool results. Collections, items, and enums are the most common data the AI fetches — showing them as proper UI (cards, tables, chips) makes the chat feel like a real CMS interface instead of a debug console.
+
+**Scope:** `src/components/ai-tool-renderers.tsx` (new file), `src/components/ai-chat-panel.tsx` (import + updated tool renderer logic).
+
+---
+
+### Decision: AI CMS write operations require user confirmation
+
+**Date:** 2026-03-19
+
+**What changed:** All AI write/mutation tools (add items, remove items, update items, enum CRUD, publish) are now gated behind a confirmation UI. Instead of the AI directly executing write operations via `framer_add_collection_items`, `framer_publish`, etc., it now uses a single `propose_cms_action` tool that renders a confirmation card in the chat. The user must click "Approve" before the action executes.
+
+- Old direct write tools removed from the AI's tool map (the underlying functions still exist for dashboard use)
+- New `propose_cms_action` tool added — no-op execute, client-rendered
+- New `CmsActionConfirmation` component shows action type, severity-coded styling (safe/warning/destructive), details, and Approve/Reject buttons
+- New `/api/ai/cms-action/execute` route handles approved action execution server-side
+- System prompt updated to instruct the AI to always use `propose_cms_action` for mutations
+- Read-only tools (get collections, get items, get fields, etc.) still execute immediately
+
+**Why:** The AI previously had unrestricted write access to the Framer CMS — asking it to add/remove items or publish would fire immediately with no confirmation. This is dangerous for a production CMS. The user wanted both a system prompt guardrail AND a proper confirmation UI (option 3).
+
+**Scope:** `src/lib/cms-action-types.ts` (new), `src/components/cms-action-confirmation.tsx` (new), `src/app/api/ai/cms-action/execute/route.ts` (new), `src/lib/framer-tools.ts` (replaced write tools with propose_cms_action), `src/app/api/ai/chat/route.ts` (system prompt), `src/components/ai-chat-panel.tsx` (rendering).

@@ -2,8 +2,10 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Sparkle, X, WarningCircle, ArrowClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop, GlobeSimple, ImageSquare, DownloadSimple, Plus, ClockCounterClockwise, PlusIcon } from "@phosphor-icons/react";
+import { Sparkle, X, WarningCircle, ArrowClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop, GlobeSimple, ImageSquare, DownloadSimple, Plus, ClockCounterClockwise, PlusIcon, Coins } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import type { AIChatMessage, ChatMessageMetadata } from "@/lib/ai-chat-types";
 
 import { ChatHistoryPanel } from "@/components/chat-history-panel";
 import { saveConversation, type SavedConversation } from "@/lib/chat-history";
@@ -29,6 +31,9 @@ import {
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
 import { EditProposalView } from "@/components/edit-proposal-view";
+import { CmsActionConfirmation } from "@/components/cms-action-confirmation";
+import type { CmsActionProposal } from "@/lib/cms-action-types";
+import { renderFramerToolOutput, type FieldNameMap } from "@/components/ai-tool-renderers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -107,8 +112,10 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
     () => ({
       selectedRows: selectedPosts.map((p) => ({ id: p.id, slug: p.slug, title: p.title, fieldValues: p.fieldValues })),
       fieldDefinitions: metadata.fields.filter((f) => f.supported).map((f) => ({ id: f.id, name: f.name, type: f.type })),
+      activeCollectionId: metadata.collectionId,
+      activeCollectionName: metadata.collectionName,
     }),
-    [selectedPosts, metadata.fields],
+    [selectedPosts, metadata.fields, metadata.collectionId, metadata.collectionName],
   );
 
   const chatTransport = useMemo(
@@ -126,6 +133,7 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
             if (!Array.isArray(msg.parts)) return msg;
             let needsWork = false;
             for (const p of msg.parts) {
+              if (p.type === "tool-invocation" && "state" in p && (p as any).state !== "output-available") { needsWork = true; break; }
               if (p.type === "tool-invocation" && "result" in p && p.result !== undefined && JSON.stringify(p.result).length > MAX_TOOL_RESULT_CHARS) { needsWork = true; break; }
               if (idx !== lastUserIdx && p.type === "file" && "url" in p && typeof p.url === "string" && p.url.length > MAX_FILE_URL_LEN) { needsWork = true; break; }
             }
@@ -133,6 +141,10 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
             return {
               ...msg,
               parts: msg.parts.map((p) => {
+                // Patch dangling tool invocations (stopped mid-stream)
+                if (p.type === "tool-invocation" && "state" in p && (p as any).state !== "output-available") {
+                  return { ...p, state: "output-available" as const, output: { _cancelled: true, message: "Tool call was cancelled by the user." } };
+                }
                 if (p.type === "tool-invocation" && "result" in p && p.result !== undefined) {
                   const s = JSON.stringify(p.result);
                   if (s.length > MAX_TOOL_RESULT_CHARS) return { ...p, result: { _truncated: true, preview: s.slice(0, MAX_TOOL_RESULT_CHARS) } };
@@ -151,19 +163,55 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
     [bodyData, chatKey],
   );
 
-  const { messages, sendMessage, setMessages, status, stop, error, regenerate, clearError } = useChat({
+  const { messages, sendMessage, setMessages, status, stop, error, regenerate, clearError } = useChat<AIChatMessage>({
     transport: chatTransport,
     onError: (err) => {
       console.log(JSON.stringify({ ts: new Date().toISOString(), level: "error", event: "ai.chat_panel.error", message: err.message }));
     },
   });
 
+  // Map field IDs → human-readable names for rich tool output rendering
+  // Scans all messages for framer_get_collection_fields outputs to cover any collection
+  const allFieldNames = useMemo<FieldNameMap>(() => {
+    const map: FieldNameMap = {};
+    for (const f of metadata.fields) map[f.id] = f.name;
+    for (const msg of messages) {
+      for (const p of msg.parts) {
+        if (
+          p.type === "tool-framer_get_collection_fields" &&
+          "output" in p &&
+          Array.isArray((p as any).output)
+        ) {
+          for (const f of (p as any).output) {
+            if (f && typeof f.id === "string" && typeof f.name === "string") {
+              map[f.id] = f.name;
+            }
+          }
+        }
+      }
+    }
+    return map;
+  }, [metadata.fields, messages]);
+
+  // Accumulate total token usage across all assistant messages in this conversation
+  const totalTokens = useMemo(() => {
+    let input = 0;
+    let output = 0;
+    for (const msg of messages) {
+      const meta = msg.metadata as ChatMessageMetadata | undefined;
+      if (meta?.inputTokens) input += meta.inputTokens;
+      if (meta?.outputTokens) output += meta.outputTokens;
+    }
+    return { input, output, total: input + output };
+  }, [messages]);
+
   const handleNewChat = useCallback(() => {
     if (messages.length > 0) void saveConversation(chatKey, messages);
+    clearError();
     setMessages([]);
     setChatKey(crypto.randomUUID());
     setShowHistory(false);
-  }, [setMessages, messages, chatKey]);
+  }, [setMessages, messages, chatKey, clearError]);
 
   // Persist conversation after each assistant turn completes
   const prevStatusRef = useRef(status);
@@ -177,11 +225,12 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
   const handleRestoreConversation = useCallback(
     (conv: SavedConversation) => {
       if (messages.length > 0) void saveConversation(chatKey, messages);
-      setMessages(conv.messages);
+      clearError();
+      setMessages(conv.messages as AIChatMessage[]);
       setChatKey(conv.id);
       setShowHistory(false);
     },
-    [setMessages, messages, chatKey],
+    [setMessages, messages, chatKey, clearError],
   );
 
   const isStreaming = status === "streaming" || status === "submitted";
@@ -293,6 +342,13 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
                             if (edits.length === 0) return null;
                             return <EditProposalView key={i} edits={edits} posts={selectedPosts} fieldDefinitions={metadata.fields.filter((f) => f.supported)} onApplied={handleApplied} />;
                           }
+                          if (part.type === "tool-propose_cms_action") {
+                            const toolData = ("output" in part && part.output) ? part.output : part.input;
+                            if (!toolData || typeof toolData !== "object") return null;
+                            const proposal = toolData as CmsActionProposal;
+                            if (!proposal.payload || !proposal.description) return null;
+                            return <CmsActionConfirmation key={i} proposal={proposal} />;
+                          }
                           if (part.type === "source-url" || part.type === "source-document") return null;
                           if (part.type === "tool-generate_and_upload_image") {
                             const hasOutput = "output" in part && part.output != null;
@@ -334,13 +390,67 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
                             );
                           }
                           if (part.type === "tool-google_search") return null;
-                          if (part.type.startsWith("tool-")) {
-                            const toolName = part.type.slice("tool-".length).replace(/_/g, " ");
+                          if (part.type === "tool-web_search") {
                             const hasOutput = "output" in part && part.output != null;
+                            const output = hasOutput ? (part.output as { answer?: string; sources?: Array<{ url: string; title: string }> }) : null;
                             return (
-                              <div key={i} className="flex items-center gap-2 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+                              <div key={i} className="flex flex-col gap-1.5">
+                                <div className="flex items-center gap-2 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+                                  {hasOutput ? <CheckCircle className="size-3.5 shrink-0 text-emerald-400" weight="fill" /> : <CircleNotch className="size-3.5 shrink-0 animate-spin" />}
+                                  <GlobeSimple className="size-3.5 shrink-0" weight="fill" />
+                                  <span>Searched the web</span>
+                                </div>
+                                {output?.sources && output.sources.length > 0 && (
+                                  <div className="flex flex-wrap items-center gap-1.5 pl-1">
+                                    {output.sources.map((src, si) => (
+                                      <a key={si} className="inline-flex max-w-48 items-center truncate rounded border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-2 py-0.5 text-[10px] text-[color:var(--framer-fresco-tint-color)] transition-colors hover:bg-[var(--framer-fresco-panelDivider-color)]" href={src.url} rel="noopener noreferrer" target="_blank">
+                                        {src.title || new URL(src.url).hostname}
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+                          if (part.type.startsWith("tool-")) {
+                            const rawToolName = part.type.slice("tool-".length);
+                            const toolName = rawToolName.replace(/_/g, " ");
+                            const hasOutput = "output" in part && part.output != null;
+                            const isFramerTool = rawToolName.startsWith("framer_");
+
+                            // Try rich UI for completed Framer tool calls
+                            if (hasOutput) {
+                              const richUI = renderFramerToolOutput(rawToolName, (part as any).output, allFieldNames);
+                              if (richUI) {
+                                return (
+                                  <div key={i} className="mt-3 flex flex-col gap-2">
+                                    <div className="flex items-center gap-2 text-[10px] text-[color:var(--framer-fresco-panelDescription-color)]">
+                                      <CheckCircle className="size-3 shrink-0 text-emerald-400" weight="fill" />
+                                      {isFramerTool ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="33 23 75 97" className="size-3 shrink-0" aria-hidden="true">
+                                          <path d="M 44.65 33.992 L 95.35 33.992 L 95.35 59.341 L 70 59.341 Z M 44.65 59.341 L 70 59.341 L 95.35 84.691 L 44.65 84.691 Z M 44.65 84.691 L 70 84.691 L 70 110.041 Z" fill="currentColor" />
+                                        </svg>
+                                      ) : (
+                                        <Wrench className="size-3 shrink-0" />
+                                      )}
+                                      <span className="capitalize">{toolName}</span>
+                                    </div>
+                                    {richUI}
+                                  </div>
+                                );
+                              }
+                            }
+
+                            return (
+                              <div key={i} className="mt-1 flex items-center gap-2 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
                                 {hasOutput ? <CheckCircle className="size-3.5 shrink-0 text-emerald-400" weight="fill" /> : <CircleNotch className="size-3.5 shrink-0 animate-spin" />}
-                                <Wrench className="size-3.5 shrink-0" />
+                                {isFramerTool ? (
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="33 23 75 97" className="size-3.5 shrink-0" aria-hidden="true">
+                                    <path d="M 44.65 33.992 L 95.35 33.992 L 95.35 59.341 L 70 59.341 Z M 44.65 59.341 L 70 59.341 L 95.35 84.691 L 44.65 84.691 Z M 44.65 84.691 L 70 84.691 L 70 110.041 Z" fill="currentColor" />
+                                  </svg>
+                                ) : (
+                                  <Wrench className="size-3.5 shrink-0" />
+                                )}
                                 <span className="capitalize">{toolName}</span>
                               </div>
                             );
@@ -376,6 +486,13 @@ export function AIChatPanel({ open, onOpenChange, selectedPosts, metadata, onPos
 
             {/* Input */}
             <div className="border-t border-[var(--framer-fresco-panelDivider-color)] p-4 pb-8">
+              {totalTokens.total > 0 && (
+                <div className="mb-2 flex items-center gap-1.5 text-[11px] text-[color:var(--framer-fresco-panelDescription-color)]">
+                  <Coins className="size-3.5 shrink-0" weight="duotone" />
+                  <span>{totalTokens.total.toLocaleString()} tokens</span>
+                  <span className="opacity-50">({totalTokens.input.toLocaleString()} in · {totalTokens.output.toLocaleString()} out)</span>
+                </div>
+              )}
               <PromptInput
                 accept="image/*,application/pdf,text/plain,text/html,text/css,text/csv,text/xml,text/markdown,application/json,application/xml,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,audio/*,video/*"
                 maxFiles={5}

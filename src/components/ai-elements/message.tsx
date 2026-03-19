@@ -55,7 +55,7 @@ export const MessageContent = ({
   <div
     className={cn(
       // [TUNE] Base conversation text — font size, spacing, overflow
-      "is-user:dark flex w-fit min-w-0 max-w-full flex-col gap-2 overflow-hidden text-md",
+      "is-user:dark flex w-fit min-w-0 max-w-full flex-col gap-3 overflow-hidden text-md",
       // [TUNE] User message bubble — background, padding, border-radius, text color
       "group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground",
       // [TUNE] Assistant message text color
