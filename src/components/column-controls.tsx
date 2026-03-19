@@ -50,15 +50,19 @@ export function ColumnControls({
         {options.map((option) => {
           const checked = selectedColumns.includes(option.key);
           const isOnlyColumn = checked && selectedColumns.length === 1;
+          const isPinnedColumn = option.key === "title";
 
           return (
             <DropdownMenuCheckboxItem
               checked={checked}
               className="min-h-9 gap-2.5 rounded-lg px-2.5 text-[13px] text-[color:var(--framer-fresco-menuText-color)]"
-              disabled={isOnlyColumn}
+              disabled={isOnlyColumn || isPinnedColumn}
               key={option.key}
               onSelect={(e) => e.preventDefault()}
               onCheckedChange={() => {
+                if (isPinnedColumn) {
+                  return;
+                }
                 const nextSelected = checked
                   ? selectedColumns.filter((column) => column !== option.key)
                   : [...selectedColumns, option.key];

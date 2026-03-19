@@ -1616,11 +1616,16 @@ export async function getCollectionItems(collectionId: string) {
       collection.getItems(),
       collection.getFields(),
     ]);
-    // Include a field ID → name map so the UI can show human-readable column headers
+    // Include field metadata so the chat UI can render human-readable columns and image cells.
     const _fieldNames: Record<string, string> = {};
-    for (const f of fields) _fieldNames[f.id] = f.name;
+    const _fieldTypes: Record<string, string> = {};
+    for (const f of fields) {
+      _fieldNames[f.id] = f.name;
+      _fieldTypes[f.id] = f.type;
+    }
     return {
       _fieldNames,
+      _fieldTypes,
       items: items.map((item) => ({
         id: item.id,
         slug: item.slug,

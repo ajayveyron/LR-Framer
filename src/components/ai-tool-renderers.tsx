@@ -35,6 +35,14 @@ interface CollectionField {
   cases?: EnumCase[];
 }
 
+export interface FieldNameMap {
+  [fieldId: string]: string;
+}
+
+export interface FieldTypeMap {
+  [fieldId: string]: string;
+}
+
 // ---------------------------------------------------------------------------
 // Type guards
 // ---------------------------------------------------------------------------
@@ -141,20 +149,31 @@ function CollectionCards({ collections }: { collections: CollectionInfo[] }) {
 // Collection Items Table — compact table with slug + draft status + fields
 // ---------------------------------------------------------------------------
 
-/** Pick the best display columns from fieldData (first 3 string-ish values). */
-function pickDisplayColumns(items: CollectionItem[]): string[] {
-  const fieldKeys = new Set<string>();
+/** Pick display columns, preferring an image field and then readable text fields. */
+function pickDisplayColumns(
+  items: CollectionItem[],
+  fieldTypes?: FieldTypeMap,
+): string[] {
+  const imageFieldKeys = new Set<string>();
+  const textFieldKeys = new Set<string>();
+
   for (const item of items) {
     if (!item.fieldData) continue;
     for (const [key, val] of Object.entries(item.fieldData)) {
-      if (typeof val === "string" && val.length > 0 && val.length < 200) {
-        fieldKeys.add(key);
+      if (fieldTypes?.[key] === "image" && typeof val === "string" && val.length > 0) {
+        imageFieldKeys.add(key);
+        continue;
       }
-      if (fieldKeys.size >= 3) break;
+
+      if (typeof val === "string" && val.length > 0 && val.length < 200) {
+        textFieldKeys.add(key);
+      }
     }
-    if (fieldKeys.size >= 3) break;
+
+    if (imageFieldKeys.size >= 1 && textFieldKeys.size >= 3) break;
   }
-  return [...fieldKeys];
+
+  return [...imageFieldKeys].slice(0, 1).concat([...textFieldKeys].slice(0, 3));
 }
 
 function truncate(val: unknown, max = 40): string {
@@ -163,14 +182,23 @@ function truncate(val: unknown, max = 40): string {
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
-function CollectionItemsTable({ items, fieldNames }: { items: CollectionItem[]; fieldNames?: FieldNameMap }) {
-  const displayCols = pickDisplayColumns(items);
+function CollectionItemsTable({
+  items,
+  fieldNames,
+  fieldTypes,
+}: {
+  items: CollectionItem[];
+  fieldNames?: FieldNameMap;
+  fieldTypes?: FieldTypeMap;
+}) {
+  const displayCols = pickDisplayColumns(items, fieldTypes);
   const MAX_ROWS = 10;
   const visibleItems = items.slice(0, MAX_ROWS);
   const overflow = items.length - MAX_ROWS;
 
   /** Resolve a field ID to a human-readable name. */
   const colLabel = (fieldId: string) => fieldNames?.[fieldId] ?? fieldId;
+  const isImageField = (fieldId: string) => fieldTypes?.[fieldId] === "image";
 
   return (
     <div className="overflow-hidden rounded-lg border border-[var(--framer-fresco-panelDivider-color)]">
@@ -216,7 +244,19 @@ function CollectionItemsTable({ items, fieldNames }: { items: CollectionItem[]; 
                     key={col}
                     className="max-w-[140px] truncate px-2.5 py-1.5 text-[color:var(--framer-fresco-panelDescription-color)]"
                   >
-                    {truncate(item.fieldData?.[col])}
+                    {isImageField(col) &&
+                    typeof item.fieldData?.[col] === "string" &&
+                    item.fieldData[col] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        alt={colLabel(col)}
+                        className="block h-8 w-[76px] max-w-none overflow-hidden rounded-lg border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] object-cover object-center"
+                        loading="lazy"
+                        src={item.fieldData[col] as string}
+                      />
+                    ) : (
+                      truncate(item.fieldData?.[col])
+                    )}
                   </td>
                 ))}
               </tr>
@@ -294,10 +334,6 @@ function EnumChips({ cases }: { cases: EnumCase[] }) {
   );
 }
 
-export interface FieldNameMap {
-  [fieldId: string]: string;
-}
-
 // ---------------------------------------------------------------------------
 // Main renderer — tries to match tool output to a rich UI, falls back to null
 // ---------------------------------------------------------------------------
@@ -306,6 +342,7 @@ export function renderFramerToolOutput(
   toolName: string,
   output: unknown,
   fieldNames?: FieldNameMap,
+  fieldTypes?: FieldTypeMap,
 ): React.ReactNode | null {
   if (!output || typeof output !== "object") return null;
 
@@ -325,6 +362,7 @@ export function renderFramerToolOutput(
     const obj = output as Record<string, unknown>;
     let items: CollectionItem[] | null = null;
     let mergedFieldNames = fieldNames;
+    let mergedFieldTypes = fieldTypes;
 
     if ("items" in obj && Array.isArray(obj.items) && isCollectionItemArray(obj.items)) {
       items = obj.items;
@@ -332,12 +370,21 @@ export function renderFramerToolOutput(
       if ("_fieldNames" in obj && typeof obj._fieldNames === "object" && obj._fieldNames) {
         mergedFieldNames = { ...fieldNames, ...(obj._fieldNames as FieldNameMap) };
       }
+      if ("_fieldTypes" in obj && typeof obj._fieldTypes === "object" && obj._fieldTypes) {
+        mergedFieldTypes = { ...fieldTypes, ...(obj._fieldTypes as FieldTypeMap) };
+      }
     } else if (isCollectionItemArray(output)) {
       items = output;
     }
 
     if (items) {
-      return <CollectionItemsTable items={items} fieldNames={mergedFieldNames} />;
+      return (
+        <CollectionItemsTable
+          items={items}
+          fieldNames={mergedFieldNames}
+          fieldTypes={mergedFieldTypes}
+        />
+      );
     }
   }
 

@@ -35,7 +35,11 @@ import {
 import { EditProposalView } from "@/components/edit-proposal-view";
 import { CmsActionConfirmation } from "@/components/cms-action-confirmation";
 import type { CmsActionProposal } from "@/lib/cms-action-types";
-import { renderFramerToolOutput, type FieldNameMap } from "@/components/ai-tool-renderers";
+import {
+  renderFramerToolOutput,
+  type FieldNameMap,
+  type FieldTypeMap,
+} from "@/components/ai-tool-renderers";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -290,6 +294,27 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
     return map;
   }, [metadata.fields, messages]);
 
+  const allFieldTypes = useMemo<FieldTypeMap>(() => {
+    const map: FieldTypeMap = {};
+    for (const f of metadata.fields) map[f.id] = f.type;
+    for (const msg of messages) {
+      for (const p of msg.parts) {
+        if (
+          p.type === "tool-framer_get_collection_fields" &&
+          "output" in p &&
+          Array.isArray((p as any).output)
+        ) {
+          for (const f of (p as any).output) {
+            if (f && typeof f.id === "string" && typeof f.type === "string") {
+              map[f.id] = f.type;
+            }
+          }
+        }
+      }
+    }
+    return map;
+  }, [metadata.fields, messages]);
+
   // Accumulate total token usage across all assistant messages in this conversation
   const totalTokens = useMemo(() => {
     let input = 0;
@@ -521,7 +546,12 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
 
                             // Try rich UI for completed Framer tool calls
                             if (hasOutput) {
-                              const richUI = renderFramerToolOutput(rawToolName, (part as any).output, allFieldNames);
+                              const richUI = renderFramerToolOutput(
+                                rawToolName,
+                                (part as any).output,
+                                allFieldNames,
+                                allFieldTypes,
+                              );
                               if (richUI) {
                                 return (
                                   <div key={i} className="mt-3 flex flex-col gap-2">

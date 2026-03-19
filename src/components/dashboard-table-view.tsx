@@ -19,7 +19,6 @@ import { SelectionToolbar } from "@/components/selection-toolbar";
 import { Sparkle, PlusIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -43,6 +42,7 @@ import { cn } from "@/lib/utils";
 const PAGE_SIZE = 20;
 const COLUMN_STORAGE_KEY = "lr:dashboard:columns";
 const COLUMN_STORAGE_EVENT = "lr:dashboard:columns:changed";
+const TITLE_COLUMN_KEY = "title";
 
 type DrawerState =
   | { mode: "create" }
@@ -207,14 +207,24 @@ function parseSelectedColumns(
         typeof value === "string" && allowedColumns.has(value),
     );
 
-    return nextColumns.length > 0 ? nextColumns : fallbackColumns;
+    return normalizeSelectedColumns(
+      nextColumns.length > 0 ? nextColumns : fallbackColumns,
+    );
   } catch {
-    return fallbackColumns;
+    return normalizeSelectedColumns(fallbackColumns);
   }
 }
 
+function normalizeSelectedColumns(columns: string[]) {
+  const withoutTitle = columns.filter((column) => column !== TITLE_COLUMN_KEY);
+  return [TITLE_COLUMN_KEY, ...withoutTitle];
+}
+
 function writeStoredColumns(columns: string[]) {
-  window.localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columns));
+  window.localStorage.setItem(
+    COLUMN_STORAGE_KEY,
+    JSON.stringify(normalizeSelectedColumns(columns)),
+  );
   window.dispatchEvent(new Event(COLUMN_STORAGE_EVENT));
 }
 
@@ -264,6 +274,8 @@ export function DashboardTableView({
     activeCollectionId,
   );
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const stickyHeaderRef = useRef<HTMLDivElement | null>(null);
+  const [stickyHeaderHeight, setStickyHeaderHeight] = useState(0);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [chatOpen, setChatOpen] = useState(false);
   const lastClickedIndexRef = useRef<number | null>(null);
@@ -294,6 +306,17 @@ export function DashboardTableView({
     if (window.location.search) {
       window.history.replaceState(null, "", window.location.pathname);
     }
+  }, []);
+
+  useEffect(() => {
+    const el = stickyHeaderRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setStickyHeaderHeight(entry.contentRect.height);
+    });
+    observer.observe(el);
+    setStickyHeaderHeight(el.offsetHeight);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -487,9 +510,9 @@ export function DashboardTableView({
   const pageOptions = Array.from({ length: totalPages }, (_, index) => index + 1);
 
   return (
-    <section className="relative md:min-h-[calc(100vh-16px)]">
-      <div className="flex min-h-screen flex-col overflow-hidden bg-[var(--framer-fresco-panelBackground-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color)] md:min-h-[calc(100vh-16px)] md:border md:border-[var(--framer-fresco-panelDivider-color)]">
-        <div className="border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)]">
+    <section className="relative">
+      <div className="min-h-screen bg-[var(--framer-fresco-panelBackground-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color)] md:min-h-[calc(100vh-16px)] md:border md:border-[var(--framer-fresco-panelDivider-color)]">
+        <div ref={stickyHeaderRef} className="sticky top-0 z-20 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)]">
           <div className="flex flex-wrap items-start gap-2.5 border-b border-[var(--framer-fresco-panelDivider-color)] p-4 md:items-center">
             <Button
               className="h-11 gap-2.5 px-4 text-sm font-semibold"
@@ -505,7 +528,36 @@ export function DashboardTableView({
               </span>
               <span>New Item</span>
             </Button>
-            <div className="ml-auto flex w-full flex-wrap items-center justify-between gap-2.5 md:w-auto md:justify-end">
+            <label
+              className="relative flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors focus-within:border-[var(--framer-fresco-tint-color)]"
+              htmlFor="dashboard-search"
+            >
+              <MagnifyingGlassIcon className="size-4 shrink-0" />
+              <input
+                aria-label="Search items"
+                className="h-full min-w-0 flex-1 bg-transparent px-1 py-0 text-sm text-[color:var(--framer-fresco-settingsText-color)] outline-none placeholder:text-[color:var(--framer-fresco-panelSubtitle-color)]"
+                id="dashboard-search"
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search…"
+                ref={searchInputRef}
+                value={query}
+              />
+              <KbdGroup className="hidden shrink-0 sm:inline-flex">
+                <Kbd className="text-[color:var(--framer-fresco-panelSubtitle-color)]">
+                  {typeof navigator !== "undefined" &&
+                  /mac/i.test(navigator.platform)
+                    ? "⌘"
+                    : "Ctrl"}
+                </Kbd>
+                <Kbd className="text-[color:var(--framer-fresco-panelSubtitle-color)]">
+                  \
+                </Kbd>
+              </KbdGroup>
+            </label>
+            <div className="flex flex-wrap items-center gap-2.5">
               {collections.length > 1 ? (
                 <Select
                   onValueChange={handleCollectionChange}
@@ -514,7 +566,7 @@ export function DashboardTableView({
                   <SelectTrigger
                     aria-label="Select collection"
                     className="min-w-48 rounded-full"
-                    size="sm"
+                    size="default"
                   >
                     <SelectValue placeholder="Select collection" />
                   </SelectTrigger>
@@ -558,41 +610,6 @@ export function DashboardTableView({
             </div>
           </div>
 
-          <label
-            className="flex h-auto items-center gap-3 border-b border-[var(--framer-fresco-panelDivider-color)] px-5 py-2 text-[color:var(--framer-fresco-panelSubtitle-color)]"
-            htmlFor="dashboard-search"
-          >
-            <span
-              aria-hidden="true"
-              className="inline-flex items-center justify-center"
-            >
-              <MagnifyingGlassIcon />
-            </span>
-            <Input
-              aria-label="Search items"
-              className="h-full border-0 bg-transparent px-4 py-4 text-lg text-[color:var(--framer-fresco-settingsText-color)] shadow-none placeholder:text-[color:var(--framer-fresco-panelSubtitle-color)] focus-visible:border-0 focus-visible:ring-0"
-              id="dashboard-search"
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPage(1);
-              }}
-              placeholder="Search items"
-              ref={searchInputRef}
-              value={query}
-            />
-            <KbdGroup className="ml-auto hidden sm:inline-flex">
-              <Kbd className="text-[color:var(--framer-fresco-panelSubtitle-color)]">
-                {typeof navigator !== "undefined" &&
-                /mac/i.test(navigator.platform)
-                  ? "⌘"
-                  : "Ctrl"}
-              </Kbd>
-              <Kbd className="text-[color:var(--framer-fresco-panelSubtitle-color)]">
-                \
-              </Kbd>
-            </KbdGroup>
-          </label>
-
           <div className="flex flex-col gap-4 border-b border-[var(--framer-fresco-panelDivider-color)] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-1">
               <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
@@ -626,7 +643,7 @@ export function DashboardTableView({
           </div>
         </div>
 
-        <section className="min-h-0 flex-1">
+        <div>
           <BlogTable
             activePostId={activePostId}
             columns={activeColumns}
@@ -635,20 +652,27 @@ export function DashboardTableView({
             posts={visiblePosts}
             role={role}
             loadingPosts={loadingPosts}
+            stickyTopOffset={stickyHeaderHeight}
             selectedRows={selectedRows}
             onToggleRow={handleToggleRow}
             onToggleAll={handleToggleAll}
             onShiftClick={handleShiftClick}
             onHideColumn={(columnKey) => {
+              if (columnKey === TITLE_COLUMN_KEY) {
+                return;
+              }
               const nextSelected = selectedColumns.filter((key) => key !== columnKey);
               if (nextSelected.length > 0) {
                 writeStoredColumns(nextSelected);
               }
             }}
             onReorderColumns={(sourceIndex, destinationIndex) => {
+              if (sourceIndex === 0) {
+                return;
+              }
               const nextColumns = [...selectedColumns];
               const [reorderedItem] = nextColumns.splice(sourceIndex, 1);
-              nextColumns.splice(destinationIndex, 0, reorderedItem);
+              nextColumns.splice(Math.max(1, destinationIndex), 0, reorderedItem);
               writeStoredColumns(nextColumns);
             }}
             onDraftToggle={async (post) => {
@@ -695,7 +719,7 @@ export function DashboardTableView({
               }
             }}
           />
-        </section>
+        </div>
 
         <div className="flex flex-col gap-4 border-t border-[var(--framer-fresco-panelDivider-color)] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm text-[color:var(--framer-fresco-panelDescription-color)]">

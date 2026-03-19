@@ -1,5 +1,12 @@
 "use client";
-import { Fragment, useEffect, useRef, useState, type MutableRefObject } from "react";
+import {
+  Fragment,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type MutableRefObject,
+} from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,6 +40,7 @@ type BlogTableProps = {
   onDraftToggle?: (post: BlogPostRecord) => void;
   onDelete?: (postId: string) => void;
   selectedRows?: Set<string>;
+  stickyTopOffset?: number;
   onToggleRow?: (rowId: string) => void;
   onToggleAll?: (visibleRowIds: string[]) => void;
   onShiftClick?: (rowId: string) => void;
@@ -301,6 +309,7 @@ export function BlogTable({
   onToggleRow,
   onToggleAll,
   onShiftClick,
+  stickyTopOffset = 0,
 }: BlogTableProps) {
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() =>
     Object.fromEntries(
@@ -312,6 +321,8 @@ export function BlogTable({
   );
   const [draggingColumn, setDraggingColumn] = useState<string | null>(null);
   const [draggedColumnIndex, setDraggedColumnIndex] = useState<number | null>(null);
+  const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number | null>(null);
+  const [dropIndicatorSide, setDropIndicatorSide] = useState<"left" | "right" | null>(null);
   const lastClickedIndexRef = useRef<number | null>(null);
 
   // Derive selection-related state
@@ -332,6 +343,18 @@ export function BlogTable({
     };
   }, []);
 
+  function getDropIndicatorIndex(
+    event: DragEvent<HTMLTableCellElement>,
+    index: number,
+  ): { index: number; side: "left" | "right" } {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const insertAfter = event.clientX > bounds.left + bounds.width / 2;
+    return {
+      index: Math.max(1, insertAfter ? index + 1 : index),
+      side: insertAfter ? "right" : "left" as const,
+    };
+  }
+
   if (posts.length === 0) {
     return (
       <div className="flex flex-col gap-2 px-6 py-14 text-center text-[color:var(--framer-fresco-panelDescription-color)]">
@@ -350,6 +373,7 @@ export function BlogTable({
         getColumnLimits(metadata, column.key).defaultWidth),
     0,
   );
+  const HEADER_DIVIDER_OFFSET = 9;
 
   const groupedPosts = [
     {
@@ -365,7 +389,7 @@ export function BlogTable({
   ].filter((group) => group.posts.length > 0);
 
   return (
-    <div className="h-full overflow-auto">
+    <div className="h-full">
       <table
         className="w-full border-collapse table-fixed"
         style={{ minWidth: tableMinWidth }}
@@ -386,13 +410,23 @@ export function BlogTable({
                 <ContextMenuTrigger asChild>
                   <th
                     className={cn(
-                      "sticky top-0 z-10 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-[22px] py-[18px] text-left text-xs font-semibold text-[color:var(--framer-fresco-panelSubtitle-color)]",
+                      "relative sticky z-10 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-[22px] py-[18px] text-left text-xs font-semibold text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors",
                       column.key === "slug" && "font-mono",
                       draggedColumnIndex === index && "opacity-50",
+                      draggedColumnIndex !== null &&
+                        (dropIndicatorIndex === index ||
+                          (index === columns.length - 1 &&
+                            dropIndicatorIndex === columns.length)) &&
+                        "bg-[rgba(59,130,246,0.12)]",
                     )}
-                    draggable
+                    style={{ top: stickyTopOffset }}
+                    draggable={column.key !== "title"}
                     onDragStart={(event) => {
                       if (draggingColumn) {
+                        event.preventDefault();
+                        return;
+                      }
+                      if (column.key === "title") {
                         event.preventDefault();
                         return;
                       }
@@ -402,16 +436,95 @@ export function BlogTable({
                     onDragOver={(event) => {
                       event.preventDefault();
                       event.dataTransfer.dropEffect = "move";
+                      if (draggedColumnIndex === null) {
+                        return;
+                      }
+                      const nextDropIndicator = getDropIndicatorIndex(event, index);
+                      setDropIndicatorIndex(nextDropIndicator.index);
+                      setDropIndicatorSide(nextDropIndicator.side);
                     }}
                     onDrop={(event) => {
                       event.preventDefault();
-                      if (draggedColumnIndex !== null && draggedColumnIndex !== index) {
-                        onReorderColumns?.(draggedColumnIndex, index);
+                      if (draggedColumnIndex !== null) {
+                        const insertion = getDropIndicatorIndex(event, index);
+                        const insertionIndex = insertion.index;
+                        const destinationIndex =
+                          draggedColumnIndex < insertionIndex
+                            ? insertionIndex - 1
+                            : insertionIndex;
+
+                        if (draggedColumnIndex !== destinationIndex) {
+                          onReorderColumns?.(draggedColumnIndex, destinationIndex);
+                        }
                       }
                       setDraggedColumnIndex(null);
+                      setDropIndicatorIndex(null);
+                      setDropIndicatorSide(null);
                     }}
-                    onDragEnd={() => setDraggedColumnIndex(null)}
+                    onDragLeave={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                        setDropIndicatorIndex(null);
+                        setDropIndicatorSide(null);
+                      }
+                    }}
+                    onDragEnd={() => {
+                      setDraggedColumnIndex(null);
+                      setDropIndicatorIndex(null);
+                      setDropIndicatorSide(null);
+                    }}
                   >
+                    {draggedColumnIndex !== null && dropIndicatorIndex === index && (
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "pointer-events-none absolute inset-y-0 w-1.5 rounded-full bg-[#3b82f6] shadow-[0_0_0_2px_var(--framer-fresco-panelBackground-color)]",
+                          dropIndicatorSide === "right" ? "right-0" : "left-0",
+                        )}
+                        style={{
+                          transform:
+                            dropIndicatorSide === "right"
+                              ? `translateX(calc(50% - ${HEADER_DIVIDER_OFFSET}px))`
+                              : `translateX(calc(-50% - ${HEADER_DIVIDER_OFFSET}px))`,
+                        }}
+                      />
+                    )}
+                    {draggedColumnIndex !== null && dropIndicatorIndex === index && (
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "pointer-events-none absolute top-2 size-3 rounded-full border-2 border-[var(--framer-fresco-panelBackground-color)] bg-[#3b82f6]",
+                          dropIndicatorSide === "right"
+                            ? "right-0"
+                            : "left-0",
+                        )}
+                        style={{
+                          transform:
+                            dropIndicatorSide === "right"
+                              ? `translateX(calc(50% - ${HEADER_DIVIDER_OFFSET}px))`
+                              : `translateX(calc(-50% - ${HEADER_DIVIDER_OFFSET}px))`,
+                        }}
+                      />
+                    )}
+                    {draggedColumnIndex !== null &&
+                      index === columns.length - 1 &&
+                      dropIndicatorIndex === columns.length && (
+                        <>
+                          <span
+                            aria-hidden="true"
+                            className="pointer-events-none absolute inset-y-0 right-0 w-1.5 rounded-full bg-[#3b82f6] shadow-[0_0_0_2px_var(--framer-fresco-panelBackground-color)]"
+                            style={{
+                              transform: `translateX(calc(50% - ${HEADER_DIVIDER_OFFSET}px))`,
+                            }}
+                          />
+                          <span
+                            aria-hidden="true"
+                            className="pointer-events-none absolute right-0 top-2 size-3 rounded-full border-2 border-[var(--framer-fresco-panelBackground-color)] bg-[#3b82f6]"
+                            style={{
+                              transform: `translateX(calc(50% - ${HEADER_DIVIDER_OFFSET}px))`,
+                            }}
+                          />
+                        </>
+                      )}
                     <div className="relative flex min-h-5 items-center pr-2">
                       {column.key === "title" && hasSelection && (
                         <span className="mr-3 inline-flex size-4 shrink-0 items-center justify-center">
