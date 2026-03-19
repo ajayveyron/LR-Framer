@@ -1,5 +1,6 @@
+import { SpinnerGap as Loader2Icon } from "@phosphor-icons/react"
+
 import { cn } from "@/lib/utils"
-import { Loader2Icon } from "lucide-react"
 
 function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
   return (

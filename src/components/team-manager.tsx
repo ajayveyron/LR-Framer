@@ -134,10 +134,14 @@ export function TeamManager() {
 
       {/* Tabs */}
       <div className="flex items-center gap-6 border-b border-[rgba(255,255,255,0.06)]">
-        <button
+        <Button
+          aria-pressed={activeTab === "members"}
           onClick={() => setActiveTab("members")}
+          size="sm"
+          type="button"
+          variant="ghost"
           className={cn(
-            "pb-3 settings-label transition-colors border-b-2",
+            "rounded-none border-b-2 px-0 pb-3 pt-0 settings-label transition-colors hover:bg-transparent",
             activeTab === "members"
               ? "border-[color:var(--framer-fresco-tint-color)] text-[color:var(--framer-fresco-panelTitle-color)]"
               : "border-transparent text-[color:var(--framer-fresco-panelSubtitle-color)] hover:text-[color:var(--framer-fresco-panelTitle-color)]",
@@ -147,11 +151,15 @@ export function TeamManager() {
           <Badge variant="secondary" className="ml-2 text-[10px] h-4 min-w-4 px-1 rounded-full">
             {memberships?.count ?? 0}
           </Badge>
-        </button>
-        <button
+        </Button>
+        <Button
+          aria-pressed={activeTab === "invitations"}
           onClick={() => setActiveTab("invitations")}
+          size="sm"
+          type="button"
+          variant="ghost"
           className={cn(
-            "pb-3 settings-label transition-colors border-b-2",
+            "rounded-none border-b-2 px-0 pb-3 pt-0 settings-label transition-colors hover:bg-transparent",
             activeTab === "invitations"
               ? "border-[color:var(--framer-fresco-tint-color)] text-[color:var(--framer-fresco-panelTitle-color)]"
               : "border-transparent text-[color:var(--framer-fresco-panelSubtitle-color)] hover:text-[color:var(--framer-fresco-panelTitle-color)]",
@@ -161,7 +169,7 @@ export function TeamManager() {
           <Badge variant="secondary" className="ml-2 text-[10px] h-4 min-w-4 px-1 rounded-full">
             {invitations?.count ?? 0}
           </Badge>
-        </button>
+        </Button>
       </div>
 
       {/* Table */}
@@ -266,11 +274,13 @@ export function TeamManager() {
               <div className="space-y-2">
                 <label className="settings-label text-[color:var(--framer-fresco-panelTitle-color)]">Role</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
+                  <Button
+                    aria-pressed={inviteRole === "org:admin"}
                     onClick={() => setInviteRole("org:admin")}
+                    type="button"
+                    variant="outline"
                     className={cn(
-                      "flex flex-col items-start gap-2.5 p-4 rounded-xl border text-left transition-all",
+                      "h-auto flex-col items-start gap-2.5 rounded-xl p-4 text-left transition-all",
                       inviteRole === "org:admin"
                         ? "border-[color:var(--framer-fresco-tint-color)] bg-[color:var(--framer-fresco-tintDimmed-color)] ring-1 ring-[color:var(--framer-fresco-tint-color)]"
                         : "border-[rgba(255,255,255,0.06)] bg-transparent hover:border-[color:var(--framer-fresco-panelSubtitle-color)]",
@@ -278,12 +288,14 @@ export function TeamManager() {
                   >
                     <Shield weight={inviteRole === "org:admin" ? "fill" : "regular"} className={cn("h-5 w-5", inviteRole === "org:admin" ? "text-[color:var(--framer-fresco-tint-color)]" : "text-[color:var(--framer-fresco-panelSubtitle-color)]")} />
                     <div className="settings-label text-[color:var(--framer-fresco-panelTitle-color)]">Admin</div>
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    aria-pressed={inviteRole === "org:member"}
                     onClick={() => setInviteRole("org:member")}
+                    type="button"
+                    variant="outline"
                     className={cn(
-                      "flex flex-col items-start gap-2.5 p-4 rounded-xl border text-left transition-all",
+                      "h-auto flex-col items-start gap-2.5 rounded-xl p-4 text-left transition-all",
                       inviteRole === "org:member"
                         ? "border-[color:var(--framer-fresco-tint-color)] bg-[color:var(--framer-fresco-tintDimmed-color)] ring-1 ring-[color:var(--framer-fresco-tint-color)]"
                         : "border-[rgba(255,255,255,0.06)] bg-transparent hover:border-[color:var(--framer-fresco-panelSubtitle-color)]",
@@ -291,7 +303,7 @@ export function TeamManager() {
                   >
                     <User weight={inviteRole === "org:member" ? "fill" : "regular"} className={cn("h-5 w-5", inviteRole === "org:member" ? "text-[color:var(--framer-fresco-tint-color)]" : "text-[color:var(--framer-fresco-panelSubtitle-color)]")} />
                     <div className="settings-label text-[color:var(--framer-fresco-panelTitle-color)]">Member</div>
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>

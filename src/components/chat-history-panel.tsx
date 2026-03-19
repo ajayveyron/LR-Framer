@@ -87,28 +87,33 @@ export function ChatHistoryPanel({ onSelect, onBack }: ChatHistoryPanelProps) {
           <ul className="divide-y divide-[var(--framer-fresco-panelDivider-color)]">
             {conversations.map((conv) => (
               <li key={conv.id}>
-                <button
-                  type="button"
-                  className="group flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--framer-app-surface-muted-color)]"
-                  onClick={() => onSelect(conv)}
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-[color:var(--framer-fresco-panelTitle-color)]">
-                      {conv.title}
-                    </p>
-                    <p className="mt-0.5 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
-                      {conv.messages.length} message{conv.messages.length !== 1 ? "s" : ""} · {formatDistanceToNow(new Date(conv.updatedAt), { addSuffix: true })}
-                    </p>
-                  </div>
-                  <button
+                <div className="group flex items-start gap-2 px-2 py-1.5 transition-colors hover:bg-[var(--framer-app-surface-muted-color)]">
+                  <Button
+                    className="h-auto flex-1 items-start justify-start gap-3 px-2 py-1.5 text-left font-normal"
+                    onClick={() => onSelect(conv)}
                     type="button"
+                    variant="ghost"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-[color:var(--framer-fresco-panelTitle-color)]">
+                        {conv.title}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+                        {conv.messages.length} message{conv.messages.length !== 1 ? "s" : ""} · {formatDistanceToNow(new Date(conv.updatedAt), { addSuffix: true })}
+                      </p>
+                    </div>
+                  </Button>
+                  <Button
                     aria-label="Delete conversation"
-                    className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded opacity-0 transition-opacity hover:bg-red-500/20 hover:text-red-400 group-hover:opacity-100"
+                    className="mt-0.5 opacity-0 transition-opacity hover:bg-red-500/20 hover:text-red-400 group-hover:opacity-100"
                     onClick={(e) => handleDelete(e, conv.id)}
+                    size="icon-xs"
+                    type="button"
+                    variant="ghost"
                   >
                     <Trash className="size-3.5" />
-                  </button>
-                </button>
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>

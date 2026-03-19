@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  CheckCircle as CheckCircleIcon,
+  CaretDown as ChevronDownIcon,
+  Circle as CircleIcon,
+  Clock as ClockIcon,
+  Wrench as WrenchIcon,
+  XCircle as XCircleIcon,
+} from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
@@ -8,14 +16,6 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
-import {
-  CheckCircleIcon,
-  ChevronDownIcon,
-  CircleIcon,
-  ClockIcon,
-  WrenchIcon,
-  XCircleIcon,
-} from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import { isValidElement } from "react";
 

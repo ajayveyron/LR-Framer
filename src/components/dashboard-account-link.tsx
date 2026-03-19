@@ -18,6 +18,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useBillingUsage, deriveMeterState, METER_COLORS } from "@/lib/use-billing-usage";
 
 function getInitials(name: string) {
@@ -88,52 +95,56 @@ export function DashboardAccountLink() {
 
   return (
     <>
-      <div className="group relative">
+      <DropdownMenu>
         <div className="relative">
           <UsageRing />
-          <Button
-            aria-label="Open account menu"
-            className="size-11 rounded-full p-0"
-            size="icon-lg"
-            type="button"
-            variant="outline"
-          >
-            <span className="inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelTitle-color)]">
-              {user?.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  alt={fullName}
-                  className="size-full object-cover"
-                  loading="lazy"
-                  src={user.imageUrl}
-                />
-              ) : (
-                <span>{getInitials(fullName)}</span>
-              )}
-            </span>
-          </Button>
+          <DropdownMenuTrigger asChild>
+            <Button
+              aria-label="Open account menu"
+              className="size-11 rounded-full p-0"
+              size="icon-lg"
+              type="button"
+              variant="outline"
+            >
+              <span className="inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelTitle-color)]">
+                {user?.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    alt={fullName}
+                    className="size-full object-cover"
+                    loading="lazy"
+                    src={user.imageUrl}
+                  />
+                ) : (
+                  <span>{getInitials(fullName)}</span>
+                )}
+              </span>
+            </Button>
+          </DropdownMenuTrigger>
         </div>
-        <div className="pointer-events-none absolute right-0 top-full z-30 pt-2 opacity-0 transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
-          <div className="w-44 border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-menuBackground-color)] p-1.5 shadow-[0_20px_48px_rgba(0,0,0,0.42)]">
+        <DropdownMenuContent
+          align="end"
+          className="w-44 border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-menuBackground-color)] p-1.5 text-[color:var(--framer-fresco-menuText-color)] shadow-[0_20px_48px_rgba(0,0,0,0.42)]"
+        >
+          <DropdownMenuItem asChild>
             <Link
-              className="flex min-h-9 items-center gap-2 rounded-md px-2.5 text-sm text-[color:var(--framer-fresco-menuText-color)] transition-colors hover:bg-[var(--framer-fresco-menuBackgroundActive-color)] hover:text-[color:var(--framer-fresco-menuTextActive-color)]"
+              className="text-[color:inherit] hover:text-[color:var(--framer-fresco-menuTextActive-color)]"
               href="/dashboard/settings"
             >
               <Settings2Icon className="size-4" />
               <span>{isLoaded ? "Settings" : "Account"}</span>
             </Link>
-            <div className="my-1 h-px bg-[var(--framer-fresco-panelDivider-color)]" />
-            <button
-              className="flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm text-[color:var(--framer-fresco-errorTint-color)] transition-colors hover:bg-[var(--framer-app-danger-callout-background-color)] hover:text-[color:var(--framer-app-danger-callout-text-color)]"
-              onClick={() => setConfirmLogoutOpen(true)}
-              type="button"
-            >
-              <SignOutIcon className="size-4" />
-              <span>Log out</span>
-            </button>
-          </div>
-        </div>
-      </div>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator className="bg-[var(--framer-fresco-panelDivider-color)]" />
+          <DropdownMenuItem
+            className="text-[color:var(--framer-fresco-errorTint-color)] focus:bg-[var(--framer-app-danger-callout-background-color)] focus:text-[color:var(--framer-app-danger-callout-text-color)]"
+            onClick={() => setConfirmLogoutOpen(true)}
+          >
+            <SignOutIcon className="size-4" />
+            <span>Log out</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <Dialog onOpenChange={setConfirmLogoutOpen} open={confirmLogoutOpen}>
         <DialogContent className="framer-dialog-panel border" showCloseButton={false}>

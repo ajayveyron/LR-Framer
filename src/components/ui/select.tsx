@@ -1,10 +1,14 @@
 "use client"
 
 import * as React from "react"
+import {
+  CaretDown as ChevronDownIcon,
+  CaretUp as ChevronUpIcon,
+  Check as CheckIcon,
+} from "@phosphor-icons/react"
 import { Select as SelectPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
-import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
 function Select({
   ...props

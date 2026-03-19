@@ -149,14 +149,16 @@ function AttachmentPreviewStrip() {
                 <span className="max-w-full truncate px-1 text-[8px] text-[color:var(--framer-fresco-panelDescription-color)]">{file.filename}</span>
               </span>
             )}
-            <button
+            <Button
               aria-label={`Remove ${file.filename ?? "attachment"}`}
-              className="cursor-default absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-[red] text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+              className="absolute right-1 top-1 opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
               onClick={() => attachments.remove(file.id)}
+              size="icon-xs"
               type="button"
+              variant="destructive"
             >
               <X className="size-2.5" />
-            </button>
+            </Button>
           </div>
         );
       })}
@@ -189,9 +191,9 @@ function ChatPromptSuggestions({ selectedCount }: { selectedCount: number }) {
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         {suggestions.map((suggestion) => (
-          <button
+          <Button
             key={suggestion.title}
-            className="flex flex-col items-start gap-1 rounded-xl border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-left transition-colors hover:border-[var(--framer-fresco-tint-color)] hover:bg-[var(--framer-fresco-panelDivider-color)]"
+            className="h-auto flex-col items-start rounded-xl border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-left transition-colors hover:border-[var(--framer-fresco-tint-color)] hover:bg-[var(--framer-fresco-panelDivider-color)]"
             onClick={() => {
               controller.textInput.setInput(suggestion.prompt);
               window.requestAnimationFrame(() => {
@@ -200,7 +202,9 @@ function ChatPromptSuggestions({ selectedCount }: { selectedCount: number }) {
                 textarea?.setSelectionRange(suggestion.prompt.length, suggestion.prompt.length);
               });
             }}
+            size="default"
             type="button"
+            variant="outline"
           >
             <span className="text-sm font-medium text-[color:var(--framer-fresco-panelTitle-color)]">
               {suggestion.title}
@@ -208,7 +212,7 @@ function ChatPromptSuggestions({ selectedCount }: { selectedCount: number }) {
             <span className="text-xs leading-snug text-[color:var(--framer-fresco-panelDescription-color)]">
               {suggestion.description}
             </span>
-          </button>
+          </Button>
         ))}
       </div>
     </div>
@@ -787,14 +791,16 @@ function ChatInputOrQuotaGate({
         <PromptInputFooter>
           <DirectAttachButton />
           {selectedPosts.length > 0 && onClearSelection && (
-            <button
-              className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-[color:var(--framer-fresco-tint-color)] transition-colors hover:bg-[var(--framer-fresco-panelDivider-color)]"
+            <Button
+              className="h-auto gap-1 px-2 py-1 text-[11px] text-[color:var(--framer-fresco-tint-color)] hover:bg-[var(--framer-fresco-panelDivider-color)]"
               onClick={onClearSelection}
+              size="sm"
               type="button"
+              variant="ghost"
             >
               <X className="size-3" />
               {selectedPosts.length} selected
-            </button>
+            </Button>
           )}
           <div className="flex-1" />
           {isStreaming ? (
@@ -848,10 +854,16 @@ function QuotaOrError({ error, onRetry }: { error: Error; onRetry: () => void })
     <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
       <WarningCircle className="size-3.5 shrink-0" weight="fill" />
       <span className="min-w-0 flex-1 truncate">{error.message}</span>
-      <button type="button" className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-red-300 transition-colors hover:bg-red-500/20 hover:text-red-200" onClick={onRetry}>
+      <Button
+        className="h-auto shrink-0 gap-1 px-1.5 py-0.5 text-red-300 hover:bg-red-500/20 hover:text-red-200"
+        onClick={onRetry}
+        size="xs"
+        type="button"
+        variant="ghost"
+      >
         <ArrowClockwise className="size-3.5" weight="bold" />
         <span>Retry</span>
-      </button>
+      </Button>
     </div>
   );
 }

@@ -1,6 +1,14 @@
 "use client";
 
 import {
+  ArrowElbowDownLeft as CornerDownLeftIcon,
+  Image as ImageIcon,
+  Monitor as MonitorIcon,
+  Plus as PlusIcon,
+  Square as SquareIcon,
+  X as XIcon,
+} from "@phosphor-icons/react";
+import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -41,14 +49,6 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from "ai";
-import {
-  CornerDownLeftIcon,
-  ImageIcon,
-  Monitor,
-  PlusIcon,
-  SquareIcon,
-  XIcon,
-} from "lucide-react";
 import { nanoid } from "nanoid";
 import type {
   ChangeEvent,
@@ -475,7 +475,7 @@ export const PromptInputActionAddScreenshot = ({
 
   return (
     <DropdownMenuItem {...props} onSelect={handleSelect}>
-      <Monitor className="mr-2 size-4" />
+      <MonitorIcon className="mr-2 size-4" />
       {label}
     </DropdownMenuItem>
   );
