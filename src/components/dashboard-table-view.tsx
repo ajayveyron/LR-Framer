@@ -526,8 +526,8 @@ export function DashboardTableView({
   const pageOptions = Array.from({ length: totalPages }, (_, index) => index + 1);
 
   return (
-    <section className="relative">
-      <div className="min-h-screen bg-[var(--framer-fresco-panelBackground-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color)] md:min-h-[calc(100vh-16px)] md:border md:border-[var(--framer-fresco-panelDivider-color)]">
+    <section className="relative min-w-0 overflow-x-clip">
+      <div className="min-h-screen min-w-0 bg-[var(--framer-fresco-panelBackground-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color)] md:min-h-[calc(100vh-16px)] md:border md:border-[var(--framer-fresco-panelDivider-color)]">
         <div ref={stickyHeaderRef} className="sticky top-0 z-20 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)]">
           <div className="flex flex-wrap items-start gap-2.5 border-b border-[var(--framer-fresco-panelDivider-color)] p-4 md:items-center">
             <Button
@@ -659,7 +659,7 @@ export function DashboardTableView({
           </div>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <BlogTable
             activePostId={activePostId}
             columns={activeColumns}

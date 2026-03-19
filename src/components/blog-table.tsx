@@ -389,10 +389,10 @@ export function BlogTable({
   ].filter((group) => group.posts.length > 0);
 
   return (
-    <div className="h-full">
+    <div className="h-full max-w-full min-w-0 overflow-x-auto">
       <table
-        className="w-full border-collapse table-fixed"
-        style={{ minWidth: tableMinWidth }}
+        className="min-w-full border-separate border-spacing-0 table-fixed"
+        style={{ width: tableMinWidth }}
       >
         <colgroup>
           {columns.map((column) => {
