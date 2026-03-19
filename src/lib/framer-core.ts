@@ -90,7 +90,7 @@ import type {
   Framer,
   PublishResult,
 } from "framer-api";
-import { withConnection } from "framer-api";
+import { isRetryableError, withConnection } from "framer-api";
 
 import type {
   BlogCollectionMetadata,
@@ -235,13 +235,55 @@ function indexCollectionItems(items: CollectionItem[]) {
   };
 }
 
+const FRAMER_MAX_RETRIES = 2;
+const FRAMER_RETRY_BASE_MS = 500;
+
+function isTransientConnectionError(error: unknown): boolean {
+  if (isRetryableError(error)) return true;
+
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+
+  return (
+    message.includes("no connection") ||
+    message.includes("session expired") ||
+    message.includes("project_closed")
+  );
+}
+
 async function withFramerProject<T>(callback: (framer: Framer) => Promise<T>) {
   const runtimeContext = getFramerRuntimeContext();
-  return withConnection(
-    runtimeContext.projectId,
-    async (framer) => callback(framer),
-    runtimeContext.apiKey,
-  );
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= FRAMER_MAX_RETRIES; attempt++) {
+    try {
+      return await withConnection(
+        runtimeContext.projectId,
+        async (framer) => callback(framer),
+        runtimeContext.apiKey,
+      );
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < FRAMER_MAX_RETRIES && isTransientConnectionError(error)) {
+        const delayMs = FRAMER_RETRY_BASE_MS * 2 ** attempt;
+        logEvent("warn", "framer.connection.retry", {
+          attempt: attempt + 1,
+          maxRetries: FRAMER_MAX_RETRIES,
+          delayMs,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          projectId: runtimeContext.projectId,
+        });
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  // Unreachable in practice, but satisfies TypeScript
+  throw lastError;
 }
 
 async function getBlogCollection(framer: Framer) {

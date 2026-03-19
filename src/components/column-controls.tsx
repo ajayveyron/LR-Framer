@@ -57,6 +57,7 @@ export function ColumnControls({
               className="min-h-9 gap-2.5 rounded-lg px-2.5 text-[13px] text-[color:var(--framer-fresco-menuText-color)]"
               disabled={isOnlyColumn}
               key={option.key}
+              onSelect={(e) => e.preventDefault()}
               onCheckedChange={() => {
                 const nextSelected = checked
                   ? selectedColumns.filter((column) => column !== option.key)

@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type MutableRefObject } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -208,43 +208,6 @@ function renderCellContent(
   metadata: BlogCollectionMetadata,
   columnKey: string,
 ) {
-  if (columnKey === "title") {
-    return (
-      <div className="flex min-w-0 items-center gap-3 text-inherit">
-        <span
-          aria-hidden="true"
-          className="inline-flex size-4 shrink-0 items-center justify-center"
-        >
-          <svg
-            fill="none"
-            height="16"
-            viewBox="0 0 16 16"
-            width="16"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M4 1.75H8.75L12.5 5.5V13.25C12.5 13.9404 11.9404 14.5 11.25 14.5H4.75C4.05964 14.5 3.5 13.9404 3.5 13.25V3C3.5 2.30964 4.05964 1.75 4.75 1.75H4Z"
-              fill="currentColor"
-              fillOpacity="0.18"
-              stroke="currentColor"
-              strokeLinejoin="round"
-              strokeWidth="1.2"
-            />
-            <path
-              d="M8.5 1.75V5.75H12.5"
-              stroke="currentColor"
-              strokeLinejoin="round"
-              strokeWidth="1.2"
-            />
-          </svg>
-        </span>
-        <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap align-bottom">
-          {post.title}
-        </span>
-      </div>
-    );
-  }
-
   if (columnKey.startsWith("field:")) {
     const field = getFieldForColumn(metadata, columnKey);
     const fieldId = columnKey.slice("field:".length);
@@ -268,6 +231,58 @@ function renderCellContent(
       {getCellValue(post, metadata, columnKey)}
     </span>
   );
+}
+
+function FileIcon({
+  className,
+}: {
+  className?: string;
+}) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      height="16"
+      viewBox="0 0 16 16"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M4 1.75H8.75L12.5 5.5V13.25C12.5 13.9404 11.9404 14.5 11.25 14.5H4.75C4.05964 14.5 3.5 13.9404 3.5 13.25V3C3.5 2.30964 4.05964 1.75 4.75 1.75H4Z"
+        fill="currentColor"
+        fillOpacity="0.18"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M8.5 1.75V5.75H12.5"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
+}
+
+function toggleRowSelection(
+  event: Pick<MouseEvent, "shiftKey"> | Pick<React.MouseEvent, "shiftKey">,
+  postId: string,
+  flatPostIds: string[],
+  lastClickedIndexRef: MutableRefObject<number | null>,
+  onToggleRow?: (rowId: string) => void,
+  onShiftClick?: (rowId: string) => void,
+) {
+  const postIndex = flatPostIds.indexOf(postId);
+
+  if (event.shiftKey && lastClickedIndexRef.current !== null) {
+    onShiftClick?.(postId);
+  } else {
+    onToggleRow?.(postId);
+  }
+
+  lastClickedIndexRef.current = postIndex;
 }
 
 export function BlogTable({
@@ -301,6 +316,7 @@ export function BlogTable({
 
   // Derive selection-related state
   const hasSelection = selectedRows !== undefined && onToggleRow !== undefined;
+  const isSelectionMode = hasSelection && selectedRows.size > 0;
   const allPostIds = posts.map((p) => p.id);
   const allVisibleSelected = hasSelection && allPostIds.length > 0 && allPostIds.every((id) => selectedRows.has(id));
   const someVisibleSelected = hasSelection && !allVisibleSelected && allPostIds.some((id) => selectedRows.has(id));
@@ -327,14 +343,12 @@ export function BlogTable({
     );
   }
 
-  const CHECKBOX_COL_WIDTH = 48;
-
   const tableMinWidth = columns.reduce(
     (sum, column) =>
       sum +
       (columnWidths[column.key] ??
         getColumnLimits(metadata, column.key).defaultWidth),
-    hasSelection ? CHECKBOX_COL_WIDTH : 0,
+    0,
   );
 
   const groupedPosts = [
@@ -357,7 +371,6 @@ export function BlogTable({
         style={{ minWidth: tableMinWidth }}
       >
         <colgroup>
-          {hasSelection && <col style={{ width: CHECKBOX_COL_WIDTH }} />}
           {columns.map((column) => {
             const width =
               columnWidths[column.key] ??
@@ -368,20 +381,6 @@ export function BlogTable({
         </colgroup>
         <thead>
           <tr>
-            {hasSelection && (
-              <th
-                className="sticky top-0 z-10 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-3 py-[18px] text-center"
-              >
-                <Checkbox
-                  aria-label={allVisibleSelected ? "Deselect all rows" : "Select all rows"}
-                  checked={headerCheckedState}
-                  onCheckedChange={() => {
-                    onToggleAll?.(allPostIds);
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </th>
-            )}
             {columns.map((column, index) => (
               <ContextMenu key={column.key}>
                 <ContextMenuTrigger asChild>
@@ -414,6 +413,22 @@ export function BlogTable({
                     onDragEnd={() => setDraggedColumnIndex(null)}
                   >
                     <div className="relative flex min-h-5 items-center pr-2">
+                      {column.key === "title" && hasSelection && (
+                        <span className="mr-3 inline-flex size-4 shrink-0 items-center justify-center">
+                          {isSelectionMode ? (
+                            <Checkbox
+                              aria-label={allVisibleSelected ? "Deselect all rows" : "Select all rows"}
+                              checked={headerCheckedState}
+                              onCheckedChange={() => {
+                                onToggleAll?.(allPostIds);
+                              }}
+                              onClick={(event) => event.stopPropagation()}
+                            />
+                          ) : (
+                            <FileIcon className="size-4 opacity-0" />
+                          )}
+                        </span>
+                      )}
                       <span>{column.label}</span>
                       <button
                         aria-label={`Resize ${column.label} column`}
@@ -489,7 +504,7 @@ export function BlogTable({
               >
                 <td
                   className="border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-4 text-[13px] font-bold text-[color:var(--framer-fresco-panelTitle-color)]"
-                  colSpan={columns.length + (hasSelection ? 1 : 0)}
+                  colSpan={columns.length}
                 >
                   {group.label}
                 </td>
@@ -519,29 +534,6 @@ export function BlogTable({
                       role="link"
                       tabIndex={0}
                     >
-                      {hasSelection && (
-                        <td
-                          className="border-b border-[var(--framer-fresco-panelDivider-color)] px-3 py-[18px] text-center"
-                        >
-                          <Checkbox
-                            aria-label={`Select ${post.title}`}
-                            checked={selectedRows.has(post.id)}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const postIndex = flatPostIds.indexOf(post.id);
-                              if (e.shiftKey && lastClickedIndexRef.current !== null) {
-                                onShiftClick?.(post.id);
-                              } else {
-                                onToggleRow(post.id);
-                              }
-                              lastClickedIndexRef.current = postIndex;
-                            }}
-                            onCheckedChange={() => {
-                              // Handled by onClick for shift-key detection
-                            }}
-                          />
-                        </td>
-                      )}
                       {columns.map((column) => {
                         if (column.key === "status") {
                           const isLoading = loadingPosts?.has(post.id);
@@ -571,12 +563,59 @@ export function BlogTable({
                             <td
                               className={cn(
                                 "border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-[18px] text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]",
+                                column.key === "title" && "text-[color:var(--framer-fresco-panelTitle-color)]",
                                 column.key === "slug" && "font-mono",
                               )}
                             key={column.key}
                             title={String(getCellValue(post, metadata, column.key))}
                           >
-                            {renderCellContent(post, metadata, column.key)}
+                            {column.key === "title" ? (
+                              <div className="flex min-w-0 items-center gap-3 text-inherit">
+                                <span className="relative inline-flex size-4 shrink-0 items-center justify-center">
+                                  {hasSelection && (
+                                    <Checkbox
+                                      aria-label={`Select ${post.title}`}
+                                      checked={selectedRows.has(post.id)}
+                                      className={cn(
+                                        "absolute inset-0 transition-opacity",
+                                        isSelectionMode || selectedRows.has(post.id)
+                                          ? "opacity-100"
+                                          : "opacity-0 group-hover:opacity-100",
+                                      )}
+                                      onCheckedChange={() => {
+                                        // Selection is handled by click for shift-key detection.
+                                      }}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        toggleRowSelection(
+                                          event,
+                                          post.id,
+                                          flatPostIds,
+                                          lastClickedIndexRef,
+                                          onToggleRow,
+                                          onShiftClick,
+                                        );
+                                      }}
+                                      onPointerDown={(event) => event.stopPropagation()}
+                                    />
+                                  )}
+                                  <FileIcon
+                                    className={cn(
+                                      "pointer-events-none size-4 transition-opacity",
+                                      hasSelection &&
+                                        (isSelectionMode || selectedRows.has(post.id))
+                                        ? "opacity-0"
+                                        : "opacity-100 group-hover:opacity-0",
+                                    )}
+                                  />
+                                </span>
+                                <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap align-bottom">
+                                  {post.title}
+                                </span>
+                              </div>
+                            ) : (
+                              renderCellContent(post, metadata, column.key)
+                            )}
                           </td>
                         );
                       })}

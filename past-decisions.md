@@ -331,3 +331,13 @@ The chat panel's catch-all `tool-*` renderer now tries `renderFramerToolOutput()
 **Why:** Every new chat session, the agent was making 2-6 redundant tool calls just to discover collections, fields, project info, and enum options — data that barely changes. With multi-collection support, this would get even worse (N collections × field/enum fetches). The snapshot eliminates all discovery calls. The agent can still call the tools to refresh after a mutation.
 
 **Scope:** `src/lib/ai-context-snapshot.ts` (new), `src/app/api/ai/chat/route.ts` (modified system prompt + snapshot injection).
+
+## 2026-03-19 — Add retry with exponential backoff to Framer API connections
+
+**What changed:** `withFramerProject()` in `framer-core.ts` now retries transient connection errors up to 2 times (3 total attempts) with exponential backoff (500ms, 1s). Also bumped the metadata cache TTL in `framer.ts` from 30 seconds to 5 minutes.
+
+**Why:** The Framer API connection (`withConnection` from `framer-api`) was failing intermittently in both dev and prod with `FramerAPIError: No connection to the server`. The existing `isTransientFramerError()` detection in `framer-errors.ts` correctly identified retryable errors but nothing actually retried them — the error propagated straight to the user. The 30s metadata cache also caused excessive reconnections since metadata barely changes.
+
+**How it works:** A new `isTransientConnectionError()` function checks `isRetryableError()` from `framer-api` plus string matching for "no connection", "session expired", and "project_closed". On transient failure, the function waits `500ms * 2^attempt` before retrying. Each retry emits a `framer.connection.retry` wide event log with attempt number, delay, error message, and project ID. Non-transient errors throw immediately without retry.
+
+**Scope:** `src/lib/framer-core.ts` (retry wrapper around `withConnection`), `src/lib/framer.ts` (cache TTL 30s → 5min). No changes to route handlers or UI — the retry is transparent to all callers of `withFramerProject`.

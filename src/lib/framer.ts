@@ -38,7 +38,7 @@ import {
 } from "@/lib/framer-core";
 import { getFramerRuntimeContext } from "@/lib/framer-runtime";
 
-const METADATA_CACHE_TTL_MS = 30_000;
+const METADATA_CACHE_TTL_MS = 5 * 60_000;
 
 let cachedMetadata:
   | {
