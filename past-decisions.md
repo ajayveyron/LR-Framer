@@ -341,3 +341,48 @@ The chat panel's catch-all `tool-*` renderer now tries `renderFramerToolOutput()
 **How it works:** A new `isTransientConnectionError()` function checks `isRetryableError()` from `framer-api` plus string matching for "no connection", "session expired", and "project_closed". On transient failure, the function waits `500ms * 2^attempt` before retrying. Each retry emits a `framer.connection.retry` wide event log with attempt number, delay, error message, and project ID. Non-transient errors throw immediately without retry.
 
 **Scope:** `src/lib/framer-core.ts` (retry wrapper around `withConnection`), `src/lib/framer.ts` (cache TTL 30s → 5min). No changes to route handlers or UI — the retry is transparent to all callers of `withFramerProject`.
+
+## 2026-03-19 — Finalized plan token allowances
+
+**What changed:** Set concrete token allowances for both plans: Free = 100K tokens/month, Pro = 10M tokens/month at $8/month.
+
+**Why:** Cost analysis with actual model pricing (Gemini 3.1 Flash Lite at $0.25/1M input, $1.50/1M output for chat; Gemini 3.1 Flash Image at $0.50/$3/$60 per 1M for image gen) shows healthy margins at $8/month even with 10M tokens. Worst case all-chat usage at 10M tokens costs ~$8.75, realistic usage (~2.5M) costs ~$2-3. Free tier at 100K costs ~$0.09/month per user.
+
+**Also fixed:** The `GEMINI_TEXT_MODEL` comment in `env.ts` incorrectly said "Gemini 3.1 Pro" but the actual model is `gemini-3.1-flash-lite-preview` (Flash Lite). Comment corrected.
+
+**Scope:** Plan_Config in the billing spec, `src/lib/env.ts` comment fix.
+
+## 2026-03-19 — Finalized AI plan token allowances and chat model
+
+**What changed:** 
+1. Free plan: 100K tokens/month ($0/month). Pro plan: 10M tokens/month ($8/month).
+2. The AI chat model is Gemini 3.1 Flash Lite (`gemini-3.1-flash-lite-preview`), not Gemini 3.1 Pro. Updated the billing spec glossary and introduction accordingly.
+3. The AI image model remains Gemini 3.1 Flash Image Preview (`gemini-3.1-flash-image-preview`) — no change.
+
+**Why:** User finalized the actual token budgets per plan and confirmed the real models in use. The chat route was already using Flash Lite (as seen in `env.ts` constant `GEMINI_TEXT_MODEL`), but the billing spec still referenced "Gemini 3.1 Pro" from an earlier decision. Corrected to match reality.
+
+**Scope:** `.kiro/specs/ai-usage-billing/requirements.md` (introduction, glossary, Requirement 11 acceptance criteria).
+
+## 2026-03-19 — Plans scoped to project/organization, not individual users
+
+**What changed:** Subscription plans and token allowances are scoped to the Clerk organization (project), not individual user accounts. All team members in an organization share the same token pool.
+
+**Why:** Prevents abuse from users creating temporary accounts to get multiple free tiers. A project gets one plan with one token pool — all members draw from it. Individual user usage is still tracked for per-user breakdowns, but quota enforcement happens at the org level.
+
+**Scope:** Affects all billing requirements — subscription state, usage tracking, quota enforcement, and UI are all org-scoped.
+
+## 2026-03-19 — Billing and plans scoped to Organization, not individual users
+
+**What changed:** Updated the ai-usage-billing requirements to make it explicit that subscription plans, token allowances, and usage quotas are scoped to the Organization (Clerk organization / project), not to individual users. Added `Organization_Token_Pool` glossary term. Added new acceptance criteria for org-level-only quota enforcement (Req 3.6), per-user breakdown queries (Req 2.5), one-subscription-per-org constraint (Req 4.9), and anti-abuse token pool rule (Req 1.7).
+
+**Why:** Prevents abuse from users creating temporary accounts to get multiple free tiers. All team members within an Organization share the same plan and token pool. The Free tier is per-Organization — adding new user accounts to an existing org doesn't grant extra tokens. Individual user usage is still tracked (for per-user breakdowns in the UI) but quota enforcement happens at the Organization level only.
+
+**Scope:** Affects the entire ai-usage-billing spec — Introduction, Glossary, and Requirements 1–7, 10, 11 were updated to use "Organization" consistently and clarify the scoping model.
+
+## 2026-03-19 — Unique Framer project ID per organization
+
+**What changed:** Added a constraint that two organizations cannot share the same Framer project ID. If an org tries to onboard with a project ID already claimed by another org, it's rejected.
+
+**Why:** Prevents abuse where someone connects the same Framer project to multiple orgs to double-dip on free tiers or circumvent billing. One Framer project = one organization = one plan.
+
+**Scope:** Affects onboarding/project setup flow and the billing spec (Requirement 12).

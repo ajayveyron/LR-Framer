@@ -117,7 +117,7 @@ const aiEnvSchema = z.object({
   GOOGLE_CLOUD_LOCATION: z.string().optional(),
 });
 
-/** Gemini 3.1 Pro — advanced reasoning, text generation */
+/** Gemini 3.1 Flash Lite — fast, cost-efficient text generation */
 export const GEMINI_TEXT_MODEL = "gemini-3.1-flash-lite-preview";
 /** Nano Banana 2 (Gemini 3.1 Flash Image) — image generation */
 export const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image-preview";
