@@ -12,7 +12,7 @@ export default async function BillingPage() {
 
   return (
     <main className="dashboard-page-shell">
-      <section className="mx-auto grid w-full max-w-6xl gap-10">
+      <section className="grid w-full gap-10">
         <div className="grid gap-2">
           <h1 className="settings-heading">Usage &amp; Billing</h1>
           <p className="max-w-2xl text-sm text-[color:var(--framer-fresco-panelDescription-color)]">

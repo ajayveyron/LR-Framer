@@ -23,7 +23,7 @@ function DashboardPageFrame({
 }) {
   return (
     <main className="dashboard-page-shell">
-      <section className="mx-auto grid w-full max-w-6xl gap-10">
+      <section className="grid w-full gap-10">
         {children}
       </section>
     </main>

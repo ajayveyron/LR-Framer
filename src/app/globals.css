@@ -408,7 +408,7 @@
   }
 
   .dashboard-page-shell {
-    @apply p-4 sm:p-7;
+    @apply mx-auto w-full max-w-4xl p-4 sm:p-7;
   }
 
   :root.framer-status-banner-active {
