@@ -68,21 +68,21 @@ Implement token-based AI usage billing and metering for FramerLink. The plan bui
     - On failure: logs wide event error `billing.usage.record_failed` and swallows the exception (non-blocking)
     - _Requirements: 1.1, 1.2, 1.3, 1.5, 1.6, 1.7, 10.1_
 
-  - [~] 4.2 Integrate `trackTokenUsage` into `/api/ai/chat/route.ts`
+  - [ ] 4.2 Integrate `trackTokenUsage` into `/api/ai/chat/route.ts`
     - In the `onFinish` callback, call `trackTokenUsage` with featureType "chat", usage from `usage.promptTokens`/`usage.completionTokens`, and the org/user IDs from Clerk auth
     - Include all tool-call-related tokens in the total (Vercel AI SDK aggregates these in `usage` automatically)
     - _Requirements: 1.1, 1.4, 1.7_
 
-  - [~] 4.3 Integrate `trackTokenUsage` into `/api/ai/image/route.ts`
+  - [ ] 4.3 Integrate `trackTokenUsage` into `/api/ai/image/route.ts`
     - After successful image generation, call `trackTokenUsage` with featureType "image"
     - Use `result.usage.promptTokens`/`result.usage.completionTokens` if available, otherwise apply `FALLBACK_IMAGE_TOKEN_COST`
     - _Requirements: 1.2, 9.1, 9.2, 9.3_
 
-  - [~] 4.4 Integrate `trackTokenUsage` into `/api/ai/rewrite/route.ts`
+  - [ ] 4.4 Integrate `trackTokenUsage` into `/api/ai/rewrite/route.ts`
     - After successful rewrite, call `trackTokenUsage` with featureType "rewrite" using `result.usage`
     - _Requirements: 1.1, 1.7_
 
-  - [~] 4.5 Integrate `trackTokenUsage` for `generate_and_upload_image` tool in `src/lib/ai-image-tool.ts`
+  - [ ] 4.5 Integrate `trackTokenUsage` for `generate_and_upload_image` tool in `src/lib/ai-image-tool.ts`
     - After the tool's image generation completes, call `trackTokenUsage` with featureType "image_tool" as a separate record from the parent chat session
     - _Requirements: 1.3_
 

@@ -216,3 +216,29 @@ export const saveSiteSetup = mutationGeneric({
     }
   },
 });
+
+export const saveFramerDashboardSnapshot = mutationGeneric({
+  args: {
+    clerkOrganizationId: v.string(),
+    snapshotJson: v.string(),
+    syncedAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existingSite = await getSiteByOrganizationId(
+      ctx.db,
+      args.clerkOrganizationId,
+    );
+
+    if (!existingSite) {
+      return null;
+    }
+
+    await ctx.db.patch(existingSite._id, {
+      framerDashboardSnapshotJson: args.snapshotJson,
+      framerDashboardSnapshotSyncedAt: args.syncedAt,
+      updatedAt: Date.now(),
+    });
+
+    return existingSite._id;
+  },
+});

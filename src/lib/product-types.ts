@@ -13,6 +13,8 @@ export interface ProductSite {
   framerProjectUrl?: string | null;
   framerCollectionId?: string | null;
   framerCollectionName?: string | null;
+  framerDashboardSnapshotJson?: string | null;
+  framerDashboardSnapshotSyncedAt?: number | null;
   framerMetadataJson?: string | null;
   createdByUserId: string;
   createdAt: number;

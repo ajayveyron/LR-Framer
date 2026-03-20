@@ -262,15 +262,22 @@
 
   html,
   body {
+    height: 100%;
     min-height: 100%;
+    overscroll-behavior: none;
   }
 
   html {
     @apply font-sans;
+    overflow: hidden;
+    overflow-x: hidden;
   }
 
   body {
+    min-height: 100dvh;
     margin: 0;
+    overflow: hidden;
+    overflow-x: hidden;
     color: var(--foreground);
     background-color: var(--background);
     background-image: linear-gradient(
@@ -278,6 +285,7 @@
       var(--framer-app-shell-start-color) 0%,
       var(--framer-app-shell-end-color) 100%
     );
+    --dashboard-banner-offset: 0px;
   }
 
   a {
@@ -299,14 +307,78 @@
 
 @layer components {
   .framer-shell {
-    @apply min-h-screen p-4 sm:p-7;
+    @apply min-h-screen overflow-y-auto p-4 sm:p-7;
     background-color: var(--background);
     background-image: none;
+    min-height: 100dvh;
+    overscroll-behavior: none;
   }
 
   .settings-shell {
-    @apply min-h-screen p-4 sm:p-7;
+    @apply min-h-screen overflow-y-auto p-4 sm:p-7;
     background: #1D1D1D;
+    min-height: 100dvh;
+    overscroll-behavior: none;
+  }
+
+  .dashboard-shell {
+    @apply bg-black md:grid md:grid-cols-[260px_minmax(0,1fr)];
+    height: calc(100dvh - var(--dashboard-banner-offset));
+    min-height: calc(100dvh - var(--dashboard-banner-offset));
+    overflow: hidden;
+    padding-top: var(--dashboard-banner-offset);
+  }
+
+  .dashboard-sidebar {
+    @apply sticky flex-col overflow-y-auto border-r px-5 py-6;
+    border-color: rgba(255, 255, 255, 0.06);
+    overscroll-behavior: contain;
+    top: var(--dashboard-banner-offset);
+    height: calc(100dvh - var(--dashboard-banner-offset));
+  }
+
+  .dashboard-sidebar-link {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors;
+    color: var(--framer-fresco-panelSubtitle-color);
+  }
+
+  .dashboard-sidebar-link:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--framer-fresco-panelTitle-color);
+  }
+
+  .dashboard-sidebar-link-active {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--framer-fresco-panelTitle-color);
+  }
+
+  .dashboard-main {
+    @apply min-w-0;
+    height: calc(100dvh - var(--dashboard-banner-offset));
+    overflow-y: auto;
+    overscroll-behavior: none;
+  }
+
+  .dashboard-mobile-bar {
+    @apply sticky top-0 z-30 flex items-center justify-between border-b px-4 py-3;
+    border-color: rgba(255, 255, 255, 0.06);
+    background: rgba(0, 0, 0, 0.92);
+    backdrop-filter: blur(10px);
+    top: var(--dashboard-banner-offset);
+  }
+
+  .dashboard-page-shell {
+    @apply p-4 sm:p-7;
+  }
+
+  :root.framer-status-banner-active {
+    --dashboard-banner-offset: 78px;
+  }
+
+  @media (min-width: 768px) {
+    :root.framer-status-banner-active {
+      --dashboard-banner-offset: 62px;
+    }
   }
 
   .settings-section {
@@ -700,5 +772,16 @@
     border-color: var(--framer-app-warning-callout-border-color);
     background-color: var(--framer-app-warning-callout-background-color);
     color: var(--framer-app-warning-callout-text-color);
+  }
+
+  .framer-striped-banner {
+    border-color: var(--framer-app-warning-callout-border-color);
+    background:
+      repeating-linear-gradient(
+        -45deg,
+        rgba(255, 207, 97, 0.12) 0 14px,
+        rgba(255, 207, 97, 0.22) 14px 28px
+      ),
+      rgba(245, 158, 11, 0.14);
   }
 }

@@ -133,18 +133,24 @@ export function TeamManager() {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-6 border-b border-[rgba(255,255,255,0.06)]">
+      <div
+        aria-label="Team sections"
+        className="flex items-center gap-8 border-b border-[rgba(255,255,255,0.06)]"
+        role="tablist"
+      >
         <Button
-          aria-pressed={activeTab === "members"}
+          aria-selected={activeTab === "members"}
           onClick={() => setActiveTab("members")}
+          role="tab"
           size="sm"
+          tabIndex={activeTab === "members" ? 0 : -1}
           type="button"
           variant="ghost"
           className={cn(
-            "rounded-none border-b-2 px-0 pb-3 pt-0 settings-label transition-colors hover:bg-transparent",
+            "h-auto rounded-none border-x-0 border-t-0 border-b-2 bg-transparent px-0 pb-3 pt-0 settings-label shadow-none transition-colors hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 active:translate-y-0",
             activeTab === "members"
-              ? "border-[color:var(--framer-fresco-tint-color)] text-[color:var(--framer-fresco-panelTitle-color)]"
-              : "border-transparent text-[color:var(--framer-fresco-panelSubtitle-color)] hover:text-[color:var(--framer-fresco-panelTitle-color)]",
+              ? "border-[color:var(--framer-fresco-tint-color)] text-[color:var(--framer-fresco-panelTitle-color)] focus-visible:border-[color:var(--framer-fresco-tint-color)]"
+              : "border-transparent text-[color:var(--framer-fresco-panelSubtitle-color)] hover:text-[color:var(--framer-fresco-panelTitle-color)] focus-visible:border-transparent",
           )}
         >
           Members
@@ -153,16 +159,18 @@ export function TeamManager() {
           </Badge>
         </Button>
         <Button
-          aria-pressed={activeTab === "invitations"}
+          aria-selected={activeTab === "invitations"}
           onClick={() => setActiveTab("invitations")}
+          role="tab"
           size="sm"
+          tabIndex={activeTab === "invitations" ? 0 : -1}
           type="button"
           variant="ghost"
           className={cn(
-            "rounded-none border-b-2 px-0 pb-3 pt-0 settings-label transition-colors hover:bg-transparent",
+            "h-auto rounded-none border-x-0 border-t-0 border-b-2 bg-transparent px-0 pb-3 pt-0 settings-label shadow-none transition-colors hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 active:translate-y-0",
             activeTab === "invitations"
-              ? "border-[color:var(--framer-fresco-tint-color)] text-[color:var(--framer-fresco-panelTitle-color)]"
-              : "border-transparent text-[color:var(--framer-fresco-panelSubtitle-color)] hover:text-[color:var(--framer-fresco-panelTitle-color)]",
+              ? "border-[color:var(--framer-fresco-tint-color)] text-[color:var(--framer-fresco-panelTitle-color)] focus-visible:border-[color:var(--framer-fresco-tint-color)]"
+              : "border-transparent text-[color:var(--framer-fresco-panelSubtitle-color)] hover:text-[color:var(--framer-fresco-panelTitle-color)] focus-visible:border-transparent",
           )}
         >
           Invitations

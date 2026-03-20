@@ -59,7 +59,7 @@ export default function RootLayout({
 
   return (
     <html lang="en" className={cn("dark font-sans", geist.variable)}>
-      <body className={`${geist.variable} ${heading.variable}`}>
+      <body className={`${geist.variable}  overscroll-none ${heading.variable}`}>
         {content}
       </body>
     </html>

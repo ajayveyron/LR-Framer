@@ -1,10 +1,7 @@
 "use client";
 import {
   Fragment,
-  useEffect,
   useRef,
-  useState,
-  type DragEvent,
   type MutableRefObject,
 } from "react";
 
@@ -29,18 +26,16 @@ import { cn } from "@/lib/utils";
 
 type BlogTableProps = {
   activePostId?: string | null;
+  actionsDisabled?: boolean;
   columns: Array<{ key: string; label: string }>;
   metadata: BlogCollectionMetadata;
   onOpenPost: (postId: string) => void;
   posts: BlogPostRecord[];
   role: SiteRole;
   loadingPosts?: Set<string>;
-  onHideColumn?: (columnKey: string) => void;
-  onReorderColumns?: (sourceIndex: number, destinationIndex: number) => void;
   onDraftToggle?: (post: BlogPostRecord) => void;
   onDelete?: (postId: string) => void;
   selectedRows?: Set<string>;
-  stickyTopOffset?: number;
   onToggleRow?: (rowId: string) => void;
   onToggleAll?: (visibleRowIds: string[]) => void;
   onShiftClick?: (rowId: string) => void;
@@ -139,10 +134,6 @@ function getColumnLimits(
     default:
       return { defaultWidth: 220, minWidth: 140, maxWidth: 420 };
   }
-}
-
-function clampWidth(value: number, limits: ColumnLimits) {
-  return Math.min(limits.maxWidth, Math.max(limits.minWidth, value));
 }
 
 function formatFieldValue(
@@ -295,34 +286,20 @@ function toggleRowSelection(
 
 export function BlogTable({
   activePostId = null,
+  actionsDisabled = false,
   columns,
   metadata,
   onOpenPost,
   posts,
   role,
   loadingPosts,
-  onHideColumn,
-  onReorderColumns,
   onDraftToggle,
   onDelete,
   selectedRows,
   onToggleRow,
   onToggleAll,
   onShiftClick,
-  stickyTopOffset = 0,
 }: BlogTableProps) {
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() =>
-    Object.fromEntries(
-      columns.map((column) => [
-        column.key,
-        getColumnLimits(metadata, column.key).defaultWidth,
-      ]),
-    ),
-  );
-  const [draggingColumn, setDraggingColumn] = useState<string | null>(null);
-  const [draggedColumnIndex, setDraggedColumnIndex] = useState<number | null>(null);
-  const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number | null>(null);
-  const [dropIndicatorSide, setDropIndicatorSide] = useState<"left" | "right" | null>(null);
   const lastClickedIndexRef = useRef<number | null>(null);
 
   // Derive selection-related state
@@ -335,25 +312,6 @@ export function BlogTable({
 
   // Build a flat ordered list of post IDs for shift-click index tracking
   const flatPostIds = posts.map((p) => p.id);
-
-  useEffect(() => {
-    return () => {
-      document.body.style.removeProperty("cursor");
-      document.body.style.removeProperty("user-select");
-    };
-  }, []);
-
-  function getDropIndicatorIndex(
-    event: DragEvent<HTMLTableCellElement>,
-    index: number,
-  ): { index: number; side: "left" | "right" } {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const insertAfter = event.clientX > bounds.left + bounds.width / 2;
-    return {
-      index: Math.max(1, insertAfter ? index + 1 : index),
-      side: insertAfter ? "right" : "left" as const,
-    };
-  }
 
   if (posts.length === 0) {
     return (
@@ -369,11 +327,9 @@ export function BlogTable({
   const tableMinWidth = columns.reduce(
     (sum, column) =>
       sum +
-      (columnWidths[column.key] ??
-        getColumnLimits(metadata, column.key).defaultWidth),
+      getColumnLimits(metadata, column.key).defaultWidth,
     0,
   );
-  const HEADER_DIVIDER_OFFSET = 9;
 
   const groupedPosts = [
     {
@@ -396,215 +352,41 @@ export function BlogTable({
       >
         <colgroup>
           {columns.map((column) => {
-            const width =
-              columnWidths[column.key] ??
-              getColumnLimits(metadata, column.key).defaultWidth;
+            const width = getColumnLimits(metadata, column.key).defaultWidth;
 
             return <col key={column.key} style={{ width }} />;
           })}
         </colgroup>
         <thead>
           <tr>
-            {columns.map((column, index) => (
-              <ContextMenu key={column.key}>
-                <ContextMenuTrigger asChild>
-                  <th
-                    className={cn(
-                      "relative sticky z-10 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-[22px] py-[18px] text-left text-xs font-semibold text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors",
-                      column.key === "slug" && "font-mono",
-                      draggedColumnIndex === index && "opacity-50",
-                      draggedColumnIndex !== null &&
-                        (dropIndicatorIndex === index ||
-                          (index === columns.length - 1 &&
-                            dropIndicatorIndex === columns.length)) &&
-                        "bg-[rgba(59,130,246,0.12)]",
-                    )}
-                    style={{ top: stickyTopOffset }}
-                    draggable={column.key !== "title"}
-                    onDragStart={(event) => {
-                      if (draggingColumn) {
-                        event.preventDefault();
-                        return;
-                      }
-                      if (column.key === "title") {
-                        event.preventDefault();
-                        return;
-                      }
-                      setDraggedColumnIndex(index);
-                      event.dataTransfer.effectAllowed = "move";
-                    }}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = "move";
-                      if (draggedColumnIndex === null) {
-                        return;
-                      }
-                      const nextDropIndicator = getDropIndicatorIndex(event, index);
-                      setDropIndicatorIndex(nextDropIndicator.index);
-                      setDropIndicatorSide(nextDropIndicator.side);
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      if (draggedColumnIndex !== null) {
-                        const insertion = getDropIndicatorIndex(event, index);
-                        const insertionIndex = insertion.index;
-                        const destinationIndex =
-                          draggedColumnIndex < insertionIndex
-                            ? insertionIndex - 1
-                            : insertionIndex;
-
-                        if (draggedColumnIndex !== destinationIndex) {
-                          onReorderColumns?.(draggedColumnIndex, destinationIndex);
-                        }
-                      }
-                      setDraggedColumnIndex(null);
-                      setDropIndicatorIndex(null);
-                      setDropIndicatorSide(null);
-                    }}
-                    onDragLeave={(event) => {
-                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                        setDropIndicatorIndex(null);
-                        setDropIndicatorSide(null);
-                      }
-                    }}
-                    onDragEnd={() => {
-                      setDraggedColumnIndex(null);
-                      setDropIndicatorIndex(null);
-                      setDropIndicatorSide(null);
-                    }}
-                  >
-                    {draggedColumnIndex !== null && dropIndicatorIndex === index && (
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          "pointer-events-none absolute inset-y-0 w-1.5 rounded-full bg-[#3b82f6] shadow-[0_0_0_2px_var(--framer-fresco-panelBackground-color)]",
-                          dropIndicatorSide === "right" ? "right-0" : "left-0",
-                        )}
-                        style={{
-                          transform:
-                            dropIndicatorSide === "right"
-                              ? `translateX(calc(50% - ${HEADER_DIVIDER_OFFSET}px))`
-                              : `translateX(calc(-50% - ${HEADER_DIVIDER_OFFSET}px))`,
-                        }}
-                      />
-                    )}
-                    {draggedColumnIndex !== null && dropIndicatorIndex === index && (
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          "pointer-events-none absolute top-2 size-3 rounded-full border-2 border-[var(--framer-fresco-panelBackground-color)] bg-[#3b82f6]",
-                          dropIndicatorSide === "right"
-                            ? "right-0"
-                            : "left-0",
-                        )}
-                        style={{
-                          transform:
-                            dropIndicatorSide === "right"
-                              ? `translateX(calc(50% - ${HEADER_DIVIDER_OFFSET}px))`
-                              : `translateX(calc(-50% - ${HEADER_DIVIDER_OFFSET}px))`,
-                        }}
-                      />
-                    )}
-                    {draggedColumnIndex !== null &&
-                      index === columns.length - 1 &&
-                      dropIndicatorIndex === columns.length && (
-                        <>
-                          <span
-                            aria-hidden="true"
-                            className="pointer-events-none absolute inset-y-0 right-0 w-1.5 rounded-full bg-[#3b82f6] shadow-[0_0_0_2px_var(--framer-fresco-panelBackground-color)]"
-                            style={{
-                              transform: `translateX(calc(50% - ${HEADER_DIVIDER_OFFSET}px))`,
-                            }}
-                          />
-                          <span
-                            aria-hidden="true"
-                            className="pointer-events-none absolute right-0 top-2 size-3 rounded-full border-2 border-[var(--framer-fresco-panelBackground-color)] bg-[#3b82f6]"
-                            style={{
-                              transform: `translateX(calc(50% - ${HEADER_DIVIDER_OFFSET}px))`,
-                            }}
-                          />
-                        </>
+            {columns.map((column) => (
+              <th
+                className={cn(
+                  "relative z-10 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-[22px] py-[18px] text-left text-xs font-semibold text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors",
+                  column.key === "slug" && "font-mono",
+                )}
+                key={column.key}
+              >
+                <div className="relative flex min-h-5 items-center pr-2">
+                  {column.key === "title" && hasSelection && (
+                    <span className="mr-3 inline-flex size-4 shrink-0 items-center justify-center">
+                      {isSelectionMode ? (
+                        <Checkbox
+                          aria-label={allVisibleSelected ? "Deselect all rows" : "Select all rows"}
+                          checked={headerCheckedState}
+                          onCheckedChange={() => {
+                            onToggleAll?.(allPostIds);
+                          }}
+                          onClick={(event) => event.stopPropagation()}
+                        />
+                      ) : (
+                        <FileIcon className="size-4 opacity-0" />
                       )}
-                    <div className="relative flex min-h-5 items-center pr-2">
-                      {column.key === "title" && hasSelection && (
-                        <span className="mr-3 inline-flex size-4 shrink-0 items-center justify-center">
-                          {isSelectionMode ? (
-                            <Checkbox
-                              aria-label={allVisibleSelected ? "Deselect all rows" : "Select all rows"}
-                              checked={headerCheckedState}
-                              onCheckedChange={() => {
-                                onToggleAll?.(allPostIds);
-                              }}
-                              onClick={(event) => event.stopPropagation()}
-                            />
-                          ) : (
-                            <FileIcon className="size-4 opacity-0" />
-                          )}
-                        </span>
-                      )}
-                      <span>{column.label}</span>
-                      <button
-                        aria-label={`Resize ${column.label} column`}
-                        className={cn(
-                          "absolute top-[-14px] right-[-12px] h-[calc(100%+28px)] w-6 cursor-col-resize touch-none bg-transparent p-0 after:absolute after:top-[20%] after:bottom-[20%] after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-[var(--framer-fresco-panelDivider-color)] after:transition-colors hover:after:bg-[var(--framer-fresco-panelSubtitle-color)] focus-visible:outline-none focus-visible:after:bg-[var(--framer-fresco-panelSubtitle-color)]",
-                          draggingColumn === column.key &&
-                            "after:bg-[var(--framer-fresco-panelSubtitle-color)]",
-                        )}
-                        onPointerDown={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-
-                          const limits = getColumnLimits(metadata, column.key);
-                          const startWidth =
-                            columnWidths[column.key] ?? limits.defaultWidth;
-                          const startX = event.clientX;
-
-                          setDraggingColumn(column.key);
-                          document.body.style.cursor = "col-resize";
-                          document.body.style.userSelect = "none";
-
-                          const handlePointerMove = (moveEvent: PointerEvent) => {
-                            const nextWidth = clampWidth(
-                              startWidth + moveEvent.clientX - startX,
-                              limits,
-                            );
-
-                            setColumnWidths((current) => ({
-                              ...current,
-                              [column.key]: nextWidth,
-                            }));
-                          };
-
-                          const stopDragging = () => {
-                            setDraggingColumn(null);
-                            document.body.style.removeProperty("cursor");
-                            document.body.style.removeProperty("user-select");
-                            window.removeEventListener(
-                              "pointermove",
-                              handlePointerMove,
-                            );
-                            window.removeEventListener("pointerup", stopDragging);
-                            window.removeEventListener(
-                              "pointercancel",
-                              stopDragging,
-                            );
-                          };
-
-                          window.addEventListener("pointermove", handlePointerMove);
-                          window.addEventListener("pointerup", stopDragging);
-                          window.addEventListener("pointercancel", stopDragging);
-                        }}
-                        type="button"
-                      />
-                    </div>
-                  </th>
-                </ContextMenuTrigger>
-                <ContextMenuContent>
-                  <ContextMenuItem onSelect={() => onHideColumn?.(column.key)}>
-                    Hide Column
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
+                    </span>
+                  )}
+                  <span>{column.label}</span>
+                </div>
+              </th>
             ))}
           </tr>
         </thead>
@@ -616,7 +398,7 @@ export function BlogTable({
                 key={`${group.key}-label`}
               >
                 <td
-                  className="border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-4 text-[13px] font-bold text-[color:var(--framer-fresco-panelTitle-color)]"
+                  className="border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-4 text-sm font-bold text-[color:var(--framer-fresco-panelTitle-color)]"
                   colSpan={columns.length}
                 >
                   {group.label}
@@ -652,12 +434,12 @@ export function BlogTable({
                           const isLoading = loadingPosts?.has(post.id);
                           return (
                             <td
-                              className="border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-[18px] text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]"
+                              className="border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-[18px] text-xs text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]"
                               key={column.key}
                             >
                               <Badge
                                 className={cn(
-                                  "h-[26px] px-2.5 text-xs font-semibold data-[loading=true]:bg-transparent data-[loading=true]:opacity-80 transition-opacity",
+                                  "h-6 px-2 text-[11px] font-semibold data-[loading=true]:bg-transparent data-[loading=true]:opacity-80 transition-opacity",
                                   post.draft
                                     ? "framer-status-pill framer-status-pill-draft"
                                     : "framer-status-pill framer-status-pill-live",
@@ -675,7 +457,7 @@ export function BlogTable({
                         return (
                             <td
                               className={cn(
-                                "border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-[18px] text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]",
+                                "border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-[18px] text-xs text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]",
                                 column.key === "title" && "text-[color:var(--framer-fresco-panelTitle-color)]",
                                 column.key === "slug" && "font-mono",
                               )}
@@ -722,7 +504,7 @@ export function BlogTable({
                                     )}
                                   />
                                 </span>
-                                <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap align-bottom">
+                                <span className="block max-w-full overflow-hidden text-[13px] whitespace-nowrap align-bottom">
                                   {post.title}
                                 </span>
                               </div>
@@ -736,6 +518,7 @@ export function BlogTable({
                   </ContextMenuTrigger>
                   <ContextMenuContent>
                     <ContextMenuItem
+                      disabled={actionsDisabled}
                       onSelect={() => {
                         onDraftToggle?.(post);
                       }}
@@ -746,6 +529,7 @@ export function BlogTable({
                       <>
                         <ContextMenuSeparator />
                         <ContextMenuItem
+                          disabled={actionsDisabled}
                           variant="destructive"
                           onSelect={() => {
                             if (window.confirm("Are you sure you want to delete this post?")) {

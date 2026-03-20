@@ -36,6 +36,11 @@ import {
   updateBlogPost as updateBlogPostCore,
   updateEnumCase as updateEnumCaseCore,
 } from "@/lib/framer-core";
+import {
+  readDashboardOverviewSnapshot,
+  writeDashboardOverviewSnapshot,
+} from "@/lib/framer-dashboard-snapshot";
+import { logError } from "@/lib/logger";
 import { getFramerRuntimeContext } from "@/lib/framer-runtime";
 
 const METADATA_CACHE_TTL_MS = 5 * 60_000;
@@ -43,6 +48,7 @@ const COLLECTIONS_CACHE_TTL_MS = 5 * 60_000;
 const DASHBOARD_OVERVIEW_CACHE_TTL_MS = 30_000;
 
 type CacheEntry<T> = {
+  cachedAt: number;
   expiresAt: number;
   value: T;
 };
@@ -53,6 +59,7 @@ const dashboardOverviewCache = new Map<
   string,
   CacheEntry<Awaited<ReturnType<typeof getDashboardOverviewCore>>>
 >();
+type DashboardOverview = Awaited<ReturnType<typeof getDashboardOverviewCore>>;
 
 function getProjectCacheKey() {
   const runtimeContext = getFramerRuntimeContext();
@@ -74,8 +81,11 @@ function readCache<T>(cache: Map<string, CacheEntry<T>>, key: string) {
     return entry.value;
   }
 
-  cache.delete(key);
   return null;
+}
+
+function getCachedEntry<T>(cache: Map<string, CacheEntry<T>>, key: string) {
+  return cache.get(key) ?? null;
 }
 
 function writeCache<T>(
@@ -85,6 +95,7 @@ function writeCache<T>(
   value: T,
 ) {
   cache.set(key, {
+    cachedAt: Date.now(),
     expiresAt: Date.now() + ttlMs,
     value,
   });
@@ -136,15 +147,56 @@ export async function getBlogMetadata() {
 
 export async function getDashboardOverview(limit?: number) {
   const cacheKey = getDashboardOverviewCacheKey(limit);
-  return (
-    readCache(dashboardOverviewCache, cacheKey) ??
-    writeCache(
-      dashboardOverviewCache,
-      cacheKey,
-      DASHBOARD_OVERVIEW_CACHE_TTL_MS,
-      await getDashboardOverviewCore(limit),
-    )
+  const cached = readCache(dashboardOverviewCache, cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const overview = await getDashboardOverviewCore(limit);
+  writeCache(
+    dashboardOverviewCache,
+    cacheKey,
+    DASHBOARD_OVERVIEW_CACHE_TTL_MS,
+    overview,
   );
+  await writeDashboardOverviewSnapshot<DashboardOverview>(cacheKey, {
+    cachedAt: Date.now(),
+    value: overview,
+  });
+
+  return overview;
+}
+
+export async function getCachedDashboardOverviewSnapshot(limit?: number) {
+  const cacheKey = getDashboardOverviewCacheKey(limit);
+  const entry = getCachedEntry(dashboardOverviewCache, cacheKey);
+  if (!entry) {
+    try {
+      const persisted = await readDashboardOverviewSnapshot<DashboardOverview>(
+        cacheKey,
+      );
+      if (!persisted) {
+        return null;
+      }
+
+      writeCache(
+        dashboardOverviewCache,
+        cacheKey,
+        DASHBOARD_OVERVIEW_CACHE_TTL_MS,
+        persisted.value,
+      );
+
+      return persisted;
+    } catch (error) {
+      logError("framer.snapshot.read_failed", error, { cacheKey });
+      return null;
+    }
+  }
+
+  return {
+    cachedAt: entry.cachedAt,
+    value: entry.value,
+  };
 }
 
 export async function listBlogPosts() {

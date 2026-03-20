@@ -1251,12 +1251,14 @@ function RichTextInput({
 }
 
 export function PostEditor({
+  framerUnavailable = false,
   metadata,
   mode,
   onClose,
   onPostSaved,
   post,
 }: {
+  framerUnavailable?: boolean;
   metadata: BlogCollectionMetadata;
   mode: "create" | "edit";
   onClose: () => void;
@@ -1357,6 +1359,11 @@ export function PostEditor({
     path: `fieldValues.${string}`,
     event: ChangeEvent<HTMLInputElement>,
   ) {
+    if (framerUnavailable) {
+      notify.error("Framer is temporarily unavailable.");
+      return;
+    }
+
     const file = event.target.files?.[0];
     if (!file) {
       return;
@@ -1406,6 +1413,13 @@ export function PostEditor({
   }
 
   function submitValues(values: FormValues) {
+    if (framerUnavailable) {
+      const message = "Framer is temporarily unavailable.";
+      setServerError(message);
+      notify.error(message);
+      return;
+    }
+
     setServerError(null);
     form.clearErrors();
 
@@ -1464,6 +1478,13 @@ export function PostEditor({
   });
 
   const openPublishConfirmation = form.handleSubmit((values) => {
+    if (framerUnavailable) {
+      const message = "Framer is temporarily unavailable.";
+      setServerError(message);
+      notify.error(message);
+      return;
+    }
+
     setServerError(null);
     setPendingValues(values);
     setConfirmOpen(true);
@@ -2062,7 +2083,7 @@ export function PostEditor({
             </Badge>
             {form.formState.isDirty ? (
               <Button
-                disabled={pending}
+                disabled={pending || framerUnavailable}
                 onClick={resetForm}
                 size="lg"
                 type="button"
@@ -2074,7 +2095,7 @@ export function PostEditor({
             {mode === "create" ? (
               <Button
                 className={primaryButtonClassName}
-                disabled={pending}
+                disabled={pending || framerUnavailable}
                 onClick={submitDraft}
                 size="lg"
                 type="button"
@@ -2084,7 +2105,9 @@ export function PostEditor({
             ) : (
               <Button
                 className={primaryButtonClassName}
-                disabled={pending || !form.formState.isDirty}
+                disabled={
+                  pending || framerUnavailable || !form.formState.isDirty
+                }
                 onClick={openPublishConfirmation}
                 size="lg"
                 type="button"
@@ -2102,61 +2125,70 @@ export function PostEditor({
         </div>
       ) : null}
 
+      {framerUnavailable ? (
+        <div className={cn(warningBannerClassName, "mx-6 mt-4")} role="status">
+          Framer API is unresponsive. You can review cached content here, but
+          editing and publishing are disabled until the connection recovers.
+        </div>
+      ) : null}
+
       <form
         className="flex flex-1 flex-col gap-4 overflow-auto px-4 pt-5 pb-8 md:px-6 md:pb-10"
         onSubmit={
           mode === "create" ? submitDraft : (event) => event.preventDefault()
         }
       >
-        <div className="flex max-w-[840px] flex-col gap-4">
-          {titleField ? renderField(titleField) : null}
+        <fieldset className="contents" disabled={framerUnavailable}>
+          <div className="flex max-w-[840px] flex-col gap-4">
+            {titleField ? renderField(titleField) : null}
 
-          <div className={fieldClassName}>
-            <div className={labelRowClassName}>
-              <FieldLabel htmlFor="post-slug" name="Slug" required />
+            <div className={fieldClassName}>
+              <div className={labelRowClassName}>
+                <FieldLabel htmlFor="post-slug" name="Slug" required />
+              </div>
+              <Input
+                className={formControlClassName}
+                id="post-slug"
+                placeholder="my-new-post"
+                {...form.register("slug")}
+              />
+              {form.formState.errors.slug ? (
+                <span className={fieldErrorClassName}>
+                  {form.formState.errors.slug.message}
+                </span>
+              ) : null}
             </div>
-            <Input
-              className={formControlClassName}
-              id="post-slug"
-              placeholder="my-new-post"
-              {...form.register("slug")}
-            />
-            {form.formState.errors.slug ? (
-              <span className={fieldErrorClassName}>
-                {form.formState.errors.slug.message}
-              </span>
+
+            {nonContentFields.map((field) => renderField(field))}
+            {bodyField && bodyField.id !== titleField?.id
+              ? renderField(bodyField)
+              : null}
+            {contentFields.map((field) => renderField(field))}
+
+            {readOnlyFields.length > 0 ? (
+              <section className="framer-subtle-panel mt-2 flex flex-col gap-4 p-4">
+                <div className="flex flex-col gap-1.5">
+                  <span className="framer-kicker w-fit">
+                    Read Only In Dashboard
+                  </span>
+                  <p className="text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]">
+                    These fields are still part of the Framer schema but are not
+                    editable here.
+                  </p>
+                </div>
+                <div className="flex max-w-[840px] flex-col gap-4">
+                  {readOnlyFields.map((field) => (
+                    <ReadOnlyField
+                      field={field}
+                      key={field.id}
+                      value={post?.fieldValues[field.id] ?? ""}
+                    />
+                  ))}
+                </div>
+              </section>
             ) : null}
           </div>
-
-          {nonContentFields.map((field) => renderField(field))}
-          {bodyField && bodyField.id !== titleField?.id
-            ? renderField(bodyField)
-            : null}
-          {contentFields.map((field) => renderField(field))}
-
-          {readOnlyFields.length > 0 ? (
-            <section className="framer-subtle-panel mt-2 flex flex-col gap-4 p-4">
-              <div className="flex flex-col gap-1.5">
-                <span className="framer-kicker w-fit">
-                  Read Only In Dashboard
-                </span>
-                <p className="text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]">
-                  These fields are still part of the Framer schema but are not
-                  editable here.
-                </p>
-              </div>
-              <div className="flex max-w-[840px] flex-col gap-4">
-                {readOnlyFields.map((field) => (
-                  <ReadOnlyField
-                    field={field}
-                    key={field.id}
-                    value={post?.fieldValues[field.id] ?? ""}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </div>
+        </fieldset>
       </form>
 
       <Dialog
@@ -2182,7 +2214,7 @@ export function PostEditor({
           </DialogHeader>
           <DialogFooter className="-mx-0 -mb-0 flex justify-end gap-2.5 rounded-none border-0 bg-transparent p-0">
             <Button
-              disabled={pending}
+              disabled={pending || framerUnavailable}
               onClick={() => {
                 setConfirmOpen(false);
                 setPendingValues(null);
@@ -2194,7 +2226,7 @@ export function PostEditor({
             </Button>
             <Button
               className={primaryButtonClassName}
-              disabled={pending}
+              disabled={pending || framerUnavailable}
               onClick={confirmPublish}
               type="button"
             >

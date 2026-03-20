@@ -105,6 +105,8 @@ export default defineSchema({
     framerApiKeyCiphertext: v.optional(v.string()),
     framerCollectionId: v.optional(v.string()),
     framerCollectionName: v.optional(v.string()),
+    framerDashboardSnapshotJson: v.optional(v.string()),
+    framerDashboardSnapshotSyncedAt: v.optional(v.number()),
     framerMetadataJson: v.optional(v.string()),
     framerProjectId: v.optional(v.string()),
     framerProjectUrl: v.optional(v.string()),

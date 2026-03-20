@@ -1,9 +1,36 @@
+import { FramerStatusBanner } from "@/components/framer-status-banner";
+import { ProductConfigRequiredState } from "@/components/product-config-required-state";
+import { DashboardSidebar } from "@/components/dashboard-sidebar";
+import { loadDashboardFramerStatus } from "@/lib/dashboard-data";
+import { getDashboardAccess } from "@/lib/product-access";
+
 export const dynamic = "force-dynamic";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return children;
+  const access = await getDashboardAccess();
+  if (access.kind === "config_error") {
+    return <ProductConfigRequiredState issues={access.issues} />;
+  }
+
+  const framerStatus = await loadDashboardFramerStatus(access.site);
+
+  return (
+    <div className="dashboard-shell overscroll-none">
+      {framerStatus.state !== "available" ? (
+        <FramerStatusBanner
+          cachedAt={framerStatus.cachedAt}
+          state={framerStatus.state}
+        />
+      ) : null}
+      <DashboardSidebar
+        role={access.role}
+        siteName={access.site.name}
+      />
+      <main className="dashboard-main">{children}</main>
+    </div>
+  );
 }

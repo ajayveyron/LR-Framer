@@ -14,7 +14,7 @@ export default async function NewPostPage() {
     <DashboardTableView
       activeCollectionId={screen.activeCollection.id}
       collections={screen.collections}
-      initialColumns={screen.initialColumns}
+      framerStatus={screen.framerStatus}
       initialDrawerState={{ mode: "create" }}
       metadata={screen.metadata}
       posts={screen.posts}

@@ -19,7 +19,7 @@ export default async function DashboardPage({
     <DashboardTableView
       activeCollectionId={screen.activeCollection.id}
       collections={screen.collections}
-      initialColumns={screen.initialColumns}
+      framerStatus={screen.framerStatus}
       metadata={screen.metadata}
       posts={screen.posts}
       role={screen.access.role}

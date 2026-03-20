@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SignOutButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 
+import { LoadingLink } from "@/components/loading-link";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export default async function MarketingHomePage() {
             {isSignedIn ? (
               <>
                 <Button asChild size="sm" variant="ghost">
-                  <Link href="/dashboard">Dashboard</Link>
+                  <LoadingLink href="/dashboard">Dashboard</LoadingLink>
                 </Button>
                 <SignOutButton redirectUrl="/">
                   <Button size="sm" variant="outline">Log out</Button>
@@ -79,12 +80,12 @@ export default async function MarketingHomePage() {
               className="framer-primary-action"
               size="lg"
             >
-              <Link href={isSignedIn ? "/dashboard" : "/sign-up"}>
+              <LoadingLink href={isSignedIn ? "/dashboard" : "/sign-up"}>
                 {isSignedIn ? "Go to dashboard" : "Create account"}
-              </Link>
+              </LoadingLink>
             </Button>
             <Button asChild size="lg" variant="outline">
-              <Link href="/onboarding">View setup flow</Link>
+              <LoadingLink href="/onboarding">View setup flow</LoadingLink>
             </Button>
           </div>
         </div>

@@ -1,12 +1,5 @@
-import Link from "next/link";
-
-import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
-
 import { ProductConfigRequiredState } from "@/components/product-config-required-state";
 import { SiteSettingsForm } from "@/components/site-settings-form";
-import { TeamManager } from "@/components/team-manager";
-import { UsageMeter } from "@/components/usage-meter";
-import { Button } from "@/components/ui/button";
 import { getDashboardAccess } from "@/lib/product-access";
 
 export const dynamic = "force-dynamic";
@@ -17,40 +10,25 @@ export default async function SettingsPage() {
     return <ProductConfigRequiredState issues={access.issues} />;
   }
 
-  const isAdmin = access.role === "admin";
-
   return (
-    <main className="settings-shell">
+    <main className="dashboard-page-shell">
       <section className="mx-auto grid w-full max-w-6xl gap-10">
-        <div className="flex items-center gap-4">
-          <Button asChild className="size-10 rounded-full p-0" size="icon-lg" variant="outline">
-            <Link aria-label="Back to dashboard" href="/dashboard">
-              <ArrowLeft className="size-4" />
-            </Link>
-          </Button>
+        <div className="grid gap-2">
           <h1 className="settings-heading">Settings</h1>
+          <p className="max-w-2xl text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
+            Configure the Framer workspace and default collection for this
+            team.
+          </p>
         </div>
 
         <SiteSettingsForm
-          canManage={isAdmin}
+          canManage={access.role === "admin"}
           initialCollectionId={access.site.framerCollectionId ?? ""}
           initialCollectionName={access.site.framerCollectionName ?? ""}
           initialProjectInput={
             access.site.framerProjectUrl ?? access.site.framerProjectId ?? ""
           }
         />
-
-        <div className="settings-section grid gap-6">
-          <h2 className="settings-heading">AI Usage &amp; Billing</h2>
-          <UsageMeter isAdmin={isAdmin} />
-        </div>
-
-        {isAdmin && (
-          <div className="settings-section grid gap-6">
-            <h2 className="settings-heading">Team</h2>
-            <TeamManager />
-          </div>
-        )}
       </section>
     </main>
   );

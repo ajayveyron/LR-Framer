@@ -1,3 +1,5 @@
+"use client"
+
 import { SpinnerGap as Loader2Icon } from "@phosphor-icons/react"
 
 import { cn } from "@/lib/utils"

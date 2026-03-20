@@ -19,7 +19,7 @@ export default async function EditPostPage({
     <DashboardTableView
       activeCollectionId={screen.activeCollection.id}
       collections={screen.collections}
-      initialColumns={screen.initialColumns}
+      framerStatus={screen.framerStatus}
       initialDrawerState={{ mode: "edit", postId: id }}
       metadata={screen.metadata}
       posts={screen.posts}

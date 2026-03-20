@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+
+import { FramerStatusBanner } from "@/components/framer-status-banner";
 import { FramerTemporaryUnavailableState } from "@/components/framer-temporary-unavailable-state";
 import { Button } from "@/components/ui/button";
 
@@ -44,7 +47,57 @@ export default function GlobalError({
   const formattedMessage = formatErrorMessage(error.message);
 
   if (isTransientFramerMessage(formattedMessage)) {
-    return <FramerTemporaryUnavailableState onRetry={reset} />;
+    return (
+      <div className="dashboard-shell">
+        <aside className="dashboard-sidebar hidden md:flex">
+          <div className="grid gap-8">
+            <div className="grid gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+                Workspace
+              </span>
+              <div className="grid gap-1">
+                <span className="text-base font-semibold text-[color:var(--framer-fresco-panelTitle-color)]">
+                  Dashboard
+                </span>
+                <span className="text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
+                  Framer temporarily unavailable
+                </span>
+              </div>
+            </div>
+
+            <nav aria-label="Dashboard sections" className="grid gap-1.5">
+              <Link className="dashboard-sidebar-link dashboard-sidebar-link-active" href="/dashboard">
+                Content
+              </Link>
+              <Link className="dashboard-sidebar-link" href="/dashboard/settings">
+                Settings
+              </Link>
+              <Link className="dashboard-sidebar-link" href="/dashboard/team">
+                Team
+              </Link>
+            </nav>
+          </div>
+        </aside>
+
+        <main className="dashboard-main">
+          <div className="dashboard-mobile-bar md:hidden">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+                Workspace
+              </div>
+              <div className="text-base font-semibold text-[color:var(--framer-fresco-panelTitle-color)]">
+                Dashboard
+              </div>
+            </div>
+          </div>
+
+          <FramerStatusBanner cachedAt={null} state="unavailable" />
+          <div className="dashboard-page-shell">
+            <FramerTemporaryUnavailableState onRetry={reset} />
+          </div>
+        </main>
+      </div>
+    );
   }
 
   return (
