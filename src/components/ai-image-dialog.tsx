@@ -149,7 +149,7 @@ export function AIImageDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkle
-              className="size-5 text-[color:var(--framer-fresco-tint-color)]"
+              className="size-5 text-fresco-tint"
               weight="duotone"
             />
             Generate Image with AI
@@ -161,8 +161,8 @@ export function AIImageDialog({
 
         {/* Context preview */}
         {/* {context?.title && (
-          <div className="rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
-            <span className="font-medium text-[color:var(--framer-fresco-panelSubtitle-color)]">Context:</span>{" "}
+          <div className="rounded-md border border-fresco-divider bg-fresco-surface-muted px-3 py-2 text-xs text-fresco-description">
+            <span className="font-medium text-fresco-subtitle">Context:</span>{" "}
             {context.title}
             {context.slug && ` · /${context.slug}`}
           </div>
@@ -191,7 +191,7 @@ export function AIImageDialog({
 
         {/* Preview */}
         {preview && (
-          <div className="relative overflow-hidden rounded-lg border border-[var(--framer-fresco-panelDivider-color)]">
+          <div className="relative overflow-hidden rounded-lg border border-fresco-divider">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               alt="AI generated preview"
@@ -203,7 +203,7 @@ export function AIImageDialog({
 
         {/* Empty state */}
         {!preview && !generating && !error && (
-          <div className="h-40 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--framer-fresco-panelDivider-color)] py-10 text-[color:var(--framer-fresco-panelSubtitle-color)]">
+          <div className="h-40 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-fresco-divider py-10 text-fresco-subtitle">
             <ImageIcon className="size-8" weight="duotone" />
             <span className="text-xs">Your generated image will appear here</span>
           </div>
@@ -211,7 +211,7 @@ export function AIImageDialog({
 
         {/* Loading */}
         {generating && (
-          <div className="h-40 flex flex-col items-center justify-center gap-2  rounded-lg border border-dashed border-[var(--framer-fresco-panelDivider-color)]  py-10 text-[color:var(--framer-fresco-panelSubtitle-color)]">
+          <div className="h-40 flex flex-col items-center justify-center gap-2  rounded-lg border border-dashed border-fresco-divider  py-10 text-fresco-subtitle">
             <SpinnerGap className="size-8 animate-spin" />
             <span className="text-md">Generating…</span>
             <span className="text-xs">It can take up to 2 minutes</span>

@@ -9,7 +9,7 @@ function SkeletonBlock({
     <div
       aria-hidden="true"
       className={cn(
-        "animate-pulse rounded-xl bg-[var(--framer-dashboard-control-background-color)]",
+        "animate-pulse rounded-xl bg-dash-control-bg",
         className,
       )}
     />
@@ -96,13 +96,13 @@ export function TeamManagerContentSkeleton() {
         <SkeletonBlock className="h-9 w-28 rounded-lg" />
       </div>
 
-      <div className="flex items-center gap-6 border-b border-[var(--framer-dashboard-control-border-color)] pb-3">
+      <div className="flex items-center gap-6 border-b border-dash-control-border pb-3">
         <SkeletonBlock className="h-5 w-24 rounded-full" />
         <SkeletonBlock className="h-5 w-28 rounded-full" />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[var(--framer-dashboard-control-border-color)]">
-        <div className="grid grid-cols-[minmax(220px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_96px] gap-6 border-b border-[var(--framer-dashboard-control-border-color)] px-6 py-3">
+      <div className="overflow-hidden rounded-xl border border-dash-control-border">
+        <div className="grid grid-cols-[minmax(220px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_96px] gap-6 border-b border-dash-control-border px-6 py-3">
           {Array.from({ length: 4 }).map((_, index) => (
             <SkeletonBlock className="h-3 w-16 rounded-full" key={`team-header-${index}`} />
           ))}
@@ -110,7 +110,7 @@ export function TeamManagerContentSkeleton() {
         <div className="grid gap-0 px-6 py-1">
           {Array.from({ length: 5 }).map((_, rowIndex) => (
             <div
-              className="grid grid-cols-[minmax(220px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_96px] gap-6 border-b border-[var(--framer-dashboard-control-border-color)] py-4 last:border-b-0"
+              className="grid grid-cols-[minmax(220px,2fr)_minmax(120px,1fr)_minmax(120px,1fr)_96px] gap-6 border-b border-dash-control-border py-4 last:border-b-0"
               key={`team-row-${rowIndex}`}
             >
               <div className="flex items-center gap-3">
@@ -154,7 +154,7 @@ export function BillingPanelSkeleton() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3 border-t border-[var(--framer-dashboard-control-border-color)] pt-4">
+      <div className="flex flex-wrap gap-3 border-t border-dash-control-border pt-4">
         <SkeletonBlock className="h-9 w-40 rounded-lg" />
       </div>
     </section>

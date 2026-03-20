@@ -117,8 +117,8 @@ function DashboardNav({
         );
 
         const linkClassName = cn(
-          "flex min-h-10 items-center gap-2.5 rounded-xl border border-transparent px-3 py-2 text-[12px] font-medium tracking-[-0.01em] text-[color:var(--framer-dashboard-nav-text-color)] transition-colors hover:bg-[var(--framer-dashboard-nav-hover-color)] hover:text-[color:var(--framer-fresco-panelTitle-color)]",
-          active && "border-[var(--framer-dashboard-control-border-color)] bg-[var(--framer-dashboard-nav-active-color)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] text-[color:var(--framer-fresco-panelTitle-color)]",
+          "flex min-h-10 items-center gap-2.5 rounded-xl border border-transparent px-3 py-2 text-[12px] font-medium tracking-[-0.01em] text-dash-nav-text transition-colors hover:bg-dash-nav-hover hover:text-fresco-title",
+          active && "border-dash-control-border bg-dash-nav-active shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] text-fresco-title",
         );
 
         if (withSheetClose) {
@@ -146,11 +146,11 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
   const items = getNavItems(role);
   const activeItem = getActiveItem(pathname, items);
   const brandClassName =
-    "select-none text-[15px] font-semibold tracking-[-0.02em] text-[color:var(--framer-fresco-panelTitle-color)]";
+    "select-none text-[15px] font-semibold tracking-[-0.02em] text-fresco-title";
 
   return (
     <>
-      <aside className={cn("sticky flex-col overflow-y-auto overscroll-contain border-r border-[var(--framer-dashboard-control-border-color)] bg-[var(--framer-dashboard-sidebar-color)] px-5 py-6 shadow-[inset_-1px_0_0_rgba(255,255,255,0.02)] top-[var(--dashboard-banner-offset)] h-[calc(100dvh-var(--dashboard-banner-offset))]", "hidden md:flex")}>
+      <aside className={cn("sticky flex-col overflow-y-auto overscroll-contain border-r border-dash-control-border bg-dash-sidebar px-5 py-6 shadow-[inset_-1px_0_0_rgba(255,255,255,0.02)] top-[var(--dashboard-banner-offset)] h-[calc(100dvh-var(--dashboard-banner-offset))]", "hidden md:flex")}>
         <div className="grid gap-8">
           <Link
             aria-label="Go to Content"
@@ -165,7 +165,7 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
         </div>
       </aside>
 
-      <div className={cn("sticky top-[var(--dashboard-banner-offset)] z-30 flex items-center justify-between border-b border-[var(--framer-dashboard-control-border-color)] bg-[var(--framer-dashboard-topbar-color)] px-4 py-3 backdrop-blur-[14px]", "md:hidden")}>
+      <div className={cn("sticky top-[var(--dashboard-banner-offset)] z-30 flex items-center justify-between border-b border-dash-control-border bg-dash-topbar px-4 py-3 backdrop-blur-[14px]", "md:hidden")}>
         <div>
           <Link
             aria-label="Go to Content"
@@ -175,7 +175,7 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
           >
             FramerBot
           </Link>
-          <div className="text-[12px] text-[color:var(--framer-dashboard-nav-text-color)]">
+          <div className="text-[12px] text-dash-nav-text">
             {activeItem.label}
           </div>
         </div>
@@ -184,7 +184,7 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
           <SheetTrigger asChild>
             <Button
               aria-label="Open navigation"
-              className={cn("border border-[var(--framer-dashboard-control-border-color)] bg-[var(--framer-dashboard-control-background-color)] text-[color:var(--framer-dashboard-nav-text-color)] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-[var(--framer-dashboard-control-hover-color)] hover:not-disabled:text-[color:var(--framer-fresco-panelTitle-color)] focus-visible:not-disabled:bg-[var(--framer-dashboard-control-hover-color)] focus-visible:not-disabled:text-[color:var(--framer-fresco-panelTitle-color)]", "rounded-xl border text-[color:var(--framer-fresco-panelTitle-color)]")}
+              className={cn("border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title", "rounded-xl border text-fresco-title")}
               size="icon-lg"
               type="button"
               variant="outline"
@@ -193,23 +193,23 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
             </Button>
           </SheetTrigger>
           <SheetContent
-            className="border-[var(--framer-dashboard-control-border-color)] bg-[#101011] p-0 text-[color:var(--framer-fresco-settingsText-color)]"
+            className="border-dash-control-border bg-[#101011] p-0 text-fresco-text"
             side="left"
             showCloseButton={false}
           >
-            <div className="flex items-center justify-between border-b border-[var(--framer-dashboard-control-border-color)] px-4 py-4">
+            <div className="flex items-center justify-between border-b border-dash-control-border px-4 py-4">
               <div className="min-w-0">
                 <SheetTitle asChild>
                   <Link
                     aria-label="Go to Content"
-                    className="truncate text-left select-none text-[15px] font-semibold text-[color:var(--framer-fresco-panelTitle-color)]"
+                    className="truncate text-left select-none text-[15px] font-semibold text-fresco-title"
                     draggable={false}
                     href="/dashboard"
                   >
                     FramerBot
                   </Link>
                 </SheetTitle>
-                <div className="text-[12px] text-[color:var(--framer-dashboard-nav-text-color)]">
+                <div className="text-[12px] text-dash-nav-text">
                   {activeItem.label}
                 </div>
               </div>

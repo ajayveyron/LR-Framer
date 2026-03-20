@@ -38,8 +38,8 @@ function LoadingSkeleton() {
 
 function ErrorFallback() {
   return (
-    <div className="flex items-center gap-3 text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
-      <XCircle className="h-5 w-5 shrink-0 text-[color:var(--framer-fresco-errorTint-color)]" />
+    <div className="flex items-center gap-3 text-sm text-fresco-description">
+      <XCircle className="h-5 w-5 shrink-0 text-fresco-error" />
       <span>Unable to load usage data right now.</span>
     </div>
   );
@@ -96,7 +96,7 @@ export function UsageMeter({ isAdmin = false }: UsageMeterProps) {
           )}
           <span
             className="text-sm font-medium"
-            style={{ color: "var(--framer-fresco-panelTitle-color)" }}
+            style={{ color: "var(--color-fresco-title)" }}
           >
             {state === "exhausted"
               ? "Your team has used all of this month\u2019s AI allowance"
@@ -119,7 +119,7 @@ export function UsageMeter({ isAdmin = false }: UsageMeterProps) {
         </div>
 
         {/* Meta line */}
-        <div className="flex items-center justify-between text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+        <div className="flex items-center justify-between text-xs text-fresco-description">
           <span>
             {data.planName} plan · Renews {formattedRenewal}
           </span>

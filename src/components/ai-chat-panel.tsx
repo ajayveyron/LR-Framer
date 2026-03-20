@@ -138,15 +138,15 @@ function AttachmentPreviewStrip() {
         return (
           <div
             key={file.id}
-            className="group relative size-20 shrink-0 overflow-hidden rounded border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)]"
+            className="group relative size-20 shrink-0 overflow-hidden rounded border border-fresco-divider bg-fresco-surface-muted"
           >
             {isImage ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img alt={file.filename ?? "attachment"} className="size-full object-cover" src={file.url} />
             ) : (
               <span className="flex size-full flex-col items-center justify-center gap-0.5">
-                <span className="text-[10px] font-semibold uppercase text-[color:var(--framer-fresco-panelSubtitle-color)]">{ext}</span>
-                <span className="max-w-full truncate px-1 text-[8px] text-[color:var(--framer-fresco-panelDescription-color)]">{file.filename}</span>
+                <span className="text-[10px] font-semibold uppercase text-fresco-subtitle">{ext}</span>
+                <span className="max-w-full truncate px-1 text-[8px] text-fresco-description">{file.filename}</span>
               </span>
             )}
             <Button
@@ -186,14 +186,14 @@ function ChatPromptSuggestions({ selectedCount }: { selectedCount: number }) {
 
   return (
     <div className="mt-1 space-y-2">
-      <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+      <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-fresco-subtitle">
         Quick starts
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         {suggestions.map((suggestion) => (
           <Button
             key={suggestion.title}
-            className="h-auto flex-col items-start rounded-xl border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-left transition-colors hover:border-[var(--framer-fresco-tint-color)] hover:bg-[var(--framer-fresco-panelDivider-color)]"
+            className="h-auto flex-col items-start rounded-xl border-fresco-divider bg-fresco-surface-muted px-3 py-2 text-left transition-colors hover:border-fresco-tint hover:bg-fresco-divider"
             onClick={() => {
               controller.textInput.setInput(suggestion.prompt);
               window.requestAnimationFrame(() => {
@@ -206,10 +206,10 @@ function ChatPromptSuggestions({ selectedCount }: { selectedCount: number }) {
             type="button"
             variant="outline"
           >
-            <span className="text-sm font-medium text-[color:var(--framer-fresco-panelTitle-color)]">
+            <span className="text-sm font-medium text-fresco-title">
               {suggestion.title}
             </span>
-            <span className="text-xs leading-snug text-[color:var(--framer-fresco-panelDescription-color)]">
+            <span className="text-xs leading-snug text-fresco-description">
               {suggestion.description}
             </span>
           </Button>
@@ -469,7 +469,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        className="flex flex-col gap-0 overflow-hidden border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] p-0 text-[color:var(--framer-fresco-panelTitle-color)] shadow-[-40px_0_120px_rgba(0,0,0,0.55)] data-[side=right]:w-full data-[side=right]:sm:max-w-none md:data-[side=right]:top-2 md:data-[side=right]:right-2 md:data-[side=right]:bottom-2 md:data-[side=right]:w-[min(48vw,640px)]"
+        className="flex flex-col gap-0 overflow-hidden border-fresco-divider bg-fresco-panel p-0 text-fresco-title shadow-[-40px_0_120px_rgba(0,0,0,0.55)] data-[side=right]:w-full data-[side=right]:sm:max-w-none md:data-[side=right]:top-2 md:data-[side=right]:right-2 md:data-[side=right]:bottom-2 md:data-[side=right]:w-[min(48vw,640px)]"
         showCloseButton={false}
         side="right"
       >
@@ -477,8 +477,8 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
         <SheetDescription className="sr-only">Chat with AI to manage your CMS, edit posts, and more.</SheetDescription>
 
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-[var(--framer-fresco-panelDivider-color)] px-4 py-3">
-          <Sparkle className="size-5 shrink-0 text-[color:var(--framer-fresco-tint-color)]" weight="duotone" />
+        <div className="flex items-center gap-3 border-b border-fresco-divider px-4 py-3">
+          <Sparkle className="size-5 shrink-0 text-fresco-tint" weight="duotone" />
           <div className="min-w-0 flex-1">
             <span className="text-sm font-semibold">AI Assistant</span>
           </div>
@@ -506,10 +506,10 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                     className="items-stretch"
                   >
                     <div className="mx-auto flex max-w-2xl flex-col items-center gap-3 text-center">
-                      <Sparkle className="size-8 text-[color:var(--framer-fresco-panelSubtitle-color)]" weight="duotone" />
+                      <Sparkle className="size-8 text-fresco-subtitle" weight="duotone" />
                       <div className="space-y-1">
-                        <h3 className="font-medium text-sm text-[color:var(--framer-fresco-panelTitle-color)]">How can I help?</h3>
-                        <p className="text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
+                        <h3 className="font-medium text-sm text-fresco-title">How can I help?</h3>
+                        <p className="text-sm text-fresco-description">
                           Ask me anything about this CMS, the active Framer collection, or the rows you&apos;ve selected.
                         </p>
                       </div>
@@ -530,13 +530,13 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                       <MessageContent>
                         {sources.length > 0 && (
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <GlobeSimple className="size-3.5 shrink-0 text-[color:var(--framer-fresco-panelSubtitle-color)]" weight="fill" />
+                            <GlobeSimple className="size-3.5 shrink-0 text-fresco-subtitle" weight="fill" />
                             {sources.map((src, si) => (
-                              <a key={si} className="inline-flex max-w-48 items-center truncate rounded border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-2 py-0.5 text-[10px] text-[color:var(--framer-fresco-tint-color)] transition-colors hover:bg-[var(--framer-fresco-panelDivider-color)]" href={src.url} rel="noopener noreferrer" target="_blank">
+                              <a key={si} className="inline-flex max-w-48 items-center truncate rounded border border-fresco-divider bg-fresco-surface-muted px-2 py-0.5 text-[10px] text-fresco-tint transition-colors hover:bg-fresco-divider" href={src.url} rel="noopener noreferrer" target="_blank">
                                 {src.title || new URL(src.url).hostname}
                               </a>
                             ))}
-                            {showSourcesSpinner && <CircleNotch className="size-3.5 shrink-0 animate-spin text-[color:var(--framer-fresco-panelSubtitle-color)]" />}
+                            {showSourcesSpinner && <CircleNotch className="size-3.5 shrink-0 animate-spin text-fresco-subtitle" />}
                           </div>
                         )}
                         {message.parts.map((part, i) => {
@@ -545,11 +545,11 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                             if (isImage) {
                               return (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img key={i} alt={part.filename ?? "Attached image"} className="max-h-48 rounded-md border border-[var(--framer-fresco-panelDivider-color)] object-contain" src={part.url} />
+                                <img key={i} alt={part.filename ?? "Attached image"} className="max-h-48 rounded-md border border-fresco-divider object-contain" src={part.url} />
                               );
                             }
                             return (
-                              <div key={i} className="inline-flex items-center gap-1.5 rounded border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-2 py-1 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+                              <div key={i} className="inline-flex items-center gap-1.5 rounded border border-fresco-divider bg-fresco-surface-muted px-2 py-1 text-xs text-fresco-description">
                                 <ImageSquare className="size-3.5 shrink-0" weight="fill" />
                                 <span className="truncate max-w-40">{part.filename ?? "Attachment"}</span>
                               </div>
@@ -579,7 +579,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                             const isSuccess = output?.success && output?.url;
                             if (!hasOutput) {
                               return (
-                                <div key={i} className="flex items-center gap-2 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+                                <div key={i} className="flex items-center gap-2 rounded-md border border-fresco-divider bg-fresco-surface-muted px-3 py-2 text-xs text-fresco-description">
                                   <CircleNotch className="size-3.5 shrink-0 animate-spin" />
                                   <ImageSquare className="size-3.5 shrink-0" weight="fill" />
                                   <span>Generating image…</span>
@@ -589,19 +589,19 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                             if (isSuccess) {
                               return (
                                 <div key={i} className="flex flex-col gap-2">
-                                  <div className="flex items-center justify-between text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+                                  <div className="flex items-center justify-between text-xs text-fresco-description">
                                     <div className="flex items-center gap-2">
                                       <CheckCircle className="size-3.5 shrink-0 text-emerald-400" weight="fill" />
                                       <ImageSquare className="size-3.5 shrink-0" weight="fill" />
                                       <span>Image generated &amp; uploaded</span>
                                     </div>
-                                    <a href={output.url} download={`ai-image-${Date.now()}.png`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[color:var(--framer-fresco-tint-color)] transition-colors hover:bg-[var(--framer-fresco-panelDivider-color)]">
+                                    <a href={output.url} download={`ai-image-${Date.now()}.png`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded px-1.5 py-0.5 text-fresco-tint transition-colors hover:bg-fresco-divider">
                                       <DownloadSimple className="size-3.5" weight="bold" />
                                       <span>Download</span>
                                     </a>
                                   </div>
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img alt={output.prompt ?? "AI generated image"} className="max-h-64 rounded-md border border-[var(--framer-fresco-panelDivider-color)] object-contain" src={output.url} />
+                                  <img alt={output.prompt ?? "AI generated image"} className="max-h-64 rounded-md border border-fresco-divider object-contain" src={output.url} />
                                 </div>
                               );
                             }
@@ -618,7 +618,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                             const output = hasOutput ? (part.output as { answer?: string; sources?: Array<{ url: string; title: string }> }) : null;
                             return (
                               <div key={i} className="flex flex-col gap-1.5">
-                                <div className="flex items-center gap-2 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+                                <div className="flex items-center gap-2 rounded-md border border-fresco-divider bg-fresco-surface-muted px-3 py-2 text-xs text-fresco-description">
                                   {hasOutput ? <CheckCircle className="size-3.5 shrink-0 text-emerald-400" weight="fill" /> : <CircleNotch className="size-3.5 shrink-0 animate-spin" />}
                                   <GlobeSimple className="size-3.5 shrink-0" weight="fill" />
                                   <span>Searched the web</span>
@@ -626,7 +626,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                                 {output?.sources && output.sources.length > 0 && (
                                   <div className="flex flex-wrap items-center gap-1.5 pl-1">
                                     {output.sources.map((src, si) => (
-                                      <a key={si} className="inline-flex max-w-48 items-center truncate rounded border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-2 py-0.5 text-[10px] text-[color:var(--framer-fresco-tint-color)] transition-colors hover:bg-[var(--framer-fresco-panelDivider-color)]" href={src.url} rel="noopener noreferrer" target="_blank">
+                                      <a key={si} className="inline-flex max-w-48 items-center truncate rounded border border-fresco-divider bg-fresco-surface-muted px-2 py-0.5 text-[10px] text-fresco-tint transition-colors hover:bg-fresco-divider" href={src.url} rel="noopener noreferrer" target="_blank">
                                         {src.title || new URL(src.url).hostname}
                                       </a>
                                     ))}
@@ -654,7 +654,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                               if (richUI) {
                                 return (
                                   <div key={i} className="mt-3 flex flex-col gap-2">
-                                    <div className="flex items-center gap-2 text-[10px] text-[color:var(--framer-fresco-panelDescription-color)]">
+                                    <div className="flex items-center gap-2 text-[10px] text-fresco-description">
                                       <CheckCircle className="size-3 shrink-0 text-emerald-400" weight="fill" />
                                       {isFramerTool ? (
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="33 23 75 97" className="size-3 shrink-0" aria-hidden="true">
@@ -672,7 +672,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                             }
 
                             return (
-                              <div key={i} className={`mt-1 flex items-center gap-2 rounded-md border ${isStale ? "border-amber-500/30 bg-amber-500/5" : "border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)]"} px-3 py-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]`}>
+                              <div key={i} className={`mt-1 flex items-center gap-2 rounded-md border ${isStale ? "border-amber-500/30 bg-amber-500/5" : "border-fresco-divider bg-fresco-surface-muted"} px-3 py-2 text-xs text-fresco-description`}>
                                 {hasOutput ? <CheckCircle className="size-3.5 shrink-0 text-emerald-400" weight="fill" /> : isStale ? <WarningCircle className="size-3.5 shrink-0 text-amber-400" weight="fill" /> : <CircleNotch className="size-3.5 shrink-0 animate-spin" />}
                                 {isFramerTool ? (
                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="33 23 75 97" className="size-3.5 shrink-0" aria-hidden="true">
@@ -694,9 +694,9 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
 
                 {isStreaming && (
                   <div className="flex items-center gap-1.5 py-1">
-                    <span className="inline-block size-1.5 animate-bounce rounded-full bg-[var(--framer-fresco-panelSubtitle-color)] [animation-delay:0ms]" />
-                    <span className="inline-block size-1.5 animate-bounce rounded-full bg-[var(--framer-fresco-panelSubtitle-color)] [animation-delay:150ms]" />
-                    <span className="inline-block size-1.5 animate-bounce rounded-full bg-[var(--framer-fresco-panelSubtitle-color)] [animation-delay:300ms]" />
+                    <span className="inline-block size-1.5 animate-bounce rounded-full bg-fresco-subtitle [animation-delay:0ms]" />
+                    <span className="inline-block size-1.5 animate-bounce rounded-full bg-fresco-subtitle [animation-delay:150ms]" />
+                    <span className="inline-block size-1.5 animate-bounce rounded-full bg-fresco-subtitle [animation-delay:300ms]" />
                   </div>
                 )}
 
@@ -708,7 +708,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
             </Conversation>
 
             {/* Input */}
-            <div className="border-t border-[var(--framer-fresco-panelDivider-color)] p-4 pb-8">
+            <div className="border-t border-fresco-divider p-4 pb-8">
               <ChatInputOrQuotaGate
                 totalTokens={totalTokens}
                 selectedPosts={selectedPosts}
@@ -750,14 +750,14 @@ function ChatInputOrQuotaGate({
 
   if (isExhausted) {
     return (
-      <div className="flex flex-col gap-3 rounded-lg border border-[var(--framer-fresco-errorTint-color)]/20 bg-[var(--framer-fresco-errorTint-color)]/5 px-4 py-3.5">
+      <div className="flex flex-col gap-3 rounded-lg border border-fresco-error/20 bg-fresco-error/5 px-4 py-3.5">
         <div className="flex items-center gap-2.5">
-          <Gauge className="size-5 shrink-0 text-[color:var(--framer-fresco-errorTint-color)]" weight="fill" />
-          <span className="text-sm font-medium text-[color:var(--framer-fresco-panelTitle-color)]">
+          <Gauge className="size-5 shrink-0 text-fresco-error" weight="fill" />
+          <span className="text-sm font-medium text-fresco-title">
             Monthly AI allowance reached
           </span>
         </div>
-        <p className="text-xs leading-relaxed text-[color:var(--framer-fresco-panelDescription-color)]">
+        <p className="text-xs leading-relaxed text-fresco-description">
           Your team has used 100% of this month&apos;s AI tokens. Upgrade to Pro for 100× more capacity.
         </p>
         <UpgradeButton className="w-fit" />
@@ -768,7 +768,7 @@ function ChatInputOrQuotaGate({
   return (
     <>
       {totalTokens.total > 0 && (
-        <div className="mb-1.5 flex items-center justify-between text-[10px] tabular-nums text-[color:var(--framer-fresco-panelSubtitle-color)]">
+        <div className="mb-1.5 flex items-center justify-between text-[10px] tabular-nums text-fresco-subtitle">
           <span>
             <Rows className="mr-1 inline size-3 align-[-2px]" weight="bold" />
             {totalTokens.total.toLocaleString()} tokens this session
@@ -796,7 +796,7 @@ function ChatInputOrQuotaGate({
           <DirectAttachButton />
           {selectedPosts.length > 0 && onClearSelection && (
             <Button
-              className="h-auto gap-1 px-2 py-1 text-[11px] text-[color:var(--framer-fresco-tint-color)] hover:bg-[var(--framer-fresco-panelDivider-color)]"
+              className="h-auto gap-1 px-2 py-1 text-[11px] text-fresco-tint hover:bg-fresco-divider"
               onClick={onClearSelection}
               size="sm"
               type="button"
@@ -839,14 +839,14 @@ function QuotaOrError({ error, onRetry }: { error: Error; onRetry: () => void })
 
   if (isQuota) {
     return (
-      <div className="flex flex-col gap-3 rounded-lg border border-[var(--framer-fresco-errorTint-color)]/20 bg-[var(--framer-fresco-errorTint-color)]/5 px-4 py-3.5">
+      <div className="flex flex-col gap-3 rounded-lg border border-fresco-error/20 bg-fresco-error/5 px-4 py-3.5">
         <div className="flex items-center gap-2.5">
-          <Gauge className="size-5 shrink-0 text-[color:var(--framer-fresco-errorTint-color)]" weight="fill" />
-          <span className="text-sm font-medium text-[color:var(--framer-fresco-panelTitle-color)]">
+          <Gauge className="size-5 shrink-0 text-fresco-error" weight="fill" />
+          <span className="text-sm font-medium text-fresco-title">
             Monthly AI allowance reached
           </span>
         </div>
-        <p className="text-xs leading-relaxed text-[color:var(--framer-fresco-panelDescription-color)]">
+        <p className="text-xs leading-relaxed text-fresco-description">
           Your team has used 100% of this month&apos;s AI tokens. Upgrade to Pro for 100× more capacity.
         </p>
         <UpgradeButton className="w-fit" />

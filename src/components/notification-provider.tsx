@@ -62,8 +62,8 @@ export function NotificationProvider({
             className={cn(
               "border px-4 py-3 text-sm shadow-lg backdrop-blur-xl",
               item.tone === "success"
-                ? "rounded-none border border-[var(--framer-app-success-callout-border-color)] bg-[var(--framer-app-success-callout-background-color)] px-4 py-3 text-sm text-[color:var(--framer-app-success-callout-text-color)]"
-                : "rounded-none border border-[var(--framer-app-danger-callout-border-color)] bg-[var(--framer-app-danger-callout-background-color)] px-4 py-3 text-sm text-[color:var(--framer-app-danger-callout-text-color)]",
+                ? "rounded-none border border-fresco-success-callout-border bg-fresco-success-callout-bg px-4 py-3 text-sm text-fresco-success-callout-text"
+                : "rounded-none border border-fresco-danger-callout-border bg-fresco-danger-callout-bg px-4 py-3 text-sm text-fresco-danger-callout-text",
             )}
             key={item.id}
             role="status"

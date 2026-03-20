@@ -463,3 +463,15 @@ Also fixed the payload parsing to match Dodo's actual webhook format with nested
 **Why:** User wants styles co-located with markup using Tailwind utilities for easier maintenance. Semantic CSS classes created an indirection layer — you had to jump between the component and `globals.css` to understand what a class did. An intermediate `tw-classes.ts` shared constants file was tried but the user rejected it — having to jump to a separate TS file is the same indirection problem. Styles should live right where they're used so they can be edited in place.
 
 **Scope:** All dashboard components and pages. `src/app/globals.css` (stripped `@layer components`), ~27 component/page files updated with inline Tailwind utilities. `src/lib/tw-classes.ts` was created then deleted.
+
+---
+
+### Replaced verbose `var(--framer-*)` CSS arbitrary values with semantic Tailwind color tokens
+
+**Date:** 2026-03-20
+
+**What changed:** All inline Tailwind classes using verbose `var(--framer-fresco-*)`, `var(--framer-dashboard-*)`, and `var(--framer-app-*)` CSS variable references (e.g. `text-[color:var(--framer-fresco-panelTitle-color)]`, `bg-[var(--framer-dashboard-control-background-color)]`) were replaced with clean semantic Tailwind tokens (e.g. `text-fresco-title`, `bg-dash-control-bg`). Dashboard-level and missing app-level tokens were added to the `@theme inline` block in `globals.css`. For cases where arbitrary values are still needed (inside `shadow-[...]`, `color-mix()`, gradients), the long `--framer-*` var names were shortened to their `--color-*` token equivalents.
+
+**Why:** The verbose `var(--framer-fresco-panelTitle-color)` pattern defeats the purpose of having a design system — it's unreadable, error-prone, and makes class strings absurdly long. The `@theme inline` block already had most fresco tokens mapped but they weren't being used. Dashboard-level tokens were missing entirely.
+
+**Scope:** `src/app/globals.css` (added ~20 new `--color-dash-*` and `--color-fresco-*` token mappings to `@theme inline`, added `--framer-app-background-color` definition to `.dark`), ~37 component/page/lib files updated across `src/`.

@@ -44,7 +44,7 @@ export function ChatHistoryPanel({ onSelect, onBack }: ChatHistoryPanelProps) {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-[var(--framer-fresco-panelDivider-color)] px-4 py-3">
+      <div className="flex items-center gap-2 border-b border-fresco-divider px-4 py-3">
         <Button
           aria-label="Back to chat"
           className="size-8 shrink-0"
@@ -56,7 +56,7 @@ export function ChatHistoryPanel({ onSelect, onBack }: ChatHistoryPanelProps) {
           <ArrowLeft className="size-4" />
         </Button>
         <ClockCounterClockwise
-          className="size-5 shrink-0 text-[color:var(--framer-fresco-tint-color)]"
+          className="size-5 shrink-0 text-fresco-tint"
           weight="duotone"
         />
         <span className="text-sm font-semibold">Chat History</span>
@@ -67,27 +67,27 @@ export function ChatHistoryPanel({ onSelect, onBack }: ChatHistoryPanelProps) {
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-2 p-8 text-center">
             <CircleNotch
-              className="size-6 animate-spin text-[color:var(--framer-fresco-panelSubtitle-color)]"
+              className="size-6 animate-spin text-fresco-subtitle"
             />
-            <p className="text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
+            <p className="text-sm text-fresco-description">
               Loading conversations…
             </p>
           </div>
         ) : conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 p-8 text-center">
             <ClockCounterClockwise
-              className="size-8 text-[color:var(--framer-fresco-panelSubtitle-color)]"
+              className="size-8 text-fresco-subtitle"
               weight="duotone"
             />
-            <p className="text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
+            <p className="text-sm text-fresco-description">
               No past conversations yet
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-[var(--framer-fresco-panelDivider-color)]">
+          <ul className="divide-y divide-fresco-divider">
             {conversations.map((conv) => (
               <li key={conv.id}>
-                <div className="group flex items-start gap-2 px-2 py-1.5 transition-colors hover:bg-[var(--framer-app-surface-muted-color)]">
+                <div className="group flex items-start gap-2 px-2 py-1.5 transition-colors hover:bg-fresco-surface-muted">
                   <Button
                     className="h-auto flex-1 items-start justify-start gap-3 px-2 py-1.5 text-left font-normal"
                     onClick={() => onSelect(conv)}
@@ -95,10 +95,10 @@ export function ChatHistoryPanel({ onSelect, onBack }: ChatHistoryPanelProps) {
                     variant="ghost"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-[color:var(--framer-fresco-panelTitle-color)]">
+                      <p className="truncate text-sm font-medium text-fresco-title">
                         {conv.title}
                       </p>
-                      <p className="mt-0.5 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+                      <p className="mt-0.5 text-xs text-fresco-description">
                         {conv.messages.length} message{conv.messages.length !== 1 ? "s" : ""} · {formatDistanceToNow(new Date(conv.updatedAt), { addSuffix: true })}
                       </p>
                     </div>

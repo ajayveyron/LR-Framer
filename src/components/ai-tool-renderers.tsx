@@ -110,14 +110,14 @@ function CollectionCards({ collections }: { collections: CollectionInfo[] }) {
       {collections.map((c) => (
         <div
           key={c.id}
-          className="flex items-center gap-2.5 rounded-lg border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2.5"
+          className="flex items-center gap-2.5 rounded-lg border border-fresco-divider bg-fresco-surface-muted px-3 py-2.5"
         >
           <Database
-            className="mt-0.5 size-4 shrink-0 text-[color:var(--framer-fresco-tint-color)]"
+            className="mt-0.5 size-4 shrink-0 text-fresco-tint"
             weight="duotone"
           />
           
-            <span className="block truncate text-xs font-medium text-[color:var(--framer-fresco-panelTitle-color)]">
+            <span className="block truncate text-xs font-medium text-fresco-title">
               {c.name}
             </span>
             {/* {c.readonly && (
@@ -201,21 +201,21 @@ function CollectionItemsTable({
   const isImageField = (fieldId: string) => fieldTypes?.[fieldId] === "image";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--framer-fresco-panelDivider-color)]">
+    <div className="overflow-hidden rounded-lg border border-fresco-divider">
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]">
           <thead>
-            <tr className="border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)]">
-              <th className="px-2.5 py-1.5 text-left font-medium text-[color:var(--framer-fresco-panelSubtitle-color)]">
+            <tr className="border-b border-fresco-divider bg-fresco-surface-muted">
+              <th className="px-2.5 py-1.5 text-left font-medium text-fresco-subtitle">
                 Slug
               </th>
-              <th className="px-2.5 py-1.5 text-left font-medium text-[color:var(--framer-fresco-panelSubtitle-color)]">
+              <th className="px-2.5 py-1.5 text-left font-medium text-fresco-subtitle">
                 Status
               </th>
               {displayCols.map((col) => (
                 <th
                   key={col}
-                  className="px-2.5 py-1.5 text-left font-medium text-[color:var(--framer-fresco-panelSubtitle-color)]"
+                  className="px-2.5 py-1.5 text-left font-medium text-fresco-subtitle"
                 >
                   {colLabel(col)}
                 </th>
@@ -226,9 +226,9 @@ function CollectionItemsTable({
             {visibleItems.map((item) => (
               <tr
                 key={item.id}
-                className="border-b border-[var(--framer-fresco-panelDivider-color)] last:border-b-0"
+                className="border-b border-fresco-divider last:border-b-0"
               >
-                <td className="max-w-[120px] truncate px-2.5 py-1.5 font-mono text-[color:var(--framer-fresco-panelTitle-color)]">
+                <td className="max-w-[120px] truncate px-2.5 py-1.5 font-mono text-fresco-title">
                   {item.slug}
                 </td>
                 <td className="px-2.5 py-1.5">
@@ -242,7 +242,7 @@ function CollectionItemsTable({
                 {displayCols.map((col) => (
                   <td
                     key={col}
-                    className="max-w-[140px] truncate px-2.5 py-1.5 text-[color:var(--framer-fresco-panelDescription-color)]"
+                    className="max-w-[140px] truncate px-2.5 py-1.5 text-fresco-description"
                   >
                     {isImageField(col) &&
                     typeof item.fieldData?.[col] === "string" &&
@@ -250,7 +250,7 @@ function CollectionItemsTable({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         alt={colLabel(col)}
-                        className="block h-8 w-[76px] max-w-none overflow-hidden rounded-lg border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] object-cover object-center"
+                        className="block h-8 w-[76px] max-w-none overflow-hidden rounded-lg border border-fresco-divider bg-fresco-surface-muted object-cover object-center"
                         loading="lazy"
                         src={item.fieldData[col] as string}
                       />
@@ -265,11 +265,11 @@ function CollectionItemsTable({
         </table>
       </div>
       {overflow > 0 && (
-        <div className="border-t border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-2.5 py-1.5 text-center text-[10px] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+        <div className="border-t border-fresco-divider bg-fresco-surface-muted px-2.5 py-1.5 text-center text-[10px] text-fresco-subtitle">
           +{overflow} more item{overflow !== 1 ? "s" : ""}
         </div>
       )}
-      <div className="flex items-center gap-1.5 border-t border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-2.5 py-1.5 text-[10px] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+      <div className="flex items-center gap-1.5 border-t border-fresco-divider bg-fresco-surface-muted px-2.5 py-1.5 text-[10px] text-fresco-subtitle">
         <Rows className="size-3" weight="bold" />
         <span>{items.length} item{items.length !== 1 ? "s" : ""}</span>
       </div>
@@ -283,26 +283,26 @@ function CollectionItemsTable({
 
 function CollectionFields({ fields }: { fields: CollectionField[] }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--framer-fresco-panelDivider-color)]">
-      <div className="flex flex-wrap gap-1.5 bg-[var(--framer-app-surface-muted-color)] px-3 py-2.5">
+    <div className="overflow-hidden rounded-lg border border-fresco-divider">
+      <div className="flex flex-wrap gap-1.5 bg-fresco-surface-muted px-3 py-2.5">
         {fields.map((f) => (
           <div
             key={f.id}
-            className="flex items-center gap-1.5 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-2 py-1"
+            className="flex items-center gap-1.5 rounded-md border border-fresco-divider bg-fresco-panel px-2 py-1"
           >
-            <span className="text-[11px] font-medium text-[color:var(--framer-fresco-panelTitle-color)]">
+            <span className="text-[11px] font-medium text-fresco-title">
               {f.name}
             </span>
             {/* <Badge variant="secondary" className="h-4 rounded px-1 text-[9px] font-normal">
               {f.type}
             </Badge> */}
             {f.required && (
-              <span className="text-[9px] text-[color:var(--framer-fresco-tint-color)]">*</span>
+              <span className="text-[9px] text-fresco-tint">*</span>
             )}
           </div>
         ))}
       </div>
-      {/* <div className="flex items-center gap-1.5 border-t border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-2.5 py-1.5 text-[10px] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+      {/* <div className="flex items-center gap-1.5 border-t border-fresco-divider bg-fresco-surface-muted px-2.5 py-1.5 text-[10px] text-fresco-subtitle">
         <ListBullets className="size-3" weight="bold" />
         <span>{fields.length} field{fields.length !== 1 ? "s" : ""}</span>
       </div> */}
@@ -316,9 +316,9 @@ function CollectionFields({ fields }: { fields: CollectionField[] }) {
 
 function EnumChips({ cases }: { cases: EnumCase[] }) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-2.5">
+    <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-fresco-divider bg-fresco-surface-muted px-3 py-2.5">
       <Tag
-        className="size-3.5 shrink-0 text-[color:var(--framer-fresco-panelSubtitle-color)]"
+        className="size-3.5 shrink-0 text-fresco-subtitle"
         weight="duotone"
       />
       {cases.map((c) => (

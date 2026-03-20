@@ -86,7 +86,7 @@ export function DashboardMainTransition({
       {/* Subtle top-edge loading bar while navigating */}
       {isNavigating ? (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-30 h-0.5 overflow-hidden">
-          <div className="h-full w-full animate-pulse bg-[var(--framer-fresco-tint-color)]" />
+          <div className="h-full w-full animate-pulse bg-fresco-tint" />
         </div>
       ) : null}
       <div

@@ -48,9 +48,9 @@ function severityStyles(severity: ActionSeverity) {
       };
     default:
       return {
-        border: "border-[var(--framer-fresco-panelDivider-color)]",
-        bg: "bg-[var(--framer-app-surface-muted-color)]",
-        iconColor: "text-[color:var(--framer-fresco-tint-color)]",
+        border: "border-fresco-divider",
+        bg: "bg-fresco-surface-muted",
+        iconColor: "text-fresco-tint",
         buttonVariant: "default" as const,
       };
   }
@@ -80,12 +80,12 @@ function ActionDetails({ action }: { action: CmsAction }) {
   switch (action.action) {
     case "add_items":
       return (
-        <div className="flex flex-col gap-1 text-[11px] text-[color:var(--framer-fresco-panelDescription-color)]">
+        <div className="flex flex-col gap-1 text-[11px] text-fresco-description">
           {action.items.slice(0, 5).map((item, i) => (
             <div key={i} className="flex items-center gap-1.5">
-              <span className="font-mono text-[color:var(--framer-fresco-panelTitle-color)]">{item.slug}</span>
+              <span className="font-mono text-fresco-title">{item.slug}</span>
               {item.draft !== false && (
-                <span className="rounded bg-[var(--framer-fresco-panelDivider-color)] px-1 py-0.5 text-[9px]">Draft</span>
+                <span className="rounded bg-fresco-divider px-1 py-0.5 text-[9px]">Draft</span>
               )}
             </div>
           ))}
@@ -96,13 +96,13 @@ function ActionDetails({ action }: { action: CmsAction }) {
       );
     case "remove_items":
       return (
-        <span className="text-[11px] text-[color:var(--framer-fresco-panelDescription-color)]">
+        <span className="text-[11px] text-fresco-description">
           {action.itemIds.length} item{action.itemIds.length !== 1 ? "s" : ""} will be permanently removed
         </span>
       );
     case "remove_item":
       return (
-        <span className="text-[11px] text-[color:var(--framer-fresco-panelDescription-color)]">
+        <span className="text-[11px] text-fresco-description">
           This item will be permanently removed
         </span>
       );
@@ -112,38 +112,38 @@ function ActionDetails({ action }: { action: CmsAction }) {
       if (action.draft !== undefined) changes.push(action.draft ? "Set as draft" : "Publish");
       if (action.fieldData) changes.push(`${Object.keys(action.fieldData).length} field${Object.keys(action.fieldData).length !== 1 ? "s" : ""}`);
       return (
-        <span className="text-[11px] text-[color:var(--framer-fresco-panelDescription-color)]">
+        <span className="text-[11px] text-fresco-description">
           {changes.join(" · ") || "No changes specified"}
         </span>
       );
     }
     case "add_enum_case":
       return (
-        <span className="text-[11px] text-[color:var(--framer-fresco-panelDescription-color)]">
-          New option: <span className="font-medium text-[color:var(--framer-fresco-panelTitle-color)]">{action.name}</span>
+        <span className="text-[11px] text-fresco-description">
+          New option: <span className="font-medium text-fresco-title">{action.name}</span>
         </span>
       );
     case "update_enum_case":
       return (
-        <span className="text-[11px] text-[color:var(--framer-fresco-panelDescription-color)]">
-          Rename to: <span className="font-medium text-[color:var(--framer-fresco-panelTitle-color)]">{action.newName}</span>
+        <span className="text-[11px] text-fresco-description">
+          Rename to: <span className="font-medium text-fresco-title">{action.newName}</span>
         </span>
       );
     case "remove_enum_case":
       return (
-        <span className="text-[11px] text-[color:var(--framer-fresco-panelDescription-color)]">
+        <span className="text-[11px] text-fresco-description">
           This enum option will be permanently removed
         </span>
       );
     case "set_enum_case_order":
       return (
-        <span className="text-[11px] text-[color:var(--framer-fresco-panelDescription-color)]">
+        <span className="text-[11px] text-fresco-description">
           {action.caseIds.length} options will be reordered
         </span>
       );
     case "publish":
       return (
-        <span className="text-[11px] text-[color:var(--framer-fresco-panelDescription-color)]">
+        <span className="text-[11px] text-fresco-description">
           A new deployment will be created for the live site
         </span>
       );
@@ -189,19 +189,19 @@ export function CmsActionConfirmation({ proposal, onExecuted }: CmsActionConfirm
       {/* Header */}
       <div className="flex items-center gap-2">
         <ShieldCheck className={`size-4 shrink-0 ${styles.iconColor}`} weight="fill" />
-        <span className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+        <span className="text-xs font-semibold uppercase tracking-[0.08em] text-fresco-subtitle">
           Confirmation Required
         </span>
       </div>
 
       {/* Action summary */}
-      <div className="flex items-start gap-2.5 rounded-md border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-3 py-2.5">
+      <div className="flex items-start gap-2.5 rounded-md border border-fresco-divider bg-fresco-panel px-3 py-2.5">
         <ActionIcon action={proposal.payload} className={`mt-0.5 size-4 shrink-0 ${styles.iconColor}`} />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="text-xs font-medium text-[color:var(--framer-fresco-panelTitle-color)]">
+          <span className="text-xs font-medium text-fresco-title">
             {label}
           </span>
-          <span className="text-[11px] leading-relaxed text-[color:var(--framer-fresco-panelDescription-color)]">
+          <span className="text-[11px] leading-relaxed text-fresco-description">
             {proposal.description}
           </span>
           <ActionDetails action={proposal.payload} />
@@ -234,7 +234,7 @@ export function CmsActionConfirmation({ proposal, onExecuted }: CmsActionConfirm
 
       {/* Executing */}
       {state === "executing" && (
-        <div className="flex items-center gap-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+        <div className="flex items-center gap-2 text-xs text-fresco-description">
           <SpinnerGap className="size-3.5 animate-spin" />
           <span>Executing…</span>
         </div>
@@ -250,7 +250,7 @@ export function CmsActionConfirmation({ proposal, onExecuted }: CmsActionConfirm
 
       {/* Rejected */}
       {state === "rejected" && (
-        <div className="flex items-center gap-2 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+        <div className="flex items-center gap-2 text-xs text-fresco-description">
           <XCircle className="size-3.5" weight="fill" />
           <span>Rejected by user</span>
         </div>

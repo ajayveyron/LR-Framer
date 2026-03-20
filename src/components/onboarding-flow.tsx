@@ -34,31 +34,31 @@ import type {
 const FRAMER_DOCS_URL =
   "https://www.framer.com/developers/server-api-quick-start";
 const shellClassName = "min-h-screen min-h-dvh overflow-y-auto overscroll-none bg-[var(--background)] p-4 sm:p-7";
-const cardClassName = "rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[linear-gradient(180deg,var(--framer-app-frame-overlay-color),transparent),var(--framer-fresco-panelBackground-color)] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.45)] mx-auto w-full max-w-7xl";
+const cardClassName = "rounded-none border border-fresco-divider bg-[linear-gradient(180deg,var(--color-fresco-frame-overlay),transparent),var(--color-fresco-panel)] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.45)] mx-auto w-full max-w-7xl";
 const sectionClassName =
-  "mt-7 grid gap-6 border-t border-[var(--framer-fresco-panelDivider-color)] pt-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]";
-const formClassName = "rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] grid gap-4 p-5";
-const primaryButtonClassName = "bg-[var(--framer-app-primary-surface-color)] text-[color:var(--framer-app-primary-surface-text-color)] shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:bg-[var(--framer-app-primary-surface-hover-color)]";
-const kickerClassName = "inline-flex items-center rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[color:var(--framer-fresco-panelSubtitle-color)]";
+  "mt-7 grid gap-6 border-t border-fresco-divider pt-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]";
+const formClassName = "rounded-none border border-fresco-divider bg-fresco-surface-subtle grid gap-4 p-5";
+const primaryButtonClassName = "bg-fresco-primary-surface text-fresco-primary-surface-text shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:bg-fresco-primary-surface-hover";
+const kickerClassName = "inline-flex items-center rounded-none border border-fresco-divider bg-fresco-surface-muted px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-fresco-subtitle";
 const copyTextClassName =
-  "text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]";
+  "text-base leading-7 text-fresco-description";
 const helperTextClassName =
-  "text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
-const errorBannerClassName = "rounded-none border border-[var(--framer-app-danger-callout-border-color)] bg-[var(--framer-app-danger-callout-background-color)] px-4 py-3 text-sm text-[color:var(--framer-app-danger-callout-text-color)]";
+  "text-sm leading-6 text-fresco-description";
+const errorBannerClassName = "rounded-none border border-fresco-danger-callout-border bg-fresco-danger-callout-bg px-4 py-3 text-sm text-fresco-danger-callout-text";
 const fieldClassName = "grid gap-2";
 const labelRowClassName = "flex items-center justify-between gap-3";
 const formControlClassName =
-  "border-[var(--framer-fresco-inputBorder-color)] bg-[var(--framer-fresco-inputBackground-color)] text-[color:var(--framer-fresco-settingsText-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color),0_8px_24px_rgba(0,0,0,0.12)] placeholder:text-[color-mix(in_srgb,var(--framer-fresco-settingsText-color)_34%,transparent)] focus-visible:border-[var(--framer-fresco-inputBorderActive-color)] focus-visible:shadow-[0_0_0_4px_var(--framer-fresco-tintDimmed-color),inset_0_1px_0_var(--framer-app-frame-overlay-color),0_8px_24px_rgba(0,0,0,0.12)] h-auto min-h-[52px] rounded-2xl border px-4 py-3.5 text-[15px] leading-[1.45]";
+  "border-fresco-input-border bg-fresco-input-bg text-fresco-text shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] placeholder:text-[color-mix(in_srgb,var(--color-fresco-text)_34%,transparent)] focus-visible:border-fresco-input-active focus-visible:shadow-[0_0_0_4px_var(--color-fresco-tint-dimmed),inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] h-auto min-h-[52px] rounded-2xl border px-4 py-3.5 text-[15px] leading-[1.45]";
 const helpTriggerClassName =
   "shrink-0 text-[11px] font-semibold  tracking-[0.08em] underline decoration-dotted";
 const helpDialogContentClassName =
-  "max-w-lg gap-5 rounded-[28px] border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-background-color)] p-6 shadow-2xl";
+  "max-w-lg gap-5 rounded-[28px] border border-fresco-divider bg-[var(--color-fresco-app-bg)] p-6 shadow-2xl";
 const helpDialogTextClassName =
-  "text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
+  "text-sm leading-6 text-fresco-description";
 const helpDialogListClassName =
-  "grid gap-3 pl-5 text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
+  "grid gap-3 pl-5 text-sm leading-6 text-fresco-description";
 const helpCodeClassName =
-  "rounded-md bg-[var(--framer-app-surface-muted-color)] px-1.5 py-0.5 text-[13px] text-[color:var(--framer-fresco-panelTitle-color)]";
+  "rounded-md bg-fresco-surface-muted px-1.5 py-0.5 text-[13px] text-fresco-title";
 
 export function OnboardingFlow({
   initialOnboardingState,
@@ -219,10 +219,10 @@ export function OnboardingFlow({
       <div className={cardClassName}>
         <div className="max-w-3xl">
           <span className={kickerClassName}>Framer Bot Setup</span>
-          <h1 className="mt-3 font-heading text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.04em] text-[color:var(--framer-fresco-panelTitle-color)]">
+          <h1 className="mt-3 font-heading text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.04em] text-fresco-title">
             Connect Framer once, then let your team run it like an AI-native operation.
           </h1>
-          <p className="mt-4 max-w-3xl text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]">
+          <p className="mt-4 max-w-3xl text-base leading-7 text-fresco-description">
             Framer Bot needs your Framer Server API key, the project URL or ID,
             plus a default CMS collection to turn your site into a faster,
             team-ready workspace.
@@ -233,10 +233,10 @@ export function OnboardingFlow({
           <section className={sectionClassName}>
             <div>
               <span className={kickerClassName}>Step 1</span>
-              <h2 className="mt-3 font-heading text-3xl leading-tight text-[color:var(--framer-fresco-panelTitle-color)]">
+              <h2 className="mt-3 font-heading text-3xl leading-tight text-fresco-title">
                 Create your team
               </h2>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]">
+              <p className="mt-3 max-w-2xl text-base leading-7 text-fresco-description">
                 This is the shared Framer Bot workspace where admins and team
                 members manage the Framer CMS collections connected to this
                 project together.
@@ -273,17 +273,17 @@ export function OnboardingFlow({
           <section className={sectionClassName}>
             <div>
               <span className={kickerClassName}>Step 2</span>
-              <h2 className="mt-3 font-heading text-3xl leading-tight text-[color:var(--framer-fresco-panelTitle-color)]">
+              <h2 className="mt-3 font-heading text-3xl leading-tight text-fresco-title">
                 Validate your Framer connection
               </h2>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]">
+              <p className="mt-3 max-w-2xl text-base leading-7 text-fresco-description">
                 Grab the Server API key from Framer Site Settings and paste the
                 project URL or project ID from the same project.
               </p>
-              <p className="mt-3 text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]">
+              <p className="mt-3 text-sm leading-6 text-fresco-description">
                 Need help? Follow the Framer docs:{" "}
                 <Link
-                  className="text-[color:var(--framer-fresco-tint-color)] underline underline-offset-3"
+                  className="text-fresco-tint underline underline-offset-3"
                   href={FRAMER_DOCS_URL}
                   target="_blank"
                 >
@@ -308,7 +308,7 @@ export function OnboardingFlow({
                     </DialogTrigger>
                     <DialogContent className={helpDialogContentClassName}>
                       <DialogHeader className="pr-8">
-                        <DialogTitle className="font-heading text-2xl leading-tight text-[color:var(--framer-fresco-panelTitle-color)]">
+                        <DialogTitle className="font-heading text-2xl leading-tight text-fresco-title">
                           Find your Framer project URL or ID
                         </DialogTitle>
                         <DialogDescription className={helpDialogTextClassName}>
@@ -337,9 +337,9 @@ export function OnboardingFlow({
                         becomes{" "}
                         <code className={helpCodeClassName}>abc123</code>.
                       </p>
-                      <div className="flex items-center justify-between gap-3 border-t border-[var(--framer-fresco-panelDivider-color)] pt-4">
+                      <div className="flex items-center justify-between gap-3 border-t border-fresco-divider pt-4">
                         <Link
-                          className="text-sm font-medium text-[color:var(--framer-fresco-tint-color)] underline underline-offset-3"
+                          className="text-sm font-medium text-fresco-tint underline underline-offset-3"
                           href={FRAMER_DOCS_URL}
                           target="_blank"
                         >
@@ -381,7 +381,7 @@ export function OnboardingFlow({
                     </DialogTrigger>
                     <DialogContent className={helpDialogContentClassName}>
                       <DialogHeader className="pr-8">
-                        <DialogTitle className="font-heading text-2xl leading-tight text-[color:var(--framer-fresco-panelTitle-color)]">
+                        <DialogTitle className="font-heading text-2xl leading-tight text-fresco-title">
                           Get your Framer Server API key
                         </DialogTitle>
                         <DialogDescription className={helpDialogTextClassName}>
@@ -404,9 +404,9 @@ export function OnboardingFlow({
                         Treat this key like a password. Anyone with it can
                         access the project through Framer&apos;s Server API.
                       </p>
-                      <div className="flex items-center justify-between gap-3 border-t border-[var(--framer-fresco-panelDivider-color)] pt-4">
+                      <div className="flex items-center justify-between gap-3 border-t border-fresco-divider pt-4">
                         <Link
-                          className="text-sm font-medium text-[color:var(--framer-fresco-tint-color)] underline underline-offset-3"
+                          className="text-sm font-medium text-fresco-tint underline underline-offset-3"
                           href={FRAMER_DOCS_URL}
                           target="_blank"
                         >

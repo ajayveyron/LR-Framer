@@ -130,22 +130,22 @@ export function EditProposalView({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] p-3">
-      <span className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+    <div className="flex flex-col gap-3 rounded-lg border border-fresco-divider bg-fresco-surface-muted p-3">
+      <span className="text-xs font-semibold uppercase tracking-[0.08em] text-fresco-subtitle">
         Proposed Changes — {edits.length} row{edits.length === 1 ? "" : "s"}
       </span>
 
-      <div className="overflow-x-auto rounded-md border border-[var(--framer-fresco-panelDivider-color)]">
+      <div className="overflow-x-auto rounded-md border border-fresco-divider">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)]">
-              <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-[color:var(--framer-fresco-panelSubtitle-color)]">
+            <tr className="border-b border-fresco-divider bg-fresco-panel">
+              <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-fresco-subtitle">
                 Post
               </th>
               {changedFieldIds.map((fieldId) => (
                 <th
                   key={fieldId}
-                  className="whitespace-nowrap px-3 py-2 text-left font-semibold text-[color:var(--framer-fresco-panelSubtitle-color)]"
+                  className="whitespace-nowrap px-3 py-2 text-left font-semibold text-fresco-subtitle"
                 >
                   {fieldMap.get(fieldId)?.name ?? fieldId}
                 </th>
@@ -161,7 +161,7 @@ export function EditProposalView({
               return (
                 <tr
                   key={edit.rowId}
-                  className="border-b border-[var(--framer-fresco-panelDivider-color)] last:border-b-0"
+                  className="border-b border-fresco-divider last:border-b-0"
                 >
                   <td className="px-3 py-2 align-top">
                     <div className="flex items-center gap-1.5">
@@ -171,7 +171,7 @@ export function EditProposalView({
                       {status === "failed" && (
                         <X className="size-3.5 shrink-0 text-red-400" weight="bold" />
                       )}
-                      <span className="max-w-[140px] truncate font-medium text-[color:var(--framer-fresco-panelTitle-color)]">
+                      <span className="max-w-[140px] truncate font-medium text-fresco-title">
                         {title}
                       </span>
                     </div>
@@ -187,7 +187,7 @@ export function EditProposalView({
                       return (
                         <td
                           key={fieldId}
-                          className="px-3 py-2 align-top text-[color:var(--framer-fresco-panelDescription-color)] opacity-30"
+                          className="px-3 py-2 align-top text-fresco-description opacity-30"
                         >
                           —
                         </td>
@@ -198,10 +198,10 @@ export function EditProposalView({
                     return (
                       <td key={fieldId} className={`px-3 py-2 align-top ${unchanged ? "opacity-40" : ""}`}>
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-[color:var(--framer-fresco-panelDescription-color)] opacity-60 line-through">
+                          <span className="text-fresco-description opacity-60 line-through">
                             {truncate(currentValue)}
                           </span>
-                          <span className="text-[color:var(--framer-fresco-panelTitle-color)]">
+                          <span className="text-fresco-title">
                             {truncate(newValue)}
                             {unchanged && " (no change)"}
                           </span>
@@ -236,14 +236,14 @@ export function EditProposalView({
       )}
 
       {!result && allUpToDate && (
-        <div className="flex items-center gap-1.5 text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+        <div className="flex items-center gap-1.5 text-xs text-fresco-description">
           <Check className="size-3.5 text-emerald-400" weight="bold" />
           Already up to date
         </div>
       )}
 
       {result && (
-        <div className="text-xs text-[color:var(--framer-fresco-panelDescription-color)]">
+        <div className="text-xs text-fresco-description">
           {result.succeeded.length} applied
           {result.failed.length > 0 && `, ${result.failed.length} failed`}
         </div>

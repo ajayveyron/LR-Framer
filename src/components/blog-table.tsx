@@ -218,7 +218,7 @@ function renderCellContent(
         // eslint-disable-next-line @next/next/no-img-element
         <img
           alt={field.name}
-          className="block h-8 w-[76px] max-w-none overflow-hidden rounded-lg border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] object-cover object-center"
+          className="block h-8 w-[76px] max-w-none overflow-hidden rounded-lg border border-fresco-divider bg-fresco-surface-muted object-cover object-center"
           loading="lazy"
           src={value}
         />
@@ -316,8 +316,8 @@ export function BlogTable({
 
   if (posts.length === 0) {
     return (
-      <div className="flex flex-col gap-2 px-6 py-14 text-center text-[color:var(--framer-fresco-panelDescription-color)]">
-        <strong className="text-[color:var(--framer-fresco-panelTitle-color)]">
+      <div className="flex flex-col gap-2 px-6 py-14 text-center text-fresco-description">
+        <strong className="text-fresco-title">
           No posts loaded yet.
         </strong>
         <p>Add your first draft post.</p>
@@ -359,7 +359,7 @@ export function BlogTable({
             {columns.map((column) => (
               <th
                 className={cn(
-                  "text-[color:var(--framer-dashboard-header-text-color)] text-[12px] font-medium tracking-[-0.01em] leading-[1.35]", "relative z-10 border-b border-[var(--framer-dashboard-content-border-color)] bg-[var(--framer-fresco-panelBackground-color)] px-[22px] py-3 text-left transition-colors",
+                  "text-dash-header-text text-[12px] font-medium tracking-[-0.01em] leading-[1.35]", "relative z-10 border-b border-dash-content-border bg-fresco-panel px-[22px] py-3 text-left transition-colors",
                 )}
                 key={column.key}
               >
@@ -391,10 +391,10 @@ export function BlogTable({
             <Fragment key={group.key}>
               {hasBothGroups && (
                 <tr
-                  className="bg-[var(--framer-dashboard-group-background-color)]"
+                  className="bg-dash-group-bg"
                 >
                   <td
-                    className={cn("text-[color:var(--framer-fresco-panelTitle-color)] text-[12px] font-semibold tracking-[-0.01em]", "border-b border-[var(--framer-dashboard-content-border-color)] px-[22px] py-3")}
+                    className={cn("text-fresco-title text-[12px] font-semibold tracking-[-0.01em]", "border-b border-dash-content-border px-[22px] py-3")}
                     colSpan={columns.length}
                   >
                     {group.label}
@@ -407,7 +407,7 @@ export function BlogTable({
                     <tr
                       aria-label={`Edit ${post.title}`}
                       className={cn(
-                        "bg-transparent hover:bg-[var(--framer-dashboard-row-hover-color)] data-[active=true]:bg-[var(--framer-dashboard-row-active-color)] data-[selected=true]:bg-[var(--framer-dashboard-row-selected-color)]", "group cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--framer-fresco-tintDimmed-color)] focus-visible:ring-inset",
+                        "bg-transparent hover:bg-dash-row-hover data-[active=true]:bg-dash-row-active data-[selected=true]:bg-dash-row-selected", "group cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresco-tint-dimmed focus-visible:ring-inset",
                         loadingPosts?.has(post.id) && "pointer-events-none opacity-50 duration-300",
                       )}
                       data-active={post.id === activePostId}
@@ -435,15 +435,15 @@ export function BlogTable({
                           const isLoading = loadingPosts?.has(post.id);
                           return (
                             <td
-                              className={cn("text-[color:var(--framer-dashboard-cell-text-color)] text-[12px] font-normal tracking-[-0.01em] leading-[1.35]", "border-b border-[var(--framer-dashboard-content-border-color)] px-[22px] py-[13px] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]")}
+                              className={cn("text-dash-cell-text text-[12px] font-normal tracking-[-0.01em] leading-[1.35]", "border-b border-dash-content-border px-[22px] py-[13px] transition-colors group-hover:text-fresco-title group-data-[active=true]:text-fresco-title")}
                               key={column.key}
                             >
                               <Badge
                                 className={cn(
                                   "h-5 rounded-full px-2 text-[11px] font-medium data-[loading=true]:bg-transparent data-[loading=true]:opacity-80 transition-opacity",
                                   post.draft
-                                    ? "border border-[var(--framer-app-warning-callout-border-color)] bg-[var(--framer-app-warning-callout-background-color)] text-[color:var(--framer-app-warning-callout-text-color)]"
-                                    : "border border-[color-mix(in_srgb,var(--framer-fresco-tint-color)_20%,transparent)] bg-[color-mix(in_srgb,var(--framer-fresco-tint-color)_14%,transparent)] text-[color-mix(in_srgb,var(--framer-fresco-panelTitle-color)_92%,white)]",
+                                    ? "border border-fresco-warning-callout-border bg-fresco-warning-callout-bg text-fresco-warning-callout-text"
+                                    : "border border-[color-mix(in_srgb,var(--color-fresco-tint)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-fresco-tint)_14%,transparent)] text-[color-mix(in_srgb,var(--color-fresco-title)_92%,white)]",
                                 )}
                                 data-loading={isLoading}
                                 variant="outline"
@@ -458,8 +458,8 @@ export function BlogTable({
                         return (
                             <td
                               className={cn(
-                                "text-[color:var(--framer-dashboard-cell-text-color)] text-[12px] font-normal tracking-[-0.01em] leading-[1.35]", "border-b border-[var(--framer-dashboard-content-border-color)] px-[22px] py-[13px] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]",
-                                column.key === "title" && "text-[color:var(--framer-fresco-panelTitle-color)] font-medium",
+                                "text-dash-cell-text text-[12px] font-normal tracking-[-0.01em] leading-[1.35]", "border-b border-dash-content-border px-[22px] py-[13px] transition-colors group-hover:text-fresco-title group-data-[active=true]:text-fresco-title",
+                                column.key === "title" && "text-fresco-title font-medium",
                               )}
                             key={column.key}
                             title={String(getCellValue(post, metadata, column.key))}

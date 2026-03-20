@@ -70,25 +70,25 @@ const fieldClassName = "flex flex-col gap-2";
 const wideFieldClassName = "max-w-none";
 const labelRowClassName = "flex items-center justify-between gap-2.5";
 const metaBadgeClassName =
-  "h-6 rounded-full border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]";
+  "h-6 rounded-full border border-fresco-divider bg-fresco-surface-muted px-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-fresco-subtitle";
 const helperTextClassName =
-  "text-[13px] leading-[1.45] text-[color:var(--framer-fresco-panelSubtitle-color)]";
+  "text-[13px] leading-[1.45] text-fresco-subtitle";
 const fieldErrorClassName =
-  "text-[13px] text-[color:var(--framer-app-danger-callout-text-color)]";
+  "text-[13px] text-fresco-danger-callout-text";
 const formControlClassName =
-  "border-[var(--framer-fresco-inputBorder-color)] bg-[var(--framer-fresco-inputBackground-color)] text-[color:var(--framer-fresco-settingsText-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color),0_8px_24px_rgba(0,0,0,0.12)] placeholder:text-[color-mix(in_srgb,var(--framer-fresco-settingsText-color)_34%,transparent)] focus-visible:border-[var(--framer-fresco-inputBorderActive-color)] focus-visible:shadow-[0_0_0_4px_var(--framer-fresco-tintDimmed-color),inset_0_1px_0_var(--framer-app-frame-overlay-color),0_8px_24px_rgba(0,0,0,0.12)] h-10 rounded-lg border px-3 py-2.5 font-sans text-sm leading-[1.4]";
+  "border-fresco-input-border bg-fresco-input-bg text-fresco-text shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] placeholder:text-[color-mix(in_srgb,var(--color-fresco-text)_34%,transparent)] focus-visible:border-fresco-input-active focus-visible:shadow-[0_0_0_4px_var(--color-fresco-tint-dimmed),inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] h-10 rounded-lg border px-3 py-2.5 font-sans text-sm leading-[1.4]";
 const titleControlClassName =
   "h-12 text-[clamp(20px,1.7vw,26px)] leading-[1.1] tracking-[-0.03em]";
 const toolbarButtonClassName =
-  "border-[var(--framer-fresco-inputBorder-color)] bg-[var(--framer-fresco-inputBackground-color)] text-[color:var(--framer-fresco-settingsText-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color),0_8px_24px_rgba(0,0,0,0.12)] placeholder:text-[color-mix(in_srgb,var(--framer-fresco-settingsText-color)_34%,transparent)] focus-visible:border-[var(--framer-fresco-inputBorderActive-color)] focus-visible:shadow-[0_0_0_4px_var(--framer-fresco-tintDimmed-color),inset_0_1px_0_var(--framer-app-frame-overlay-color),0_8px_24px_rgba(0,0,0,0.12)] h-9 min-h-9 rounded-lg border px-3 py-0 shadow-none";
+  "border-fresco-input-border bg-fresco-input-bg text-fresco-text shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] placeholder:text-[color-mix(in_srgb,var(--color-fresco-text)_34%,transparent)] focus-visible:border-fresco-input-active focus-visible:shadow-[0_0_0_4px_var(--color-fresco-tint-dimmed),inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] h-9 min-h-9 rounded-lg border px-3 py-0 shadow-none";
 const toolbarActionGroupClassName =
-  "rounded-none bg-[var(--framer-app-surface-muted-color)] p-1 flex flex-wrap items-center gap-1 rounded-lg";
+  "rounded-none bg-fresco-surface-muted p-1 flex flex-wrap items-center gap-1 rounded-lg";
 const toolbarActionButtonClassName =
-  "text-[color:var(--framer-fresco-buttonText-color)] hover:bg-[var(--framer-fresco-buttonBackgroundHover-color)] hover:text-[color:var(--framer-fresco-panelTitle-color)] focus-visible:bg-[var(--framer-fresco-buttonBackgroundHover-color)] focus-visible:text-[color:var(--framer-fresco-panelTitle-color)] disabled:text-[color-mix(in_srgb,var(--framer-fresco-buttonText-color)_40%,transparent)] size-8 rounded-lg border-transparent bg-transparent p-0";
+  "text-fresco-button-text hover:bg-fresco-button-surface-hover hover:text-fresco-title focus-visible:bg-fresco-button-surface-hover focus-visible:text-fresco-title disabled:text-[color-mix(in_srgb,var(--color-fresco-button-text)_40%,transparent)] size-8 rounded-lg border-transparent bg-transparent p-0";
 const primaryButtonClassName =
-  "bg-[var(--framer-fresco-buttonBackgroundPrimary-color)] text-[color:var(--framer-fresco-buttonTextPrimary-color)] shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:bg-[var(--framer-fresco-buttonBackgroundPrimaryHover-color)]";
+  "bg-fresco-button-primary text-fresco-button-primary-text shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:bg-fresco-button-primary-hover";
 const warningBannerClassName =
-  "rounded-none border border-[var(--framer-app-accent-callout-border-color)] bg-[var(--framer-app-accent-callout-background-color)] px-4 py-3 text-sm text-[color:var(--framer-app-accent-callout-text-color)]";
+  "rounded-none border border-fresco-accent-callout-border bg-fresco-accent-callout-bg px-4 py-3 text-sm text-fresco-accent-callout-text";
 const editorContentClassName =
   "framer-editor-prose min-h-[280px] overflow-x-auto px-4 py-4 outline-none";
 
@@ -475,7 +475,7 @@ function FieldLabel({
 }) {
   return (
     <Label
-      className="text-[13px] tracking-wide text-[color:var(--framer-fresco-panelTitle-color)]"
+      className="text-[13px] tracking-wide text-fresco-title"
       htmlFor={htmlFor}
     >
       {name}
@@ -483,7 +483,7 @@ function FieldLabel({
         <>
           <span
             aria-hidden="true"
-            className="inline-flex text-[color:var(--framer-fresco-errorTint-color)]"
+            className="inline-flex text-fresco-error"
           >
             <AsteriskIcon className="size-2" weight="bold" />
           </span>
@@ -513,7 +513,7 @@ function ReadOnlyField({
         {field.helpText ??
           "This field type is visible but not editable in the dashboard."}
       </div>
-      <div className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] px-4 py-3 text-sm text-[color:var(--framer-fresco-settingsText-color)]">
+      <div className="rounded-none border border-fresco-divider bg-fresco-surface-subtle px-4 py-3 text-sm text-fresco-text">
         {Array.isArray(value) ? value.join(", ") : String(value ?? "")}
       </div>
     </div>
@@ -938,8 +938,8 @@ function RichTextInput({
   }
 
   return (
-    <div className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-elevated-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color),0_8px_24px_rgba(0,0,0,0.12)] relative overflow-hidden rounded-lg">
-      <div className="border-b border-b-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] flex flex-wrap items-center gap-2 px-3 py-2">
+    <div className="rounded-none border border-fresco-divider bg-fresco-surface-elevated shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] relative overflow-hidden rounded-lg">
+      <div className="border-b border-b-fresco-divider bg-fresco-surface-subtle flex flex-wrap items-center gap-2 px-3 py-2">
         <Select
           disabled={!hasTextSelection}
           onValueChange={(nextValue) => {
@@ -950,7 +950,7 @@ function RichTextInput({
           <SelectTrigger
             className={cn(
               toolbarButtonClassName,
-              "min-w-[172px] justify-between text-left text-sm text-[color:var(--framer-fresco-settingsText-color)]",
+              "min-w-[172px] justify-between text-left text-sm text-fresco-text",
             )}
             onMouseDown={(event) => {
               event.preventDefault();
@@ -1102,7 +1102,7 @@ function RichTextInput({
 
       {/* ── Diff view (replaces editor when active) ── */}
       {rewriteStatus === "loading" && (
-        <div className={cn(editorContentClassName, "flex flex-col items-center justify-center gap-2 text-[color:var(--framer-fresco-panelSubtitle-color)]")}>
+        <div className={cn(editorContentClassName, "flex flex-col items-center justify-center gap-2 text-fresco-subtitle")}>
           <SpinnerGap className="size-6 animate-spin" />
           <span className="text-xs">Optimizing for SEO, GEO &amp; AEO…</span>
           <Button
@@ -1137,13 +1137,13 @@ function RichTextInput({
                 );
               }
               return (
-                <span key={idx} className="text-[color:var(--framer-fresco-panelDescription-color)]">
+                <span key={idx} className="text-fresco-description">
                   {seg.text}{" "}
                 </span>
               );
             })}
           </div>
-          <div className="flex items-center justify-end gap-2 border-t border-[var(--framer-fresco-panelDivider-color)] px-3 py-2">
+          <div className="flex items-center justify-end gap-2 border-t border-fresco-divider px-3 py-2">
             <Button
               onClick={rejectRewrite}
               size="xs"
@@ -1215,10 +1215,10 @@ function RichTextInput({
           />
           {hoveredLink ? (
             <div
-              className="absolute z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 rounded-lg border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-menuBackground-color)] px-2.5 py-2 text-xs text-[color:var(--framer-fresco-menuText-color)] shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+              className="absolute z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 rounded-lg border border-fresco-divider bg-fresco-menu-bg px-2.5 py-2 text-xs text-fresco-menu-text shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
               style={{ left: hoveredLink.left, top: hoveredLink.top }}
             >
-              <span className="max-w-52 truncate text-[color:var(--framer-fresco-panelSubtitle-color)]">
+              <span className="max-w-52 truncate text-fresco-subtitle">
                 {hoveredLink.href}
               </span>
               <Button
@@ -1536,10 +1536,10 @@ export function PostEditor({
             control={form.control}
             name={path}
             render={({ field: controllerField }) => (
-              <div className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] flex min-h-[42px] items-center justify-between gap-3 px-3">
+              <div className="rounded-none border border-fresco-divider bg-fresco-surface-subtle flex min-h-[42px] items-center justify-between gap-3 px-3">
                 <div className="min-w-0">
                   <Label
-                    className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]"
+                    className="text-sm text-fresco-title"
                     htmlFor={inputId}
                   >
                     Enabled
@@ -1653,17 +1653,17 @@ export function PostEditor({
 
                 return (
                   <div
-                    className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] flex min-h-[42px] items-center justify-between gap-3 px-3"
+                    className="rounded-none border border-fresco-divider bg-fresco-surface-subtle flex min-h-[42px] items-center justify-between gap-3 px-3"
                     key={option.slug}
                   >
                     <div className="min-w-0">
                       <Label
-                        className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]"
+                        className="text-sm text-fresco-title"
                         htmlFor={optionId}
                       >
                         {option.label}
                       </Label>
-                      <div className="text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
+                      <div className="text-sm text-fresco-subtitle">
                         {option.slug}
                       </div>
                     </div>
@@ -1817,18 +1817,18 @@ export function PostEditor({
           </div>
           <div className="flex flex-col gap-3">
             {assetUrl ? (
-              <div className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-elevated-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color),0_8px_24px_rgba(0,0,0,0.12)] flex items-center gap-3 rounded-lg p-3">
+              <div className="rounded-none border border-fresco-divider bg-fresco-surface-elevated shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] flex items-center gap-3 rounded-lg p-3">
                 {field.type === "image" ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     alt={field.name}
-                    className="h-[80px] w-28 shrink-0 rounded-lg border border-[var(--framer-fresco-panelDivider-color)] object-cover"
+                    className="h-[80px] w-28 shrink-0 rounded-lg border border-fresco-divider object-cover"
                     src={assetUrl}
                   />
                 ) : (
                   <div
                     aria-hidden="true"
-                    className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-[var(--framer-app-surface-muted-color)] text-[color:var(--framer-fresco-settingsText-color)]"
+                    className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-fresco-surface-muted text-fresco-text"
                   >
                     <svg
                       fill="none"
@@ -1853,7 +1853,7 @@ export function PostEditor({
                   </div>
                 )}
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <strong className="truncate text-[color:var(--framer-fresco-panelTitle-color)]">
+                  <strong className="truncate text-fresco-title">
                     {getAssetLabel(assetUrl)}
                   </strong>
                   <div className="flex items-center gap-1.5">
@@ -2029,13 +2029,13 @@ export function PostEditor({
   }
 
   return (
-    <section className="flex h-full flex-col bg-[var(--framer-fresco-panelBackground-color)]">
-      <div className="sticky top-0 z-10 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-5 py-4 ">
+    <section className="flex h-full flex-col bg-fresco-panel">
+      <div className="sticky top-0 z-10 border-b border-fresco-divider bg-fresco-panel px-5 py-4 ">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 flex-1 items-center gap-4">
             <Button
               aria-label="Close editor"
-              className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-elevated-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color),0_8px_24px_rgba(0,0,0,0.12)] size-10 rounded-lg text-[color:var(--framer-fresco-settingsText-color)]"
+              className="rounded-none border border-fresco-divider bg-fresco-surface-elevated shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] size-10 rounded-lg text-fresco-text"
               onClick={onClose}
               size="icon-sm"
               type="button"
@@ -2064,10 +2064,10 @@ export function PostEditor({
             </Button>
             <div
               aria-hidden="true"
-              className="hidden h-[34px] w-px bg-[var(--framer-fresco-panelDivider-color)] sm:block"
+              className="hidden h-[34px] w-px bg-fresco-divider sm:block"
             />
             <div className="min-w-0 max-w-[720px]">
-              <span className="text-sm font-medium tracking-[0.12em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+              <span className="text-sm font-medium tracking-[0.12em] text-fresco-subtitle">
                 {mode === "create" ? "Create Post" : "Edit Post"}
               </span>
             </div>
@@ -2078,8 +2078,8 @@ export function PostEditor({
               className={cn(
                 "relative h-[34px] rounded-full border px-3 pl-6 text-[11px] font-bold uppercase tracking-[0.08em] before:absolute before:top-1/2 before:left-2.5 before:size-[7px] before:-translate-y-1/2 before:rounded-full before:bg-current",
                 form.formState.isDirty
-                  ? "border border-[var(--framer-app-warning-callout-border-color)] bg-[var(--framer-app-warning-callout-background-color)] text-[color:var(--framer-app-warning-callout-text-color)]"
-                  : "border border-[color-mix(in_srgb,var(--framer-fresco-tint-color)_18%,transparent)] bg-[color-mix(in_srgb,var(--framer-fresco-tint-color)_10%,transparent)] text-[color-mix(in_srgb,var(--framer-fresco-panelTitle-color)_78%,var(--framer-fresco-tint-color))]",
+                  ? "border border-fresco-warning-callout-border bg-fresco-warning-callout-bg text-fresco-warning-callout-text"
+                  : "border border-[color-mix(in_srgb,var(--color-fresco-tint)_18%,transparent)] bg-[color-mix(in_srgb,var(--color-fresco-tint)_10%,transparent)] text-[color-mix(in_srgb,var(--color-fresco-title)_78%,var(--color-fresco-tint))]",
               )}
               variant="outline"
             >
@@ -2124,7 +2124,7 @@ export function PostEditor({
       </div>
 
       {serverError ? (
-        <div className="rounded-none border border-[var(--framer-app-danger-callout-border-color)] bg-[var(--framer-app-danger-callout-background-color)] px-4 py-3 text-sm text-[color:var(--framer-app-danger-callout-text-color)] mx-6 mt-4" role="alert">
+        <div className="rounded-none border border-fresco-danger-callout-border bg-fresco-danger-callout-bg px-4 py-3 text-sm text-fresco-danger-callout-text mx-6 mt-4" role="alert">
           {serverError}
         </div>
       ) : null}
@@ -2171,12 +2171,12 @@ export function PostEditor({
             {contentFields.map((field) => renderField(field))}
 
             {readOnlyFields.length > 0 ? (
-              <section className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] mt-2 flex flex-col gap-4 p-4">
+              <section className="rounded-none border border-fresco-divider bg-fresco-surface-subtle mt-2 flex flex-col gap-4 p-4">
                 <div className="flex flex-col gap-1.5">
-                  <span className="inline-flex items-center rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[color:var(--framer-fresco-panelSubtitle-color)] w-fit">
+                  <span className="inline-flex items-center rounded-none border border-fresco-divider bg-fresco-surface-muted px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-fresco-subtitle w-fit">
                     Read Only In Dashboard
                   </span>
-                  <p className="text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]">
+                  <p className="text-sm leading-6 text-fresco-description">
                     These fields are still part of the Framer schema but are not
                     editable here.
                   </p>
@@ -2206,7 +2206,7 @@ export function PostEditor({
         open={mode === "edit" && confirmOpen}
       >
         <DialogContent
-          className="border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] text-[color:var(--framer-fresco-panelTitle-color)] rounded-none border"
+          className="border-fresco-divider bg-fresco-panel text-fresco-title rounded-none border"
           showCloseButton={false}
         >
           <DialogHeader>

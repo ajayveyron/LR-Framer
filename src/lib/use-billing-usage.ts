@@ -22,9 +22,9 @@ export function deriveMeterState(percent: number): MeterState {
 }
 
 export const METER_COLORS: Record<MeterState, string> = {
-  normal: "var(--framer-fresco-tint-color)",
-  warning: "var(--framer-fresco-warningTint-color)",
-  exhausted: "var(--framer-fresco-errorTint-color)",
+  normal: "var(--color-fresco-tint)",
+  warning: "var(--color-fresco-warning)",
+  exhausted: "var(--color-fresco-error)",
 };
 
 export const METER_BG_COLORS: Record<MeterState, string> = {
