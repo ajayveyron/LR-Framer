@@ -118,7 +118,7 @@ export async function POST(request: Request) {
     });
 
     if (orgId && userId) {
-      void trackTokenUsage({
+      await trackTokenUsage({
         organizationId: orgId,
         userId,
         featureType: "rewrite",

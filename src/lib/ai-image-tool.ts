@@ -120,7 +120,7 @@ function buildGenerateAndUploadImageTool(runInFramerContext?: RunInFramerContext
               ? promptTokens + completionTokens
               : FALLBACK_IMAGE_TOKEN_COST;
 
-            void trackTokenUsage({
+            await trackTokenUsage({
               organizationId: orgId,
               userId,
               featureType: "image_tool",

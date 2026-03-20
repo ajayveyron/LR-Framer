@@ -1,4 +1,8 @@
-import { getDashboardOverview, getProjectInfo } from "@/lib/framer";
+import {
+  getCachedDashboardOverviewSnapshot,
+  getDashboardOverview,
+  getProjectInfo,
+} from "@/lib/framer";
 import { runWithFramerRuntimeContext } from "@/lib/framer-runtime";
 import { getDefaultColumns } from "@/lib/dashboard-columns";
 import {
@@ -17,14 +21,64 @@ import { resolveCurrentSiteCollection } from "@/lib/product-framer";
 import type { ProductSite } from "@/lib/product-types";
 import { anyApi } from "convex/server";
 
-export async function loadDashboardFramerStatus(site: ProductSite) {
+async function loadDashboardFallbackSnapshot(
+  site: ProductSite,
+  requestedCollectionId?: string,
+) {
   const persistedSnapshot = parseDashboardSnapshot(site);
   const persistedCollection = pickDashboardSnapshotCollection(
     persistedSnapshot,
-    undefined,
+    requestedCollectionId,
     site.framerCollectionId,
   );
+  if (persistedCollection) {
+    return persistedCollection;
+  }
 
+  return runWithFramerRuntimeContext(
+    getSiteFramerRuntimeContext(site, {
+      collectionId: requestedCollectionId ?? site.framerCollectionId ?? undefined,
+      collectionName:
+        requestedCollectionId && requestedCollectionId !== site.framerCollectionId
+          ? undefined
+          : site.framerCollectionName ?? undefined,
+    }),
+    async () => {
+      const cachedSnapshot = await getCachedDashboardOverviewSnapshot();
+      if (!cachedSnapshot) {
+        return null;
+      }
+
+      const collectionId =
+        requestedCollectionId ?? site.framerCollectionId ?? "cached";
+      const activeCollection =
+        persistedSnapshot?.collections.find(
+          (collection) => collection.id === collectionId,
+        ) ?? {
+          id: collectionId,
+          name:
+            (collectionId === site.framerCollectionId
+              ? site.framerCollectionName
+              : null) ??
+            site.framerCollectionName ??
+            "Cached collection",
+        };
+
+      return {
+        activeCollection,
+        cachedAt: cachedSnapshot.cachedAt,
+        collections:
+          persistedSnapshot?.collections.length
+            ? persistedSnapshot.collections
+            : [activeCollection],
+        overview: cachedSnapshot.value,
+        syncedAt: cachedSnapshot.cachedAt,
+      };
+    },
+  );
+}
+
+export async function loadDashboardFramerStatus(site: ProductSite) {
   return runWithFramerRuntimeContext(
     getSiteFramerRuntimeContext(site, {
       collectionId: site.framerCollectionId ?? undefined,
@@ -43,9 +97,10 @@ export async function loadDashboardFramerStatus(site: ProductSite) {
           throw error;
         }
 
-        if (persistedCollection) {
+        const fallbackSnapshot = await loadDashboardFallbackSnapshot(site);
+        if (fallbackSnapshot) {
           return {
-            cachedAt: new Date(persistedCollection.cachedAt).toISOString(),
+            cachedAt: new Date(fallbackSnapshot.cachedAt).toISOString(),
             state: "stale" as const,
           };
         }
@@ -66,11 +121,6 @@ export async function loadDashboardScreen(requestedCollectionId?: string) {
   }
 
   const persistedSnapshot = parseDashboardSnapshot(access.site);
-  const persistedCollection = pickDashboardSnapshotCollection(
-    persistedSnapshot,
-    requestedCollectionId,
-    access.site.framerCollectionId,
-  );
 
   try {
     const { activeCollection, collections } = await resolveCurrentSiteCollection(
@@ -99,17 +149,19 @@ export async function loadDashboardScreen(requestedCollectionId?: string) {
           syncedAt: Date.now(),
         };
 
-        void fetchProductMutation(anyApi.product.saveFramerDashboardSnapshot, {
-          clerkOrganizationId: access.organizationId,
-          snapshotJson: serializeDashboardSnapshot(nextSnapshot),
-          syncedAt: nextSnapshot.syncedAt,
-        }).catch((error) => {
+        try {
+          await fetchProductMutation(anyApi.product.saveFramerDashboardSnapshot, {
+            clerkOrganizationId: access.organizationId,
+            snapshotJson: serializeDashboardSnapshot(nextSnapshot),
+            syncedAt: nextSnapshot.syncedAt,
+          });
+        } catch (error) {
           logError("dashboard.snapshot.save_failed", error, {
             clerkOrganizationId: access.organizationId,
             collectionId: activeCollection.id,
             postCount: overview.posts.length,
           });
-        });
+        }
 
         return {
           access,
@@ -134,19 +186,24 @@ export async function loadDashboardScreen(requestedCollectionId?: string) {
         framerProjectId: access.site.framerProjectId,
       });
 
-      if (persistedCollection) {
+      const fallbackSnapshot = await loadDashboardFallbackSnapshot(
+        access.site,
+        requestedCollectionId,
+      );
+
+      if (fallbackSnapshot) {
         return {
           access,
-          activeCollection: persistedCollection.activeCollection,
-          collections: persistedCollection.collections,
+          activeCollection: fallbackSnapshot.activeCollection,
+          collections: fallbackSnapshot.collections,
           framerStatus: {
-            cachedAt: new Date(persistedCollection.cachedAt).toISOString(),
+            cachedAt: new Date(fallbackSnapshot.cachedAt).toISOString(),
             state: "stale" as const,
           },
-          initialColumns: getDefaultColumns(persistedCollection.overview.metadata),
+          initialColumns: getDefaultColumns(fallbackSnapshot.overview.metadata),
           kind: "ready" as const,
-          metadata: persistedCollection.overview.metadata,
-          posts: persistedCollection.overview.posts,
+          metadata: fallbackSnapshot.overview.metadata,
+          posts: fallbackSnapshot.overview.posts,
         };
       }
 

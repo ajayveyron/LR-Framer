@@ -1,7 +1,15 @@
 const TRANSIENT_FRAMER_PATTERNS = [
   "no connection to the server",
+  "connection to the server was closed",
   "framer is temporarily unavailable",
+  "framer server api is temporarily unavailable",
+  "server api is temporarily unavailable",
+  "service unavailable",
+  "bad gateway",
+  "gateway timeout",
   "session expired",
+  "timed out",
+  "timeout",
   "project_closed",
 ];
 

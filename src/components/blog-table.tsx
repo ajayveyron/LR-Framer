@@ -318,9 +318,9 @@ export function BlogTable({
     return (
       <div className="flex flex-col gap-2 px-6 py-14 text-center text-fresco-description">
         <strong className="text-fresco-title">
-          No posts loaded yet.
+          Nothing to see here.
         </strong>
-        <p>Add your first draft post.</p>
+        {/* <p>Add your first draft post.</p> */}
       </div>
     );
   }

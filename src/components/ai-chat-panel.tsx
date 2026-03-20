@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Sparkle, X, WarningCircle, ArrowClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop, GlobeSimple, ImageSquare, DownloadSimple, Plus, ClockCounterClockwise, PlusIcon, Rows, Gauge } from "@phosphor-icons/react";
+import { Sparkle, X, WarningCircle, ArrowClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop, GlobeSimple, ImageSquare, DownloadSimple, Plus, ClockCounterClockwise, PlusIcon, Rows, Gauge, CurrencyDollarIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useBillingUsage, deriveMeterState, METER_COLORS, METER_BG_COLORS, invalidateBillingUsage } from "@/lib/use-billing-usage";
@@ -457,6 +457,11 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
   );
 
   const isStreaming = status === "streaming" || status === "submitted";
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setPortalContainer(document.getElementById("dashboard-shell"));
+  }, []);
 
   function handleApplied(result: BulkApplyResult) {
     if (result.succeeded.length > 0) {
@@ -469,7 +474,9 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        className="flex flex-col gap-0 overflow-hidden border-fresco-divider bg-fresco-panel p-0 text-fresco-title shadow-[-40px_0_120px_rgba(0,0,0,0.55)] data-[side=right]:w-full data-[side=right]:sm:max-w-none md:data-[side=right]:top-2 md:data-[side=right]:right-2 md:data-[side=right]:bottom-2 md:data-[side=right]:w-[min(48vw,640px)]"
+        className="absolute z-[80] flex flex-col gap-0 overflow-hidden border-fresco-divider bg-fresco-panel p-0 text-fresco-title shadow-[-40px_0_120px_rgba(0,0,0,0.55)] data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-full data-[side=right]:sm:max-w-none md:data-[side=right]:w-[min(48vw,640px)]"
+        overlayClassName="absolute inset-0 z-[70] bg-black/50 duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0"
+        portalContainer={portalContainer}
         showCloseButton={false}
         side="right"
       >
@@ -767,10 +774,10 @@ function ChatInputOrQuotaGate({
 
   return (
     <>
-      {totalTokens.total > 0 && (
+      {process.env.NODE_ENV === "development" && totalTokens.total > 0 && (
         <div className="mb-1.5 flex items-center justify-between text-[10px] tabular-nums text-fresco-subtitle">
           <span>
-            <Rows className="mr-1 inline size-3 align-[-2px]" weight="bold" />
+            <CurrencyDollarIcon className="mr-1 inline size-3 align-[-2px]" weight="bold" />
             {totalTokens.total.toLocaleString()} tokens this session
           </span>
         </div>

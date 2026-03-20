@@ -195,7 +195,7 @@ function CollectionTableSkeleton() {
 				<Spinner className='size-4' />
 				<span>Loading collection…</span>
 			</div>
-			<div className='overflow-hidden border border-dash-content-border bg-fresco-panel'>
+			<div className='overflow-hidden border border-dash-content-border '>
 				<div className='grid grid-cols-[minmax(220px,2.2fr)_minmax(160px,1.2fr)_minmax(140px,0.9fr)_minmax(180px,1.1fr)] border-b border-dash-content-border bg-dash-group-bg px-[22px] py-3'>
 					{Array.from({ length: 4 }).map((_, index) => (
 						<div
@@ -389,7 +389,7 @@ export function DashboardTableView({
 	}
 
 	function handleCollectionChange(nextCollectionId: string) {
-		if (framerUnavailable) {
+		if (isCollectionLoading) {
 			return;
 		}
 		if (nextCollectionId === activeCollectionSelection) {
@@ -503,35 +503,26 @@ export function DashboardTableView({
 
 	return (
 		<section className='relative min-w-0 overflow-x-clip'>
-			<div className='min-h-full min-w-0 bg-fresco-panel shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay)] md:border md:border-dash-content-border'>
+			<div className='min-h-full min-w-0  shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay)] md:border md:border-dash-content-border'>
 				<div
-					className={cn("bg-dash-topbar backdrop-blur-[14px]", 'sticky top-0 z-20')}
+					className={cn(
+						'bg-dash-topbar backdrop-blur-[14px]',
+						'sticky top-0 z-20',
+					)}
 				>
 					<div className='flex flex-wrap items-start gap-2.5 border-b border-dash-content-border px-4 py-3 md:items-center'>
-						<Button
-							className={cn("border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title", '!h-10 gap-2 rounded-xl px-3 text-[12px] font-medium tracking-[-0.01em] text-fresco-title')}
-							disabled={framerUnavailable}
-							onClick={handleOpenCreate}
-							size='default'
-							variant='outline'
-						>
-							<span
-								aria-hidden='true'
-								className='inline-flex items-center justify-center'
-							>
-								<PlusIcon weight='bold' />
-							</span>
-							<span>New Item</span>
-						</Button>
 						{collections.length > 1 ?
 							<Select
-								disabled={framerUnavailable}
+								disabled={isCollectionLoading}
 								onValueChange={handleCollectionChange}
 								value={activeCollectionSelection}
 							>
 								<SelectTrigger
 									aria-label='Select collection'
-									className={cn("border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title", '!h-10 min-w-44 rounded-xl px-3 py-0 text-[12px] font-medium tracking-[-0.01em] text-fresco-title')}
+									className={cn(
+										'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
+										'!h-10 min-w-44 rounded-xl px-3 py-0 text-[12px] font-medium tracking-[-0.01em] text-fresco-title',
+									)}
 									size='default'
 								>
 									<SelectValue placeholder='Select collection' />
@@ -554,39 +545,27 @@ export function DashboardTableView({
 								</SelectContent>
 							</Select>
 						:	null}
-						<label
-							className={cn("border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title", 'relative flex h-10 min-w-0 w-full items-center gap-2 rounded-xl px-3 text-fresco-subtitle transition-colors focus-within:border-fresco-tint md:w-auto md:flex-[0_1_32rem] md:max-w-[32rem]')}
-							htmlFor='dashboard-search'
+						<Button
+							className={cn(
+								'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
+								'!h-10 gap-2 rounded-xl px-3 text-[12px] font-medium tracking-[-0.01em] text-fresco-title',
+							)}
+							disabled={framerUnavailable}
+							onClick={handleOpenCreate}
+							size='default'
+							variant='outline'
 						>
-							<MagnifyingGlassIcon className='size-4 shrink-0' />
-							<input
-								aria-label='Search items'
-								className='h-full min-w-0 flex-1 bg-transparent px-1 py-0 text-[12px] font-normal text-fresco-text outline-none placeholder:text-fresco-subtitle'
-								id='dashboard-search'
-								onChange={(event) => {
-									setQuery(event.target.value);
-									setPage(1);
-								}}
-								placeholder='Search…'
-								ref={searchInputRef}
-								value={query}
-							/>
-							<KbdGroup className='hidden shrink-0 gap-1 sm:inline-flex'>
-								<Kbd className='h-5 min-w-5 rounded-md border border-dash-control-border bg-black/20 px-1.5 text-[11px] text-fresco-subtitle'>
-									{(
-										typeof navigator !== 'undefined' &&
-										/mac/i.test(navigator.platform)
-									) ?
-										'⌘'
-									:	'Ctrl'}
-								</Kbd>
-								<Kbd className='h-5 min-w-5 rounded-md border border-dash-control-border bg-black/20 px-1.5 text-[11px] text-fresco-subtitle'>
-									\
-								</Kbd>
-							</KbdGroup>
-						</label>
-						<div className='flex flex-wrap items-center gap-2.5 md:ml-auto'>
-							{bridgeStatus ?
+							<span
+								aria-hidden='true'
+								className='inline-flex items-center justify-center'
+							>
+								<PlusIcon weight='bold' />
+							</span>
+							<span>New Item</span>
+						</Button>
+
+						<div className='flex flex-row items-center gap-2.5 ml-auto'>
+							{/* {bridgeStatus ?
 								<Badge
 									className={cn("border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title", 'flex h-10 items-center gap-2 rounded-xl px-3 text-[12px] font-medium text-fresco-description')}
 									variant='outline'
@@ -604,15 +583,48 @@ export function DashboardTableView({
 										'Bridge Ready'
 									:	'Manual Mode'}
 								</Badge>
-							:	null}
+							:	null} */}
+							<label
+								className={cn(
+									'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
+									'relative flex h-10 min-w-0 w-full items-center gap-2 rounded-xl px-3 text-fresco-subtitle transition-colors focus-within:border-fresco-tint md:w-auto md:flex-[0_1_32rem] md:max-w-[32rem]',
+								)}
+								htmlFor='dashboard-search'
+							>
+								<MagnifyingGlassIcon className='size-4 shrink-0' />
+								<input
+									aria-label='Search items'
+									className='h-full min-w-0 flex-1 bg-transparent px-1 py-0 text-[12px] font-normal text-fresco-text outline-none placeholder:text-fresco-subtitle'
+									id='dashboard-search'
+									onChange={(event) => {
+										setQuery(event.target.value);
+										setPage(1);
+									}}
+									placeholder='Search…'
+									ref={searchInputRef}
+									value={query}
+								/>
+								<KbdGroup className='hidden shrink-0 gap-1 sm:inline-flex'>
+									<Kbd className='h-5 min-w-5 rounded-md border border-dash-control-border bg-black/20 px-1.5 text-[11px] text-fresco-subtitle'>
+										{(
+											typeof navigator !== 'undefined' &&
+											/mac/i.test(navigator.platform)
+										) ?
+											'⌘'
+										:	'Ctrl'}
+									</Kbd>
+									<Kbd className='h-5 min-w-5 rounded-md border border-dash-control-border bg-black/20 px-1.5 text-[11px] text-fresco-subtitle'>
+										\
+									</Kbd>
+								</KbdGroup>
+							</label>
 							<Button
 								aria-label='Open AI chat'
-								className={cn("border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title", 'h-10 gap-2 rounded-xl px-3 text-[12px] font-medium tracking-[-0.01em] text-fresco-title')}
-								disabled={framerUnavailable}
+								className='h-10 rounded-xl'
 								onClick={() => setChatOpen(true)}
 								size='default'
 								type='button'
-								variant='outline'
+								variant='default'
 							>
 								<ChatCircleIcon
 									className='size-[15px]'
@@ -633,12 +645,12 @@ export function DashboardTableView({
 							columns={activeColumns}
 							metadata={metadata}
 							onOpenPost={handleOpenPost}
-						posts={visiblePosts}
-						role={role}
-						loadingPosts={loadingPosts}
-						selectedRows={selectedRows}
-						onToggleRow={handleToggleRow}
-						onToggleAll={handleToggleAll}
+							posts={visiblePosts}
+							role={role}
+							loadingPosts={loadingPosts}
+							selectedRows={selectedRows}
+							onToggleRow={handleToggleRow}
+							onToggleAll={handleToggleAll}
 							onShiftClick={handleShiftClick}
 							onDraftToggle={async (post) => {
 								if (framerUnavailable) {
@@ -667,10 +679,7 @@ export function DashboardTableView({
 										const { post: nextPost } =
 											await response.json();
 										setCachedPosts((current) =>
-											upsertCachedPost(
-												current,
-												nextPost,
-											),
+											upsertCachedPost(current, nextPost),
 										);
 									}
 								} catch (error) {
@@ -701,8 +710,7 @@ export function DashboardTableView({
 									if (response.ok) {
 										setCachedPosts((current) =>
 											current.filter(
-												(post) =>
-													post.id !== postId,
+												(post) => post.id !== postId,
 											),
 										);
 									}
@@ -736,7 +744,10 @@ export function DashboardTableView({
 					{!isCollectionLoading && totalPages > 1 ?
 						<div className='flex flex-wrap items-center gap-2.5 sm:justify-end'>
 							<Button
-								className={cn("border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title", 'rounded-xl px-3 text-[12px] font-medium text-fresco-title')}
+								className={cn(
+									'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
+									'rounded-xl px-3 text-[12px] font-medium text-fresco-title',
+								)}
 								disabled={currentPage === 1}
 								onClick={() =>
 									setPage((value) => Math.max(1, value - 1))
@@ -755,7 +766,10 @@ export function DashboardTableView({
 							>
 								<SelectTrigger
 									aria-label='Select page'
-									className={cn("border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title", 'min-w-28 rounded-xl text-[12px] font-medium text-fresco-text')}
+									className={cn(
+										'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
+										'min-w-28 rounded-xl text-[12px] font-medium text-fresco-text',
+									)}
 									size='sm'
 								>
 									<SelectValue
@@ -777,7 +791,10 @@ export function DashboardTableView({
 								of {totalPages}
 							</span>
 							<Button
-								className={cn("border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title", 'rounded-xl px-3 text-[12px] font-medium text-fresco-title')}
+								className={cn(
+									'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
+									'rounded-xl px-3 text-[12px] font-medium text-fresco-title',
+								)}
 								disabled={currentPage === totalPages}
 								onClick={() =>
 									setPage((value) =>
@@ -804,7 +821,7 @@ export function DashboardTableView({
 				open={isDrawerRoute}
 			>
 				<SheetContent
-					className='gap-0 overflow-hidden border-fresco-divider bg-fresco-panel p-0 text-fresco-title shadow-[-40px_0_120px_rgba(0,0,0,0.55)] data-[side=right]:w-full data-[side=right]:sm:max-w-none md:data-[side=right]:top-2 md:data-[side=right]:right-2 md:data-[side=right]:bottom-2 md:data-[side=right]:w-[min(72vw,920px)] xl:data-[side=right]:w-[min(56vw,980px)]'
+					className='gap-0 overflow-hidden border-fresco-divider p-0 text-fresco-title shadow-[-40px_0_120px_rgba(0,0,0,0.55)] data-[side=right]:w-full data-[side=right]:sm:max-w-none md:data-[side=right]:top-2 md:data-[side=right]:right-2 md:data-[side=right]:bottom-2 md:data-[side=right]:w-[min(72vw,920px)] xl:data-[side=right]:w-[min(56vw,980px)]'
 					showCloseButton={false}
 					side='right'
 				>
@@ -840,7 +857,12 @@ export function DashboardTableView({
 								post={activePost}
 							/>
 						:	<div className='flex h-full flex-col gap-3.5 p-7'>
-								<span className={cn("inline-flex items-center rounded-none border border-fresco-divider bg-fresco-surface-muted px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-fresco-subtitle", 'w-fit')}>
+								<span
+									className={cn(
+										'inline-flex items-center rounded-none border border-fresco-divider bg-fresco-surface-muted px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-fresco-subtitle',
+										'w-fit',
+									)}
+								>
 									Unavailable
 								</span>
 								<h2 className='font-heading text-3xl leading-tight text-fresco-title'>

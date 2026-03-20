@@ -350,16 +350,6 @@
 }
 
 @layer components {
-  :root.framer-status-banner-active {
-    --dashboard-banner-offset: 78px;
-  }
-
-  @media (min-width: 768px) {
-    :root.framer-status-banner-active {
-      --dashboard-banner-offset: 62px;
-    }
-  }
-
   .framer-editor-prose {
     --framer-editor-body-line-height: 1.7;
     --framer-editor-body-letter-spacing: 0;

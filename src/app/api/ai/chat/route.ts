@@ -248,7 +248,7 @@ export async function POST(request: Request) {
         generate_and_upload_image: generateAndUploadImage,
         web_search: webSearchTool,
       },
-      onFinish: ({ usage }) => {
+      onFinish: async ({ usage }) => {
         logEvent("info", "ai.bulk_edit.completed", {
           selectedRowCount: selectedRows.length,
           durationMs: Date.now() - startMs,
@@ -257,7 +257,7 @@ export async function POST(request: Request) {
         });
 
         if (orgId && userId && usage) {
-          void trackTokenUsage({
+          await trackTokenUsage({
             organizationId: orgId,
             userId,
             featureType: "chat",

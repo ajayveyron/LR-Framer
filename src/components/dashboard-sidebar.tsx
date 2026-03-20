@@ -110,8 +110,8 @@ function DashboardNav({
         const active = item.matches(pathname);
         const Icon = item.icon;
         const content = (
-          <span className="flex items-center gap-2.5">
-            <Icon className="size-[15px]" weight="fill" />
+          <span className="flex text-sm items-center gap-2.5">
+            <Icon weight="fill" />
             <span>{item.label}</span>
           </span>
         );
@@ -146,12 +146,12 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
   const items = getNavItems(role);
   const activeItem = getActiveItem(pathname, items);
   const brandClassName =
-    "select-none text-[15px] font-semibold tracking-[-0.02em] text-fresco-title";
+    "select-none text-[24px] font-semibold tracking-[-0.02em] text-fresco-title";
 
   return (
     <>
-      <aside className={cn("sticky flex-col overflow-y-auto overscroll-contain border-r border-dash-control-border bg-dash-sidebar px-5 py-6 shadow-[inset_-1px_0_0_rgba(255,255,255,0.02)] top-[var(--dashboard-banner-offset)] h-[calc(100dvh-var(--dashboard-banner-offset))]", "hidden md:flex")}>
-        <div className="grid gap-8">
+      <aside className={cn("flex h-full flex-col overflow-y-auto overscroll-contain border-r border-dash-control-border bg-dash-sidebar px-5 py-6 shadow-[inset_-1px_0_0_rgba(255,255,255,0.02)]", "hidden md:flex")}>
+        <div className="grid gap-2">
           <Link
             aria-label="Go to Content"
             className={brandClassName}
@@ -165,7 +165,7 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
         </div>
       </aside>
 
-      <div className={cn("sticky top-[var(--dashboard-banner-offset)] z-30 flex items-center justify-between border-b border-dash-control-border bg-dash-topbar px-4 py-3 backdrop-blur-[14px]", "md:hidden")}>
+      <div className={cn("sticky top-0 z-30 flex items-center justify-between border-b border-dash-control-border bg-dash-topbar px-4 py-3 backdrop-blur-[14px]", "md:hidden")}>
         <div>
           <Link
             aria-label="Go to Content"
