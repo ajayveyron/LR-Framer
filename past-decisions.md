@@ -442,3 +442,16 @@ Also fixed the payload parsing to match Dodo's actual webhook format with nested
 **Why:** Dodo's cancellation webhook (`subscription.cancelled`) often doesn't reach the local dev server (ngrok not running, etc.), leaving the Convex subscription record stuck as `status: "active"` even after the subscription is cancelled in Dodo's dashboard. Without a way to sync, the platform shows stale Pro plan data indefinitely. The auto-sync ensures the platform always reflects the real Dodo subscription state within 5 minutes, regardless of whether webhooks arrive.
 
 **Scope:** `src/app/api/billing/sync/route.ts` (new), `src/lib/use-billing-usage.ts` (auto-sync before usage fetch).
+
+## 2026-03-20 — Performance: Suspense boundaries + non-blocking navigation
+
+**What changed:**
+1. Dashboard layout no longer blocks on `loadDashboardFramerStatus()` — the Framer health check is wrapped in its own async component inside `<Suspense fallback={null}>`, so the sidebar and shell render immediately.
+2. All three dashboard content pages (`/dashboard`, `/dashboard/posts/new`, `/dashboard/posts/[id]`) now wrap `loadDashboardScreen()` in `<Suspense>` with a `DashboardTableSkeleton` fallback. The user sees the full page chrome (sidebar, toolbar skeleton, table skeleton) instantly while Framer data streams in.
+3. `DashboardMainTransition` no longer blanks the entire content area with a "Loading view..." spinner during navigation. Instead it dims the current content (opacity 60%) and shows a subtle tint-colored loading bar at the top edge. The user keeps visual context of where they are.
+4. Removed the `console.log` wide event that fired on every `selectedRows` state change — it was noisy and ran on every render cycle including initial mount with 0 rows.
+5. `loading.tsx` for the dashboard route now uses `DashboardTableSkeleton` instead of a generic centered spinner, so Next.js route transitions also show the proper skeleton.
+
+**Why:** The dashboard was blocking on Framer API responses before showing anything — users saw a blank screen or generic spinner for 1-5 seconds on every navigation. The goal is: user clicks a nav link → immediately sees the destination page shell with skeleton → content streams in. No blank screens, no context loss during navigation.
+
+**Scope:** `src/app/dashboard/layout.tsx`, `src/app/dashboard/page.tsx`, `src/app/dashboard/posts/new/page.tsx`, `src/app/dashboard/posts/[id]/page.tsx`, `src/app/dashboard/loading.tsx`, `src/components/dashboard-navigation.tsx`, `src/components/dashboard-table-skeleton.tsx` (new), `src/components/dashboard-table-view.tsx`.

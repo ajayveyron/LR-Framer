@@ -27,6 +27,7 @@ import {
   Shield,
   User,
 } from "@phosphor-icons/react";
+import { TeamManagerContentSkeleton } from "@/components/dashboard-page-skeletons";
 import { cn } from "@/lib/utils";
 
 export function TeamManager() {
@@ -43,11 +44,7 @@ export function TeamManager() {
   const [isInviting, setIsInviting] = useState(false);
 
   if (!isLoaded || !organization) {
-    return (
-      <div className="flex justify-center p-12">
-        <Spinner className="h-8 w-8 animate-spin text-[color:var(--framer-fresco-panelSubtitle-color)]" />
-      </div>
-    );
+    return <TeamManagerContentSkeleton />;
   }
 
   const isAdmin =

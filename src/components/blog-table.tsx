@@ -358,8 +358,7 @@ export function BlogTable({
             {columns.map((column) => (
               <th
                 className={cn(
-                  "relative z-10 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-[22px] py-[18px] text-left text-xs font-semibold text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors",
-                  column.key === "slug" && "font-mono",
+                  "dashboard-table-header-cell relative z-10 border-b border-[var(--framer-dashboard-content-border-color)] bg-[var(--framer-fresco-panelBackground-color)] px-[22px] py-3 text-left transition-colors",
                 )}
                 key={column.key}
               >
@@ -391,10 +390,10 @@ export function BlogTable({
             <Fragment key={group.key}>
               {hasBothGroups && (
                 <tr
-                  className="bg-[var(--framer-app-surface-subtle-color)]"
+                  className="dashboard-table-group-row"
                 >
                   <td
-                    className="border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-4 text-sm font-bold text-[color:var(--framer-fresco-panelTitle-color)]"
+                    className="dashboard-table-group-cell border-b border-[var(--framer-dashboard-content-border-color)] px-[22px] py-3"
                     colSpan={columns.length}
                   >
                     {group.label}
@@ -407,11 +406,15 @@ export function BlogTable({
                     <tr
                       aria-label={`Edit ${post.title}`}
                       className={cn(
-                        "group cursor-pointer transition-all hover:bg-[var(--framer-app-surface-subtle-color)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--framer-fresco-tintDimmed-color)] focus-visible:ring-inset data-[active=true]:bg-[var(--framer-app-surface-muted-color)]",
+                        "dashboard-table-row group cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--framer-fresco-tintDimmed-color)] focus-visible:ring-inset",
                         loadingPosts?.has(post.id) && "pointer-events-none opacity-50 duration-300",
-                        hasSelection && selectedRows.has(post.id) && "bg-[var(--framer-fresco-tintDimmed-color)]",
                       )}
                       data-active={post.id === activePostId}
+                      data-selected={
+                        hasSelection && selectedRows.has(post.id)
+                          ? "true"
+                          : undefined
+                      }
                       onClick={() => {
                         onOpenPost(post.id);
                       }}
@@ -431,12 +434,12 @@ export function BlogTable({
                           const isLoading = loadingPosts?.has(post.id);
                           return (
                             <td
-                              className="border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-[18px] text-xs text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]"
+                              className="dashboard-table-cell border-b border-[var(--framer-dashboard-content-border-color)] px-[22px] py-[13px] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]"
                               key={column.key}
                             >
                               <Badge
                                 className={cn(
-                                  "h-6 px-2 text-[11px] font-semibold data-[loading=true]:bg-transparent data-[loading=true]:opacity-80 transition-opacity",
+                                  "h-5 rounded-full px-2 text-[11px] font-medium data-[loading=true]:bg-transparent data-[loading=true]:opacity-80 transition-opacity",
                                   post.draft
                                     ? "framer-status-pill framer-status-pill-draft"
                                     : "framer-status-pill framer-status-pill-live",
@@ -454,9 +457,8 @@ export function BlogTable({
                         return (
                             <td
                               className={cn(
-                                "border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-[18px] text-xs text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]",
-                                column.key === "title" && "text-[color:var(--framer-fresco-panelTitle-color)]",
-                                column.key === "slug" && "font-mono",
+                                "dashboard-table-cell border-b border-[var(--framer-dashboard-content-border-color)] px-[22px] py-[13px] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]",
+                                column.key === "title" && "dashboard-table-cell-title",
                               )}
                             key={column.key}
                             title={String(getCellValue(post, metadata, column.key))}
@@ -501,7 +503,7 @@ export function BlogTable({
                                     )}
                                   />
                                 </span>
-                                <span className="block max-w-full overflow-hidden text-[13px] whitespace-nowrap align-bottom">
+                                <span className="block max-w-full overflow-hidden whitespace-nowrap align-bottom">
                                   {post.title}
                                 </span>
                               </div>

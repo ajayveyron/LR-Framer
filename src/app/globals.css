@@ -4,6 +4,13 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --font-sans:
+    "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-dashboard-ui:
+    "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-heading:
+    "Avenir Next Condensed", "Avenir Next", "Segoe UI", "Helvetica Neue",
+    Arial, sans-serif;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -130,6 +137,22 @@
   --framer-app-warning-callout-background-color: rgba(255, 207, 97, 0.1);
   --framer-app-warning-callout-text-color: #ffe39a;
   --framer-app-live-ring-color: rgba(99, 234, 145, 0.16);
+  --framer-dashboard-shell-color: #0a0a0b;
+  --framer-dashboard-sidebar-color: #101011;
+  --framer-dashboard-topbar-color: rgba(15, 15, 16, 0.94);
+  --framer-dashboard-nav-text-color: rgba(255, 255, 255, 0.72);
+  --framer-dashboard-nav-hover-color: rgba(255, 255, 255, 0.045);
+  --framer-dashboard-nav-active-color: rgba(255, 255, 255, 0.08);
+  --framer-dashboard-control-background-color: #161617;
+  --framer-dashboard-control-hover-color: #1c1c1d;
+  --framer-dashboard-control-border-color: rgba(255, 255, 255, 0.07);
+  --framer-dashboard-content-border-color: rgba(255, 255, 255, 0.04);
+  --framer-dashboard-header-text-color: rgb(153, 153, 153);
+  --framer-dashboard-cell-text-color: rgba(255, 255, 255, 0.82);
+  --framer-dashboard-row-hover-color: rgba(255, 255, 255, 0.032);
+  --framer-dashboard-row-active-color: rgba(255, 255, 255, 0.05);
+  --framer-dashboard-row-selected-color: rgba(0, 153, 255, 0.11);
+  --framer-dashboard-group-background-color: rgba(255, 255, 255, 0.035);
 }
 
 @theme inline {
@@ -322,7 +345,19 @@
   }
 
   .dashboard-shell {
-    @apply bg-black md:grid md:grid-cols-[260px_minmax(0,1fr)];
+    @apply md:grid md:grid-cols-[260px_minmax(0,1fr)];
+    background-color: var(--framer-dashboard-shell-color);
+    color: var(--framer-fresco-settingsText-color);
+    font-family:
+      var(--font-dashboard-ui),
+      var(--font-sans),
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      Helvetica,
+      Arial,
+      sans-serif;
     height: calc(100dvh - var(--dashboard-banner-offset));
     min-height: calc(100dvh - var(--dashboard-banner-offset));
     overflow: hidden;
@@ -331,24 +366,29 @@
 
   .dashboard-sidebar {
     @apply sticky flex-col overflow-y-auto border-r px-5 py-6;
-    border-color: rgba(255, 255, 255, 0.06);
+    background-color: var(--framer-dashboard-sidebar-color);
+    border-color: var(--framer-dashboard-control-border-color);
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.02);
     overscroll-behavior: contain;
     top: var(--dashboard-banner-offset);
     height: calc(100dvh - var(--dashboard-banner-offset));
   }
 
   .dashboard-sidebar-link {
-    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors;
-    color: var(--framer-fresco-panelSubtitle-color);
+    @apply flex min-h-10 items-center gap-2.5 rounded-xl border px-3 py-2 text-[12px] font-medium tracking-[-0.01em] transition-colors;
+    border-color: transparent;
+    color: var(--framer-dashboard-nav-text-color);
   }
 
   .dashboard-sidebar-link:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--framer-dashboard-nav-hover-color);
     color: var(--framer-fresco-panelTitle-color);
   }
 
   .dashboard-sidebar-link-active {
-    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--framer-dashboard-control-border-color);
+    background: var(--framer-dashboard-nav-active-color);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
     color: var(--framer-fresco-panelTitle-color);
   }
 
@@ -361,9 +401,9 @@
 
   .dashboard-mobile-bar {
     @apply sticky top-0 z-30 flex items-center justify-between border-b px-4 py-3;
-    border-color: rgba(255, 255, 255, 0.06);
-    background: rgba(0, 0, 0, 0.92);
-    backdrop-filter: blur(10px);
+    border-color: var(--framer-dashboard-control-border-color);
+    background: var(--framer-dashboard-topbar-color);
+    backdrop-filter: blur(14px);
     top: var(--dashboard-banner-offset);
   }
 
@@ -519,6 +559,72 @@
 
   .framer-toolbar-button {
     color: var(--framer-fresco-buttonText-color);
+  }
+
+  .dashboard-topbar {
+    background: var(--framer-dashboard-topbar-color);
+    backdrop-filter: blur(14px);
+  }
+
+  .dashboard-topbar-control {
+    border: 1px solid var(--framer-dashboard-control-border-color);
+    background: var(--framer-dashboard-control-background-color);
+    color: var(--framer-dashboard-nav-text-color);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  }
+
+  .dashboard-topbar-control:hover:not(:disabled),
+  .dashboard-topbar-control:focus-visible:not(:disabled) {
+    background: var(--framer-dashboard-control-hover-color);
+    color: var(--framer-fresco-panelTitle-color);
+  }
+
+  .dashboard-table-header-cell {
+    color: var(--framer-dashboard-header-text-color);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.35;
+  }
+
+  .dashboard-table-group-row {
+    background: var(--framer-dashboard-group-background-color);
+  }
+
+  .dashboard-table-group-cell {
+    color: var(--framer-fresco-panelTitle-color);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .dashboard-table-row {
+    background: transparent;
+  }
+
+  .dashboard-table-row:hover {
+    background: var(--framer-dashboard-row-hover-color);
+  }
+
+  .dashboard-table-row[data-active="true"] {
+    background: var(--framer-dashboard-row-active-color);
+  }
+
+  .dashboard-table-row[data-selected="true"] {
+    background: var(--framer-dashboard-row-selected-color);
+  }
+
+  .dashboard-table-cell {
+    color: var(--framer-dashboard-cell-text-color);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1.35;
+  }
+
+  .dashboard-table-cell-title {
+    color: var(--framer-fresco-panelTitle-color);
+    font-weight: 500;
   }
 
   .framer-toolbar-button:hover:not(:disabled),

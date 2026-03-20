@@ -191,28 +191,28 @@ function readStoredAIChatOpen() {
 function CollectionTableSkeleton() {
 	return (
 		<div className='px-5 py-5'>
-			<div className='mb-5 flex items-center gap-2 text-sm text-[color:var(--framer-fresco-panelDescription-color)]'>
+			<div className='mb-5 flex items-center gap-2 text-[12px] text-[color:var(--framer-fresco-panelDescription-color)]'>
 				<Spinner className='size-4' />
 				<span>Loading collection…</span>
 			</div>
-			<div className='overflow-hidden rounded-2xl border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)]'>
-				<div className='grid grid-cols-[minmax(220px,2.2fr)_minmax(160px,1.2fr)_minmax(140px,0.9fr)_minmax(180px,1.1fr)] border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] px-6 py-4'>
+			<div className='overflow-hidden border border-[var(--framer-dashboard-content-border-color)] bg-[var(--framer-fresco-panelBackground-color)]'>
+				<div className='grid grid-cols-[minmax(220px,2.2fr)_minmax(160px,1.2fr)_minmax(140px,0.9fr)_minmax(180px,1.1fr)] border-b border-[var(--framer-dashboard-content-border-color)] bg-[var(--framer-dashboard-group-background-color)] px-[22px] py-3'>
 					{Array.from({ length: 4 }).map((_, index) => (
 						<div
 							key={`header-${index}`}
-							className='h-3.5 w-20 animate-pulse rounded-full bg-[var(--framer-fresco-panelDivider-color)]/70'
+							className='h-3 w-20 animate-pulse rounded-full bg-[var(--framer-fresco-panelDivider-color)]/70'
 						/>
 					))}
 				</div>
-				<div className='px-6 py-4'>
+				<div className='px-[22px] py-2'>
 					{Array.from({ length: 8 }).map((_, rowIndex) => (
 						<div
 							key={`row-${rowIndex}`}
-							className='grid grid-cols-[minmax(220px,2.2fr)_minmax(160px,1.2fr)_minmax(140px,0.9fr)_minmax(180px,1.1fr)] gap-6 border-b border-[var(--framer-fresco-panelDivider-color)]/70 py-4 last:border-b-0'
+							className='grid grid-cols-[minmax(220px,2.2fr)_minmax(160px,1.2fr)_minmax(140px,0.9fr)_minmax(180px,1.1fr)] gap-6 border-b border-[var(--framer-dashboard-content-border-color)] py-3.5 last:border-b-0'
 						>
 							<div className='h-4 w-3/4 animate-pulse rounded-full bg-[var(--framer-app-surface-muted-color)]' />
 							<div className='h-4 w-5/6 animate-pulse rounded-full bg-[var(--framer-app-surface-muted-color)]' />
-							<div className='h-7 w-20 animate-pulse rounded-full bg-[var(--framer-app-surface-muted-color)]' />
+							<div className='h-5 w-14 animate-pulse rounded-full bg-[var(--framer-app-surface-muted-color)]' />
 							<div className='h-4 w-2/3 animate-pulse rounded-full bg-[var(--framer-app-surface-muted-color)]' />
 						</div>
 					))}
@@ -361,18 +361,6 @@ export function DashboardTableView({
 		};
 	}, []);
 
-	// Emit wide event when selection changes
-	useEffect(() => {
-		console.log(
-			JSON.stringify({
-				ts: new Date().toISOString(),
-				level: 'info',
-				event: 'dashboard.rows.selected',
-				count: selectedRows.size,
-			}),
-		);
-	}, [selectedRows]);
-
 	function commitDrawerState(
 		nextDrawerState: DrawerState | null,
 		historyMode: 'push' | 'replace' = 'push',
@@ -515,13 +503,13 @@ export function DashboardTableView({
 
 	return (
 		<section className='relative min-w-0 overflow-x-clip'>
-			<div className='min-h-full min-w-0 bg-[var(--framer-fresco-panelBackground-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color)] md:border md:border-[var(--framer-fresco-panelDivider-color)]'>
+			<div className='min-h-full min-w-0 bg-[var(--framer-fresco-panelBackground-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color)] md:border md:border-[var(--framer-dashboard-content-border-color)]'>
 				<div
-					className='sticky top-0 z-20 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)]'
+					className='dashboard-topbar sticky top-0 z-20'
 				>
-					<div className='flex flex-wrap items-start gap-2.5 border-b border-[var(--framer-fresco-panelDivider-color)] p-4 md:items-center'>
+					<div className='flex flex-wrap items-start gap-2.5 border-b border-[var(--framer-dashboard-content-border-color)] px-4 py-3 md:items-center'>
 						<Button
-							className='!h-11 gap-2.5 !rounded-full px-4 text-sm font-semibold'
+							className='dashboard-topbar-control !h-10 gap-2 rounded-xl px-3 text-[12px] font-medium tracking-[-0.01em] text-[color:var(--framer-fresco-panelTitle-color)]'
 							disabled={framerUnavailable}
 							onClick={handleOpenCreate}
 							size='default'
@@ -543,12 +531,12 @@ export function DashboardTableView({
 							>
 								<SelectTrigger
 									aria-label='Select collection'
-									className='!h-11 min-w-48 !rounded-full px-4 py-0 text-sm font-semibold'
+									className='dashboard-topbar-control !h-10 min-w-44 rounded-xl px-3 py-0 text-[12px] font-medium tracking-[-0.01em] text-[color:var(--framer-fresco-panelTitle-color)]'
 									size='default'
 								>
 									<SelectValue placeholder='Select collection' />
 								</SelectTrigger>
-								<SelectContent>
+								<SelectContent className='border border-[var(--framer-dashboard-control-border-color)] bg-[#141415] text-[color:var(--framer-fresco-settingsText-color)] shadow-2xl'>
 									{collections.map((collection) => (
 										<SelectItem
 											key={collection.id}
@@ -567,13 +555,13 @@ export function DashboardTableView({
 							</Select>
 						:	null}
 						<label
-							className='relative flex h-11 min-w-0 w-full items-center gap-2 rounded-full border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors focus-within:border-[var(--framer-fresco-tint-color)] md:w-auto md:flex-[0_1_36rem] md:max-w-xl'
+							className='dashboard-topbar-control relative flex h-10 min-w-0 w-full items-center gap-2 rounded-xl px-3 text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors focus-within:border-[var(--framer-fresco-tint-color)] md:w-auto md:flex-[0_1_32rem] md:max-w-[32rem]'
 							htmlFor='dashboard-search'
 						>
 							<MagnifyingGlassIcon className='size-4 shrink-0' />
 							<input
 								aria-label='Search items'
-								className='h-full min-w-0 flex-1 bg-transparent px-1 py-0 text-sm text-[color:var(--framer-fresco-settingsText-color)] outline-none placeholder:text-[color:var(--framer-fresco-panelSubtitle-color)]'
+								className='h-full min-w-0 flex-1 bg-transparent px-1 py-0 text-[12px] font-normal text-[color:var(--framer-fresco-settingsText-color)] outline-none placeholder:text-[color:var(--framer-fresco-panelSubtitle-color)]'
 								id='dashboard-search'
 								onChange={(event) => {
 									setQuery(event.target.value);
@@ -583,8 +571,8 @@ export function DashboardTableView({
 								ref={searchInputRef}
 								value={query}
 							/>
-							<KbdGroup className='hidden shrink-0 sm:inline-flex'>
-								<Kbd className='text-[color:var(--framer-fresco-panelSubtitle-color)]'>
+							<KbdGroup className='hidden shrink-0 gap-1 sm:inline-flex'>
+								<Kbd className='h-5 min-w-5 rounded-md border border-[var(--framer-dashboard-control-border-color)] bg-black/20 px-1.5 text-[11px] text-[color:var(--framer-fresco-panelSubtitle-color)]'>
 									{(
 										typeof navigator !== 'undefined' &&
 										/mac/i.test(navigator.platform)
@@ -592,7 +580,7 @@ export function DashboardTableView({
 										'⌘'
 									:	'Ctrl'}
 								</Kbd>
-								<Kbd className='text-[color:var(--framer-fresco-panelSubtitle-color)]'>
+								<Kbd className='h-5 min-w-5 rounded-md border border-[var(--framer-dashboard-control-border-color)] bg-black/20 px-1.5 text-[11px] text-[color:var(--framer-fresco-panelSubtitle-color)]'>
 									\
 								</Kbd>
 							</KbdGroup>
@@ -600,7 +588,7 @@ export function DashboardTableView({
 						<div className='flex flex-wrap items-center gap-2.5 md:ml-auto'>
 							{bridgeStatus ?
 								<Badge
-									className='flex h-11 items-center gap-2.5 rounded-full border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-4 text-[13px] font-semibold text-[color:var(--framer-fresco-panelDescription-color)]'
+									className='dashboard-topbar-control flex h-10 items-center gap-2 rounded-xl px-3 text-[12px] font-medium text-[color:var(--framer-fresco-panelDescription-color)]'
 									variant='outline'
 								>
 									<span
@@ -619,20 +607,19 @@ export function DashboardTableView({
 							:	null}
 							<Button
 								aria-label='Open AI chat'
-								className='h-11 gap-2.5 rounded-full px-4 text-sm font-semibold'
+								className='dashboard-topbar-control h-10 gap-2 rounded-xl px-3 text-[12px] font-medium tracking-[-0.01em] text-[color:var(--framer-fresco-panelTitle-color)]'
 								disabled={framerUnavailable}
 								onClick={() => setChatOpen(true)}
-								size='sm'
+								size='default'
 								type='button'
-								variant='default'
+								variant='outline'
 							>
 								<ChatCircleIcon
-									className='size-5'
+									className='size-[15px]'
 									weight='duotone'
 								/>
 								<span>AI Assistant</span>
 							</Button>
-							{/* <DashboardAccountLink /> */}
 						</div>
 					</div>
 				</div>
@@ -736,8 +723,8 @@ export function DashboardTableView({
 					}
 				</div>
 
-				<div className='flex flex-col gap-4 border-t border-[var(--framer-fresco-panelDivider-color)] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between'>
-					<div className='text-sm text-[color:var(--framer-fresco-panelDescription-color)]'>
+				<div className='flex flex-col gap-4 border-t border-[var(--framer-dashboard-content-border-color)] px-5 py-3 sm:flex-row sm:items-center sm:justify-between'>
+					<div className='text-[12px] text-[color:var(--framer-fresco-panelDescription-color)]'>
 						{isCollectionLoading ?
 							'Loading collection…'
 						: filteredPosts.length === 0 ?
@@ -749,6 +736,7 @@ export function DashboardTableView({
 					{!isCollectionLoading && totalPages > 1 ?
 						<div className='flex flex-wrap items-center gap-2.5 sm:justify-end'>
 							<Button
+								className='dashboard-topbar-control rounded-xl px-3 text-[12px] font-medium text-[color:var(--framer-fresco-panelTitle-color)]'
 								disabled={currentPage === 1}
 								onClick={() =>
 									setPage((value) => Math.max(1, value - 1))
@@ -767,14 +755,14 @@ export function DashboardTableView({
 							>
 								<SelectTrigger
 									aria-label='Select page'
-									className='min-w-32 text-[color:var(--framer-fresco-settingsText-color)]'
+									className='dashboard-topbar-control min-w-28 rounded-xl text-[12px] font-medium text-[color:var(--framer-fresco-settingsText-color)]'
 									size='sm'
 								>
 									<SelectValue
 										placeholder={`Page ${currentPage}`}
 									/>
 								</SelectTrigger>
-								<SelectContent>
+								<SelectContent className='border border-[var(--framer-dashboard-control-border-color)] bg-[#141415] text-[color:var(--framer-fresco-settingsText-color)] shadow-2xl'>
 									{pageOptions.map((pageNumber) => (
 										<SelectItem
 											key={pageNumber}
@@ -785,10 +773,11 @@ export function DashboardTableView({
 									))}
 								</SelectContent>
 							</Select>
-							<span className='text-sm text-[color:var(--framer-fresco-panelDescription-color)]'>
+							<span className='text-[12px] text-[color:var(--framer-fresco-panelDescription-color)]'>
 								of {totalPages}
 							</span>
 							<Button
+								className='dashboard-topbar-control rounded-xl px-3 text-[12px] font-medium text-[color:var(--framer-fresco-panelTitle-color)]'
 								disabled={currentPage === totalPages}
 								onClick={() =>
 									setPage((value) =>

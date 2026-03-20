@@ -58,6 +58,7 @@ import type {
   DashboardFieldDefinition,
   DashboardFieldValue,
 } from "@/lib/cms-types";
+import { TRANSIENT_FRAMER_EDITOR_MESSAGE } from "@/lib/framer-copy";
 import { cn } from "@/lib/utils";
 import { logEvent, logError } from "@/lib/logger";
 import { buildPostInputSchema, type PostInputPayload } from "@/lib/post-schema";
@@ -1360,7 +1361,7 @@ export function PostEditor({
     event: ChangeEvent<HTMLInputElement>,
   ) {
     if (framerUnavailable) {
-      notify.error("Framer is temporarily unavailable.");
+      notify.error(TRANSIENT_FRAMER_EDITOR_MESSAGE);
       return;
     }
 
@@ -1414,7 +1415,7 @@ export function PostEditor({
 
   function submitValues(values: FormValues) {
     if (framerUnavailable) {
-      const message = "Framer is temporarily unavailable.";
+      const message = TRANSIENT_FRAMER_EDITOR_MESSAGE;
       setServerError(message);
       notify.error(message);
       return;
@@ -1479,7 +1480,7 @@ export function PostEditor({
 
   const openPublishConfirmation = form.handleSubmit((values) => {
     if (framerUnavailable) {
-      const message = "Framer is temporarily unavailable.";
+      const message = TRANSIENT_FRAMER_EDITOR_MESSAGE;
       setServerError(message);
       notify.error(message);
       return;
@@ -2127,8 +2128,9 @@ export function PostEditor({
 
       {framerUnavailable ? (
         <div className={cn(warningBannerClassName, "mx-6 mt-4")} role="status">
-          Framer API is unresponsive. You can review cached content here, but
-          editing and publishing are disabled until the connection recovers.
+          Framer Server API is temporarily unavailable. FramerBot is still
+          working and your content is safe. You can review cached content here,
+          but editing and publishing are disabled until the connection recovers.
         </div>
       ) : null}
 

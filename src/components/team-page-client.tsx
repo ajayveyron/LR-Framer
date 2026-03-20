@@ -5,8 +5,8 @@ import { useEffect } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
+import { TeamManagerPanelSkeleton } from "@/components/dashboard-page-skeletons";
 import { TeamManager } from "@/components/team-manager";
-import { WorkspacePanelLoading } from "@/components/workspace-panel-state";
 
 export function TeamPageClient() {
   const router = useRouter();
@@ -33,7 +33,7 @@ export function TeamPageClient() {
   }, [isLoaded, isSignedIn, orgId, orgRole, router]);
 
   if (!isLoaded || !isSignedIn || !orgId || orgRole !== "org:admin") {
-    return <WorkspacePanelLoading message="Loading team access..." />;
+    return <TeamManagerPanelSkeleton />;
   }
 
   return (

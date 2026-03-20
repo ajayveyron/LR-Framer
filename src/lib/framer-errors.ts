@@ -1,6 +1,7 @@
 import { ErrorCode, FramerAPIError, isRetryableError } from "framer-api";
 
 import { AppError } from "@/lib/errors";
+import { TRANSIENT_FRAMER_SHORT_MESSAGE } from "@/lib/framer-copy";
 
 type FramerErrorLike = {
   code?: string;
@@ -56,7 +57,7 @@ export function toTransientFramerAppError(error: unknown) {
   }
 
   return new AppError(
-    "Framer is temporarily unavailable. Retry in a few seconds.",
+    TRANSIENT_FRAMER_SHORT_MESSAGE,
     503,
   );
 }

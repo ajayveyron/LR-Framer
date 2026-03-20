@@ -3,8 +3,6 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 
-import { Spinner } from "@/components/ui/spinner";
-
 type DashboardNavigationContextValue = {
   pendingPathname: string | null;
   setPendingPathname: (pathname: string | null) => void;
@@ -23,13 +21,6 @@ function normalizePathname(href: string) {
   } catch {
     return href.split(/[?#]/, 1)[0] ?? href;
   }
-}
-
-function isWorkspaceRoute(pathname: string) {
-  return (
-    pathname.startsWith("/dashboard/settings") ||
-    pathname.startsWith("/dashboard/team")
-  );
 }
 
 export function DashboardNavigationProvider({
@@ -87,26 +78,22 @@ export function DashboardMainTransition({
 }) {
   const pathname = usePathname();
   const pendingPathname = useDashboardPendingPathname();
+  const isNavigating =
+    pendingPathname !== null && pendingPathname !== pathname;
 
-  if (
-    pendingPathname &&
-    pendingPathname !== pathname &&
-    isWorkspaceRoute(pathname) &&
-    isWorkspaceRoute(pendingPathname)
-  ) {
-    return <>{children}</>;
-  }
-
-  if (pendingPathname && pendingPathname !== pathname) {
-    return (
-      <div className="flex min-h-[280px] items-center justify-center p-4 sm:p-7">
-        <div className="framer-subtle-panel flex min-w-[220px] items-center justify-center gap-3 px-6 py-5 text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
-          <Spinner className="size-4" />
-          <span>Loading view...</span>
+  return (
+    <div className="relative min-h-0 flex-1">
+      {/* Subtle top-edge loading bar while navigating */}
+      {isNavigating ? (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 h-0.5 overflow-hidden">
+          <div className="h-full w-full animate-pulse bg-[var(--framer-fresco-tint-color)]" />
         </div>
+      ) : null}
+      <div
+        className={isNavigating ? "pointer-events-none opacity-60 transition-opacity duration-150" : undefined}
+      >
+        {children}
       </div>
-    );
-  }
-
-  return <>{children}</>;
+    </div>
+  );
 }

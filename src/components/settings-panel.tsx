@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 
+import { SettingsFormPanelSkeleton } from "@/components/dashboard-page-skeletons";
 import { Button } from "@/components/ui/button";
 import { SiteSettingsForm } from "@/components/site-settings-form";
 import {
   WorkspacePanelError,
-  WorkspacePanelLoading,
 } from "@/components/workspace-panel-state";
 
 type SettingsPanelData = {
@@ -72,7 +72,7 @@ export function SettingsPanel() {
   }, [reloadKey]);
 
   if (state.status === "loading") {
-    return <WorkspacePanelLoading message="Loading settings..." />;
+    return <SettingsFormPanelSkeleton />;
   }
 
   if (state.status === "error") {

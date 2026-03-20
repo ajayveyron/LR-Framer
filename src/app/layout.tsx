@@ -1,17 +1,8 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Geist } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 
 import "@/app/globals.css";
 import { NotificationProvider } from "@/components/notification-provider";
-import { cn } from "@/lib/utils";
-
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
-
-const heading = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-heading",
-});
 
 export const metadata: Metadata = {
   title: "Framer Bot | Framer On Steroids",
@@ -58,8 +49,8 @@ export default function RootLayout({
   ) : app;
 
   return (
-    <html lang="en" className={cn("dark font-sans", geist.variable)}>
-      <body className={`${geist.variable}  overscroll-none ${heading.variable}`}>
+    <html lang="en" className="dark font-sans">
+      <body className="overscroll-none">
         {content}
       </body>
     </html>
