@@ -103,6 +103,12 @@ export async function loadDashboardScreen(requestedCollectionId?: string) {
           clerkOrganizationId: access.organizationId,
           snapshotJson: serializeDashboardSnapshot(nextSnapshot),
           syncedAt: nextSnapshot.syncedAt,
+        }).catch((error) => {
+          logError("dashboard.snapshot.save_failed", error, {
+            clerkOrganizationId: access.organizationId,
+            collectionId: activeCollection.id,
+            postCount: overview.posts.length,
+          });
         });
 
         return {

@@ -26,9 +26,9 @@ export function SettingsSessionPanel() {
 
   return (
     <>
-      <section className="settings-section grid gap-4">
+      <section className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#111111] p-6 grid gap-4">
         <div className="grid gap-1">
-          <h2 className="settings-heading">Session</h2>
+          <h2 className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[22px] font-bold tracking-[-0.8px] leading-[1.2] text-[color:var(--framer-fresco-panelTitle-color)]">Session</h2>
           <p className="text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]">
             {isLoaded && user?.primaryEmailAddress?.emailAddress
               ? `Signed in as ${fullName} (${user.primaryEmailAddress.emailAddress}).`
@@ -50,7 +50,7 @@ export function SettingsSessionPanel() {
       </section>
 
       <Dialog onOpenChange={setConfirmLogoutOpen} open={confirmLogoutOpen}>
-        <DialogContent className="framer-dialog-panel border" showCloseButton={false}>
+        <DialogContent className="border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] text-[color:var(--framer-fresco-panelTitle-color)] border" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Log out?</DialogTitle>
             <DialogDescription>

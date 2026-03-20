@@ -455,3 +455,11 @@ Also fixed the payload parsing to match Dodo's actual webhook format with nested
 **Why:** The dashboard was blocking on Framer API responses before showing anything — users saw a blank screen or generic spinner for 1-5 seconds on every navigation. The goal is: user clicks a nav link → immediately sees the destination page shell with skeleton → content streams in. No blank screens, no context loss during navigation.
 
 **Scope:** `src/app/dashboard/layout.tsx`, `src/app/dashboard/page.tsx`, `src/app/dashboard/posts/new/page.tsx`, `src/app/dashboard/posts/[id]/page.tsx`, `src/app/dashboard/loading.tsx`, `src/components/dashboard-navigation.tsx`, `src/components/dashboard-table-skeleton.tsx` (new), `src/components/dashboard-table-view.tsx`.
+
+## 2026-03-20 — Migrate semantic CSS classes to inline Tailwind utilities
+
+**What changed:** All semantic CSS classes from `@layer components` in `globals.css` (e.g. `.framer-shell`, `.dashboard-topbar-control`, `.settings-section`, `.framer-callout-info`, etc.) were replaced with inline Tailwind utility strings directly in each component's JSX. The entire `@layer components` block was stripped from `globals.css` except for `framer-editor-prose` (targets nested child elements — can't be expressed as parent-level Tailwind utilities) and `.framer-status-banner-active` (CSS variable rule for banner offset).
+
+**Why:** User wants styles co-located with markup using Tailwind utilities for easier maintenance. Semantic CSS classes created an indirection layer — you had to jump between the component and `globals.css` to understand what a class did. An intermediate `tw-classes.ts` shared constants file was tried but the user rejected it — having to jump to a separate TS file is the same indirection problem. Styles should live right where they're used so they can be edited in place.
+
+**Scope:** All dashboard components and pages. `src/app/globals.css` (stripped `@layer components`), ~27 component/page files updated with inline Tailwind utilities. `src/lib/tw-classes.ts` was created then deleted.

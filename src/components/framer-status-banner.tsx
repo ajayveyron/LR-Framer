@@ -41,7 +41,7 @@ export function FramerStatusBanner({
   }, []);
 
   return (
-    <div className="framer-striped-banner fixed top-0 right-0 left-0 z-[60] overflow-x-hidden border-b text-[color:var(--framer-fresco-panelTitle-color)] backdrop-blur-md">
+    <div className={`border-[var(--framer-app-warning-callout-border-color)] bg-[repeating-linear-gradient(-45deg,rgba(255,207,97,0.12)_0_14px,rgba(255,207,97,0.22)_14px_28px),rgba(245,158,11,0.14)] fixed top-0 right-0 left-0 z-[60] overflow-x-hidden border-b text-[color:var(--framer-fresco-panelTitle-color)] backdrop-blur-md`}>
       <div className="mx-auto flex w-full max-w-5xl min-w-0 flex-wrap items-center justify-center gap-3 px-4 py-3 text-center md:px-6 md:text-left">
         <div className="min-w-0 max-w-full break-words">
           <p className="text-sm font-semibold">

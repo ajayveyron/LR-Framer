@@ -1,3 +1,4 @@
+
 type NotionBridgeStateProps = {
   status?: {
     configured: boolean;
@@ -40,9 +41,9 @@ export function NotionBridgeState({ status }: NotionBridgeStateProps) {
   const resolvedStatus = status ?? fallbackStatus;
 
   return (
-    <section className="framer-card flex flex-col gap-4">
+    <section className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.36)] flex flex-col gap-4">
       <div>
-        <span className="framer-kicker w-fit">Notion Bridge</span>
+        <span className="inline-flex items-center rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[color:var(--framer-fresco-panelSubtitle-color)] w-fit">Notion Bridge</span>
         <h2 className="mt-2 font-heading text-[clamp(28px,4vw,40px)] leading-[1.06] tracking-[-0.04em] text-[color:var(--framer-fresco-panelTitle-color)]">
             {resolvedStatus.configured ? "Ready for webhook sync" : "Optional backend bridge"}
         </h2>
@@ -61,8 +62,8 @@ export function NotionBridgeState({ status }: NotionBridgeStateProps) {
       <div
         className={
           resolvedStatus.configured
-            ? "framer-callout-success"
-            : "framer-callout-info"
+            ? "rounded-none border border-[var(--framer-app-success-callout-border-color)] bg-[var(--framer-app-success-callout-background-color)] px-4 py-3 text-sm text-[color:var(--framer-app-success-callout-text-color)]"
+            : "rounded-none border border-[var(--framer-app-accent-callout-border-color)] bg-[var(--framer-app-accent-callout-background-color)] px-4 py-3 text-sm text-[color:var(--framer-app-accent-callout-text-color)]"
         }
       >
         {resolvedStatus.configured
@@ -71,37 +72,37 @@ export function NotionBridgeState({ status }: NotionBridgeStateProps) {
       </div>
 
       <div className="grid gap-2.5">
-        <div className="framer-subtle-panel flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <strong className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]">Webhook route</strong>
           <span className="font-mono text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
             {resolvedStatus.webhookPath}
           </span>
         </div>
-        <div className="framer-subtle-panel flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <strong className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]">Manual sync route</strong>
           <span className="font-mono text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
             {resolvedStatus.manualSyncPath}
           </span>
         </div>
-        <div className="framer-subtle-panel flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <strong className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]">Framer import route</strong>
           <span className="font-mono text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
             {resolvedStatus.manualImportPath}
           </span>
         </div>
-        <div className="framer-subtle-panel flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <strong className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]">Approval rule</strong>
           <span className="font-mono text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
             {resolvedStatus.statusPropertyName} = {resolvedStatus.approvedStatusValue}
           </span>
         </div>
-        <div className="framer-subtle-panel flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <strong className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]">Slug property</strong>
           <span className="font-mono text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
             {resolvedStatus.slugPropertyName}
           </span>
         </div>
-        <div className="framer-subtle-panel flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <strong className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]">Framer item ID property</strong>
           <span className="font-mono text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
             {resolvedStatus.framerItemIdPropertyName}
@@ -110,7 +111,7 @@ export function NotionBridgeState({ status }: NotionBridgeStateProps) {
       </div>
 
       {Object.keys(resolvedStatus.fieldMap).length > 0 ? (
-        <pre className="framer-code-panel whitespace-pre-wrap">
+        <pre className="rounded-none border border-[var(--framer-app-accent-callout-border-color)] bg-[var(--framer-app-accent-callout-background-color)] px-4 py-3 font-mono text-sm text-[color:var(--framer-app-accent-callout-text-color)] whitespace-pre-wrap">
           {JSON.stringify(resolvedStatus.fieldMap, null, 2)}
         </pre>
       ) : null}
@@ -119,7 +120,7 @@ export function NotionBridgeState({ status }: NotionBridgeStateProps) {
         <div className="grid gap-2.5">
           {resolvedStatus.issues.map((issue) => (
             <div
-              className="framer-subtle-panel flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+              className="rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
               key={`${issue.path}-${issue.message}`}
             >
               <strong className="font-mono text-sm text-[color:var(--framer-fresco-panelTitle-color)]">
@@ -130,7 +131,7 @@ export function NotionBridgeState({ status }: NotionBridgeStateProps) {
               </span>
             </div>
           ))}
-          <pre className="framer-code-panel whitespace-pre-wrap">
+          <pre className="rounded-none border border-[var(--framer-app-accent-callout-border-color)] bg-[var(--framer-app-accent-callout-background-color)] px-4 py-3 font-mono text-sm text-[color:var(--framer-app-accent-callout-text-color)] whitespace-pre-wrap">
 {`NOTION_API_KEY=secret_xxx
 NOTION_WEBHOOK_SECRET=choose-a-long-random-secret`}
           </pre>
@@ -138,7 +139,7 @@ NOTION_WEBHOOK_SECRET=choose-a-long-random-secret`}
       ) : null}
 
       {resolvedStatus.configured ? (
-        <div className="framer-callout-info">
+        <div className="rounded-none border border-[var(--framer-app-accent-callout-border-color)] bg-[var(--framer-app-accent-callout-background-color)] px-4 py-3 text-sm text-[color:var(--framer-app-accent-callout-text-color)]">
           <span className="font-mono">POST {resolvedStatus.manualSyncPath}</span> pushes
           approved Notion pages into Framer.{" "}
           <span className="font-mono">POST {resolvedStatus.manualImportPath}</span> backfills

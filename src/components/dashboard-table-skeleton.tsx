@@ -2,7 +2,7 @@ export function DashboardTableSkeleton() {
   return (
     <section className="relative min-w-0 overflow-x-clip">
       <div className="min-h-full min-w-0 bg-[var(--framer-fresco-panelBackground-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color)] md:border md:border-[var(--framer-dashboard-content-border-color)]">
-        <div className="dashboard-topbar sticky top-0 z-20">
+        <div className={`bg-[var(--framer-dashboard-topbar-color)] backdrop-blur-[14px] sticky top-0 z-20`}>
           <div className="flex flex-wrap items-center gap-2.5 border-b border-[var(--framer-dashboard-content-border-color)] px-4 py-3">
             <div className="h-10 w-[108px] animate-pulse rounded-xl bg-[var(--framer-dashboard-control-background-color)]" />
             <div className="h-10 flex-[0_1_32rem] animate-pulse rounded-xl bg-[var(--framer-dashboard-control-background-color)]" />

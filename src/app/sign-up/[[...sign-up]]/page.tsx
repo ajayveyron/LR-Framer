@@ -12,7 +12,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <main className="framer-shell grid place-items-center">
+    <main className="min-h-screen min-h-dvh overflow-y-auto overscroll-none bg-[var(--background)] p-4 sm:p-7 grid place-items-center">
       <SignUp forceRedirectUrl="/onboarding" path="/sign-up" />
     </main>
   );

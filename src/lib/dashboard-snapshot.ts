@@ -25,6 +25,8 @@ export type DashboardSnapshot = {
   syncedAt: number;
 };
 
+const DASHBOARD_SNAPSHOT_MAX_POSTS_PER_COLLECTION = 20;
+
 export function parseDashboardSnapshot(site: ProductSite) {
   const raw = site.framerDashboardSnapshotJson;
   if (!raw) {
@@ -51,7 +53,25 @@ export function parseDashboardSnapshot(site: ProductSite) {
 }
 
 export function serializeDashboardSnapshot(snapshot: DashboardSnapshot) {
-  return gzipSync(JSON.stringify(snapshot)).toString("base64");
+  const snapshotForStorage: DashboardSnapshot = {
+    ...snapshot,
+    snapshotsByCollectionId: Object.fromEntries(
+      Object.entries(snapshot.snapshotsByCollectionId).map(
+        ([collectionId, snapshotCollection]) => [
+          collectionId,
+          {
+            ...snapshotCollection,
+            posts: snapshotCollection.posts.slice(
+              0,
+              DASHBOARD_SNAPSHOT_MAX_POSTS_PER_COLLECTION,
+            ),
+          },
+        ],
+      ),
+    ),
+  };
+
+  return gzipSync(JSON.stringify(snapshotForStorage)).toString("base64");
 }
 
 export function pickDashboardSnapshotCollection(

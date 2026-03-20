@@ -16,7 +16,7 @@ export function SelectionToolbar({
   return (
     <div className="flex items-center gap-2.5">
       <Badge
-        className="h-7 px-2.5 text-xs font-semibold framer-status-pill framer-status-pill-idle"
+        className={`h-7 px-2.5 text-xs font-semibold border border-[color-mix(in_srgb,var(--framer-fresco-tint-color)_18%,transparent)] bg-[color-mix(in_srgb,var(--framer-fresco-tint-color)_10%,transparent)] text-[color-mix(in_srgb,var(--framer-fresco-panelTitle-color)_78%,var(--framer-fresco-tint-color))]`}
         variant="outline"
       >
         {selectedCount} selected

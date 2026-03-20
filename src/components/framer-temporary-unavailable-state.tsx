@@ -16,7 +16,7 @@ export function FramerTemporaryUnavailableState({
     <section className="min-w-0 overflow-x-clip">
       <div className="min-h-[calc(100vh-180px)] min-w-0">
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-6 py-20 md:px-8 md:py-24">
-          <span className="framer-kicker w-fit">Framer Server API</span>
+          <span className="inline-flex items-center rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[color:var(--framer-fresco-panelSubtitle-color)] w-fit">Framer Server API</span>
           <h1 className="font-heading text-[clamp(32px,6vw,48px)] leading-[1.05] tracking-[-0.04em] text-[color:var(--framer-fresco-panelTitle-color)]">
             Framer Server API is temporarily unavailable.
           </h1>

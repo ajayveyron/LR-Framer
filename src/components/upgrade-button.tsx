@@ -54,7 +54,7 @@ export function UpgradeButton({
   return (
     <Button
       size={size}
-      className={`gap-2 framer-primary-tint-action ${className}`.trim()}
+      className={`gap-2 bg-[var(--framer-fresco-buttonBackgroundPrimary-color)] text-[color:var(--framer-fresco-buttonTextPrimary-color)] shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:bg-[var(--framer-fresco-buttonBackgroundPrimaryHover-color)] ${className}`.trim()}
       disabled={loading}
       onClick={handleClick}
     >

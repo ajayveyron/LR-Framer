@@ -22,7 +22,7 @@ function DashboardPageFrame({
   children: React.ReactNode;
 }) {
   return (
-    <main className="dashboard-page-shell">
+    <main className="mx-auto w-full max-w-4xl p-4 sm:p-7">
       <section className="grid w-full gap-10">
         {children}
       </section>
@@ -42,7 +42,7 @@ function DashboardPageHeaderSkeleton() {
 
 export function SettingsFormPanelSkeleton() {
   return (
-    <section className="settings-section grid gap-5">
+    <section className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#111111] p-6 grid gap-5">
       <div className="grid gap-2">
         <SkeletonBlock className="h-6 w-40 rounded-lg" />
         <SkeletonBlock className="h-4 w-[72%] rounded-full" />
@@ -67,7 +67,7 @@ export function SettingsFormPanelSkeleton() {
 
 export function SettingsSessionPanelSkeleton() {
   return (
-    <section className="settings-section grid gap-4">
+    <section className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#111111] p-6 grid gap-4">
       <div className="grid gap-2">
         <SkeletonBlock className="h-6 w-24 rounded-lg" />
         <SkeletonBlock className="h-4 w-[68%] max-w-lg rounded-full" />
@@ -133,7 +133,7 @@ export function TeamManagerContentSkeleton() {
 
 export function TeamManagerPanelSkeleton() {
   return (
-    <section className="settings-section grid gap-6">
+    <section className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#111111] p-6 grid gap-6">
       <TeamManagerContentSkeleton />
     </section>
   );
@@ -141,7 +141,7 @@ export function TeamManagerPanelSkeleton() {
 
 export function BillingPanelSkeleton() {
   return (
-    <section className="settings-section grid gap-6">
+    <section className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#111111] p-6 grid gap-6">
       <div className="grid gap-4">
         <div className="flex items-center gap-3">
           <SkeletonBlock className="h-5 w-5 rounded-full" />

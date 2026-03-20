@@ -37,7 +37,7 @@ export function TeamPageClient() {
   }
 
   return (
-    <div className="settings-section grid gap-6">
+    <div className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#111111] p-6 grid gap-6">
       <TeamManager />
     </div>
   );

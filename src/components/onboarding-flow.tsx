@@ -33,22 +33,22 @@ import type {
 
 const FRAMER_DOCS_URL =
   "https://www.framer.com/developers/server-api-quick-start";
-const shellClassName = "framer-shell";
-const cardClassName = "framer-frame mx-auto w-full max-w-7xl";
+const shellClassName = "min-h-screen min-h-dvh overflow-y-auto overscroll-none bg-[var(--background)] p-4 sm:p-7";
+const cardClassName = "rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[linear-gradient(180deg,var(--framer-app-frame-overlay-color),transparent),var(--framer-fresco-panelBackground-color)] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.45)] mx-auto w-full max-w-7xl";
 const sectionClassName =
   "mt-7 grid gap-6 border-t border-[var(--framer-fresco-panelDivider-color)] pt-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]";
-const formClassName = "framer-subtle-panel grid gap-4 p-5";
-const primaryButtonClassName = "framer-primary-action";
-const kickerClassName = "framer-kicker";
+const formClassName = "rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] grid gap-4 p-5";
+const primaryButtonClassName = "bg-[var(--framer-app-primary-surface-color)] text-[color:var(--framer-app-primary-surface-text-color)] shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:bg-[var(--framer-app-primary-surface-hover-color)]";
+const kickerClassName = "inline-flex items-center rounded-none border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[color:var(--framer-fresco-panelSubtitle-color)]";
 const copyTextClassName =
   "text-base leading-7 text-[color:var(--framer-fresco-panelDescription-color)]";
 const helperTextClassName =
   "text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
-const errorBannerClassName = "framer-callout-danger";
+const errorBannerClassName = "rounded-none border border-[var(--framer-app-danger-callout-border-color)] bg-[var(--framer-app-danger-callout-background-color)] px-4 py-3 text-sm text-[color:var(--framer-app-danger-callout-text-color)]";
 const fieldClassName = "grid gap-2";
 const labelRowClassName = "flex items-center justify-between gap-3";
 const formControlClassName =
-  "framer-form-control h-auto min-h-[52px] rounded-2xl border px-4 py-3.5 text-[15px] leading-[1.45]";
+  "border-[var(--framer-fresco-inputBorder-color)] bg-[var(--framer-fresco-inputBackground-color)] text-[color:var(--framer-fresco-settingsText-color)] shadow-[inset_0_1px_0_var(--framer-app-frame-overlay-color),0_8px_24px_rgba(0,0,0,0.12)] placeholder:text-[color-mix(in_srgb,var(--framer-fresco-settingsText-color)_34%,transparent)] focus-visible:border-[var(--framer-fresco-inputBorderActive-color)] focus-visible:shadow-[0_0_0_4px_var(--framer-fresco-tintDimmed-color),inset_0_1px_0_var(--framer-app-frame-overlay-color),0_8px_24px_rgba(0,0,0,0.12)] h-auto min-h-[52px] rounded-2xl border px-4 py-3.5 text-[15px] leading-[1.45]";
 const helpTriggerClassName =
   "shrink-0 text-[11px] font-semibold  tracking-[0.08em] underline decoration-dotted";
 const helpDialogContentClassName =

@@ -31,7 +31,7 @@ const fieldClassName = "grid gap-2";
 const helperTextClassName =
   "text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
 const formControlClassName =
-  "settings-input h-10 rounded-lg px-3 text-sm leading-[1.4]";
+  `!border-transparent !bg-[#2B2B2B] !text-[color:var(--framer-fresco-settingsText-color)] !shadow-none !rounded-lg placeholder:!text-[rgba(255,255,255,0.3)] focus-visible:!border-[var(--framer-fresco-tint-color)] focus-visible:!shadow-none focus-visible:!outline-none h-10 rounded-lg px-3 text-sm leading-[1.4]`;
 const labelRowClassName = "flex items-center justify-between gap-3";
 const helpTriggerClassName =
   "shrink-0 text-[11px] font-semibold tracking-[0.08em] underline decoration-dotted text-[color:var(--framer-fresco-panelSubtitle-color)] hover:text-[color:var(--framer-fresco-panelTitle-color)] transition-colors cursor-pointer";
@@ -85,10 +85,10 @@ export function SiteSettingsForm({
 
   if (!canManage) {
     return (
-      <section className="settings-section grid gap-4">
+      <section className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#111111] p-6 grid gap-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="settings-heading">
+            <h2 className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[22px] font-bold tracking-[-0.8px] leading-[1.2] text-[color:var(--framer-fresco-panelTitle-color)]">
               Framer connection
             </h2>
           </div>
@@ -99,7 +99,7 @@ export function SiteSettingsForm({
         </div>
         <dl className="grid gap-3 mt-2 text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
           <div className="grid gap-1">
-            <dt className="settings-label">
+            <dt className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[12px] font-medium leading-[1.6] text-[color:var(--framer-fresco-panelTitle-color)]">
               Project
             </dt>
             <dd className="break-all text-[color:var(--framer-fresco-panelTitle-color)]">
@@ -107,7 +107,7 @@ export function SiteSettingsForm({
             </dd>
           </div>
           <div className="grid gap-1">
-            <dt className="settings-label">
+            <dt className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[12px] font-medium leading-[1.6] text-[color:var(--framer-fresco-panelTitle-color)]">
               Default collection
             </dt>
             <dd className="text-[color:var(--framer-fresco-panelTitle-color)]">
@@ -115,7 +115,7 @@ export function SiteSettingsForm({
             </dd>
           </div>
           <div className="grid gap-1">
-            <dt className="settings-label">
+            <dt className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[12px] font-medium leading-[1.6] text-[color:var(--framer-fresco-panelTitle-color)]">
               API key
             </dt>
             <dd className="text-[color:var(--framer-fresco-panelTitle-color)]">
@@ -238,9 +238,9 @@ export function SiteSettingsForm({
   }
 
   return (
-    <section className="settings-section grid gap-5">
+    <section className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#111111] p-6 grid gap-5">
       <div>
-        <h2 className="settings-heading">
+        <h2 className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[22px] font-bold tracking-[-0.8px] leading-[1.2] text-[color:var(--framer-fresco-panelTitle-color)]">
           Framer connection
         </h2>
       </div>
@@ -252,7 +252,7 @@ export function SiteSettingsForm({
       >
         <div className={fieldClassName}>
           <div className={labelRowClassName}>
-            <Label className="settings-label" htmlFor="settings-project-input">Framer project URL or ID</Label>
+            <Label className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[12px] font-medium leading-[1.6] text-[color:var(--framer-fresco-panelTitle-color)]" htmlFor="settings-project-input">Framer project URL or ID</Label>
             <Dialog>
               <DialogTrigger asChild>
                 <div className={helpTriggerClassName}>How to find it</div>
@@ -325,7 +325,7 @@ export function SiteSettingsForm({
 
         <div className={fieldClassName}>
           <div className={labelRowClassName}>
-            <Label className="settings-label" htmlFor="settings-api-key">Framer Server API key</Label>
+            <Label className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[12px] font-medium leading-[1.6] text-[color:var(--framer-fresco-panelTitle-color)]" htmlFor="settings-api-key">Framer Server API key</Label>
             <Dialog>
               <DialogTrigger asChild>
                 <div className={helpTriggerClassName}>How to get it</div>
@@ -389,10 +389,10 @@ export function SiteSettingsForm({
         </div>
 
         <div className={fieldClassName}>
-          <Label className="settings-label" htmlFor="settings-collection-select">Default collection</Label>
+          <Label className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[12px] font-medium leading-[1.6] text-[color:var(--framer-fresco-panelTitle-color)]" htmlFor="settings-collection-select">Default collection</Label>
           <Select onValueChange={setSelectedCollectionId} value={selectedCollectionId}>
             <SelectTrigger
-              className="settings-input h-10 rounded-lg px-3 text-sm leading-[1.4]"
+              className="!border-transparent !bg-[#2B2B2B] !text-[color:var(--framer-fresco-settingsText-color)] !shadow-none !rounded-lg placeholder:!text-[rgba(255,255,255,0.3)] focus-visible:!border-[var(--framer-fresco-tint-color)] focus-visible:!shadow-none focus-visible:!outline-none h-10 rounded-lg px-3 text-sm leading-[1.4]"
               id="settings-collection-select"
             >
               <SelectValue
@@ -418,11 +418,11 @@ export function SiteSettingsForm({
           </p>
         </div>
 
-        {error ? <div className="framer-callout-danger">{error}</div> : null}
+        {error ? <div className="rounded-none border border-[var(--framer-app-danger-callout-border-color)] bg-[var(--framer-app-danger-callout-background-color)] px-4 py-3 text-sm text-[color:var(--framer-app-danger-callout-text-color)]">{error}</div> : null}
 
         <div className="flex flex-wrap gap-3">
           <Button
-            className="framer-primary-action h-10 px-4 text-sm font-semibold"
+            className="bg-[var(--framer-app-primary-surface-color)] text-[color:var(--framer-app-primary-surface-text-color)] shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:bg-[var(--framer-app-primary-surface-hover-color)] h-10 px-4 text-sm font-semibold"
             disabled={isValidating}
             onClick={handleValidateConnection}
             type="button"

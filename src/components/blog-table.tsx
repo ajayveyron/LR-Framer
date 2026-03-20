@@ -22,6 +22,7 @@ import type {
   DashboardFieldValue,
 } from "@/lib/cms-types";
 import type { SiteRole } from "@/lib/product-types";
+
 import { cn } from "@/lib/utils";
 
 type BlogTableProps = {
@@ -358,7 +359,7 @@ export function BlogTable({
             {columns.map((column) => (
               <th
                 className={cn(
-                  "dashboard-table-header-cell relative z-10 border-b border-[var(--framer-dashboard-content-border-color)] bg-[var(--framer-fresco-panelBackground-color)] px-[22px] py-3 text-left transition-colors",
+                  "text-[color:var(--framer-dashboard-header-text-color)] text-[12px] font-medium tracking-[-0.01em] leading-[1.35]", "relative z-10 border-b border-[var(--framer-dashboard-content-border-color)] bg-[var(--framer-fresco-panelBackground-color)] px-[22px] py-3 text-left transition-colors",
                 )}
                 key={column.key}
               >
@@ -390,10 +391,10 @@ export function BlogTable({
             <Fragment key={group.key}>
               {hasBothGroups && (
                 <tr
-                  className="dashboard-table-group-row"
+                  className="bg-[var(--framer-dashboard-group-background-color)]"
                 >
                   <td
-                    className="dashboard-table-group-cell border-b border-[var(--framer-dashboard-content-border-color)] px-[22px] py-3"
+                    className={cn("text-[color:var(--framer-fresco-panelTitle-color)] text-[12px] font-semibold tracking-[-0.01em]", "border-b border-[var(--framer-dashboard-content-border-color)] px-[22px] py-3")}
                     colSpan={columns.length}
                   >
                     {group.label}
@@ -406,7 +407,7 @@ export function BlogTable({
                     <tr
                       aria-label={`Edit ${post.title}`}
                       className={cn(
-                        "dashboard-table-row group cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--framer-fresco-tintDimmed-color)] focus-visible:ring-inset",
+                        "bg-transparent hover:bg-[var(--framer-dashboard-row-hover-color)] data-[active=true]:bg-[var(--framer-dashboard-row-active-color)] data-[selected=true]:bg-[var(--framer-dashboard-row-selected-color)]", "group cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--framer-fresco-tintDimmed-color)] focus-visible:ring-inset",
                         loadingPosts?.has(post.id) && "pointer-events-none opacity-50 duration-300",
                       )}
                       data-active={post.id === activePostId}
@@ -434,15 +435,15 @@ export function BlogTable({
                           const isLoading = loadingPosts?.has(post.id);
                           return (
                             <td
-                              className="dashboard-table-cell border-b border-[var(--framer-dashboard-content-border-color)] px-[22px] py-[13px] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]"
+                              className={cn("text-[color:var(--framer-dashboard-cell-text-color)] text-[12px] font-normal tracking-[-0.01em] leading-[1.35]", "border-b border-[var(--framer-dashboard-content-border-color)] px-[22px] py-[13px] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]")}
                               key={column.key}
                             >
                               <Badge
                                 className={cn(
                                   "h-5 rounded-full px-2 text-[11px] font-medium data-[loading=true]:bg-transparent data-[loading=true]:opacity-80 transition-opacity",
                                   post.draft
-                                    ? "framer-status-pill framer-status-pill-draft"
-                                    : "framer-status-pill framer-status-pill-live",
+                                    ? "border border-[var(--framer-app-warning-callout-border-color)] bg-[var(--framer-app-warning-callout-background-color)] text-[color:var(--framer-app-warning-callout-text-color)]"
+                                    : "border border-[color-mix(in_srgb,var(--framer-fresco-tint-color)_20%,transparent)] bg-[color-mix(in_srgb,var(--framer-fresco-tint-color)_14%,transparent)] text-[color-mix(in_srgb,var(--framer-fresco-panelTitle-color)_92%,white)]",
                                 )}
                                 data-loading={isLoading}
                                 variant="outline"
@@ -457,8 +458,8 @@ export function BlogTable({
                         return (
                             <td
                               className={cn(
-                                "dashboard-table-cell border-b border-[var(--framer-dashboard-content-border-color)] px-[22px] py-[13px] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]",
-                                column.key === "title" && "dashboard-table-cell-title",
+                                "text-[color:var(--framer-dashboard-cell-text-color)] text-[12px] font-normal tracking-[-0.01em] leading-[1.35]", "border-b border-[var(--framer-dashboard-content-border-color)] px-[22px] py-[13px] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]",
+                                column.key === "title" && "text-[color:var(--framer-fresco-panelTitle-color)] font-medium",
                               )}
                             key={column.key}
                             title={String(getCellValue(post, metadata, column.key))}
