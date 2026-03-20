@@ -202,7 +202,12 @@ export async function POST(request: Request) {
 
     // Build a context snapshot so the agent starts with project info,
     // all collections, their fields, and enum cases already loaded.
-    const snapshot = await getAIContextSnapshotWithRunner(runInFramerContext);
+    const snapshotCacheKey = access.site.framerProjectId
+      ? `framer-project:${access.site.framerProjectId}`
+      : `org:${access.organizationId}`;
+    const snapshot = await getAIContextSnapshotWithRunner(runInFramerContext, {
+      cacheKey: snapshotCacheKey,
+    });
     const snapshotBlock = formatSnapshotForPrompt(snapshot);
     const framerTools = createScopedFramerTools(runInFramerContext);
     const generateAndUploadImage = createScopedGenerateAndUploadImageTool(

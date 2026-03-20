@@ -4,6 +4,11 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import {
+  useDashboardPendingPathname,
+  useDashboardSetPendingPathname,
+  useNormalizedDashboardPathname,
+} from "@/components/dashboard-navigation";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
@@ -44,11 +49,11 @@ export const LoadingLink = React.forwardRef<
   ref,
 ) {
   const pathname = usePathname();
-  const [isPending, setIsPending] = React.useState(false);
-
-  React.useEffect(() => {
-    setIsPending(false);
-  }, [pathname]);
+  const pendingPathname = useDashboardPendingPathname();
+  const setPendingPathname = useDashboardSetPendingPathname();
+  const targetPathname = useNormalizedDashboardPathname(href);
+  const isPending =
+    pendingPathname === targetPathname && pathname !== targetPathname;
 
   return (
     <Link
@@ -63,12 +68,12 @@ export const LoadingLink = React.forwardRef<
           event.defaultPrevented ||
           !isPlainLeftClick(event) ||
           props.target === "_blank" ||
-          href === pathname
+          targetPathname === pathname
         ) {
           return;
         }
 
-        setIsPending(true);
+        setPendingPathname(targetPathname);
       }}
       prefetch={prefetch}
     >

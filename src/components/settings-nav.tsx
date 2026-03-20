@@ -1,4 +1,7 @@
+"use client";
+
 import { LoadingLink } from "@/components/loading-link";
+import { useDashboardDisplayPathname } from "@/components/dashboard-navigation";
 import { cn } from "@/lib/utils";
 
 const tabs = [
@@ -6,14 +9,17 @@ const tabs = [
   { href: "/dashboard/team", label: "Team" },
 ];
 
-export function SettingsNav({ currentPath }: { currentPath: string }) {
+export function SettingsNav({ showTeamTab }: { showTeamTab: boolean }) {
+  const currentPath = useDashboardDisplayPathname();
+  const visibleTabs = showTeamTab ? tabs : tabs.filter((tab) => tab.href !== "/dashboard/team");
+
   return (
     <nav
       aria-label="Settings sections"
       className="flex flex-wrap items-center gap-2 border-b border-[rgba(255,255,255,0.08)] pb-4"
     >
-      {tabs.map((tab) => {
-        const active = currentPath === tab.href;
+      {visibleTabs.map((tab) => {
+        const active = currentPath.startsWith(tab.href);
 
         return (
           <LoadingLink

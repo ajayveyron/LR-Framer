@@ -13,6 +13,7 @@ import {
 } from "@phosphor-icons/react";
 
 import { DashboardAccountLink } from "@/components/dashboard-account-link";
+import { useDashboardDisplayPathname } from "@/components/dashboard-navigation";
 import { LoadingLink } from "@/components/loading-link";
 import { Button } from "@/components/ui/button";
 import {
@@ -135,7 +136,7 @@ function DashboardNav({
 }
 
 export function DashboardSidebar({ role, siteName }: DashboardSidebarProps) {
-  const pathname = usePathname();
+  const pathname = useDashboardDisplayPathname();
   const items = getNavItems(role);
   const activeItem = getActiveItem(pathname, items);
 

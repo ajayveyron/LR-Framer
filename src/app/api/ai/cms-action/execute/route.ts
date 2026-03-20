@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { createErrorJsonResponse } from "@/lib/api";
+import { invalidateAIContextSnapshot } from "@/lib/ai-context-snapshot";
 import { AppError } from "@/lib/errors";
 import { logEvent, logError } from "@/lib/logger";
 import {
@@ -177,6 +178,18 @@ export async function POST(request: Request) {
       case "publish":
         result = await runInFramerContext(() => publishSite());
         break;
+    }
+
+    if (
+      payload.action === "add_enum_case" ||
+      payload.action === "update_enum_case" ||
+      payload.action === "remove_enum_case" ||
+      payload.action === "set_enum_case_order"
+    ) {
+      const snapshotCacheKey = access.site.framerProjectId
+        ? `framer-project:${access.site.framerProjectId}`
+        : `org:${access.organizationId}`;
+      invalidateAIContextSnapshot(snapshotCacheKey);
     }
 
     logEvent("info", "ai.cms_action.success", {

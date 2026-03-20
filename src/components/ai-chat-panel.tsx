@@ -433,12 +433,16 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
       return;
     }
 
+    if (status === "streaming" || status === "submitted") {
+      return;
+    }
+
     writePersistedChatSession({
       id: chatKey,
       messages,
       showHistory,
     });
-  }, [chatKey, messages, showHistory]);
+  }, [chatKey, messages, showHistory, status]);
 
   const handleRestoreConversation = useCallback(
     (conv: SavedConversation) => {

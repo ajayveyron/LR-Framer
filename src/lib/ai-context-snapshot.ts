@@ -44,6 +44,10 @@ interface CollectionContext {
 
 type RunInFramerContext = <T>(fn: () => Promise<T>) => Promise<T>;
 
+interface AIContextSnapshotOptions {
+  cacheKey?: string;
+}
+
 export interface AIContextSnapshot {
   project: { id: string; name: string } | null;
   collections: CollectionContext[];
@@ -54,10 +58,15 @@ const SNAPSHOT_CACHE_TTL_MS = 60_000;
 const SNAPSHOT_COLLECTION_CONCURRENCY = 2;
 const SNAPSHOT_ENUM_CONCURRENCY = 2;
 
-let snapshotCache: {
-  expiresAt: number;
-  value: AIContextSnapshot;
-} | null = null;
+const snapshotCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    value: AIContextSnapshot;
+  }
+>();
+
+const DEFAULT_SNAPSHOT_CACHE_KEY = "__default__";
 
 async function mapWithConcurrency<T, R>(
   items: T[],
@@ -102,9 +111,12 @@ export async function getAIContextSnapshot(): Promise<AIContextSnapshot> {
 
 export async function getAIContextSnapshotWithRunner(
   runInFramerContext?: RunInFramerContext,
+  options: AIContextSnapshotOptions = {},
 ): Promise<AIContextSnapshot> {
-  if (!runInFramerContext && snapshotCache && snapshotCache.expiresAt > Date.now()) {
-    return snapshotCache.value;
+  const cacheKey = options.cacheKey ?? DEFAULT_SNAPSHOT_CACHE_KEY;
+  const cached = snapshotCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
   }
 
   const startMs = Date.now();
@@ -181,12 +193,10 @@ export async function getAIContextSnapshotWithRunner(
 
   const snapshot: AIContextSnapshot = { project, collections };
 
-  if (!runInFramerContext) {
-    snapshotCache = {
-      expiresAt: Date.now() + SNAPSHOT_CACHE_TTL_MS,
-      value: snapshot,
-    };
-  }
+  snapshotCache.set(cacheKey, {
+    expiresAt: Date.now() + SNAPSHOT_CACHE_TTL_MS,
+    value: snapshot,
+  });
 
   logEvent("info", "ai.context_snapshot.built", {
     durationMs: Date.now() - startMs,
@@ -196,6 +206,15 @@ export async function getAIContextSnapshotWithRunner(
   });
 
   return snapshot;
+}
+
+export function invalidateAIContextSnapshot(cacheKey?: string) {
+  if (cacheKey) {
+    snapshotCache.delete(cacheKey);
+    return;
+  }
+
+  snapshotCache.clear();
 }
 
 /**

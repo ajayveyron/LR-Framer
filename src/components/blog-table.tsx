@@ -331,17 +331,13 @@ export function BlogTable({
     0,
   );
 
+  const drafts = posts.filter((post) => post.draft);
+  const published = posts.filter((post) => !post.draft);
+  const hasBothGroups = drafts.length > 0 && published.length > 0;
+
   const groupedPosts = [
-    {
-      key: "drafts",
-      label: "Drafts",
-      posts: posts.filter((post) => post.draft),
-    },
-    {
-      key: "published",
-      label: "Published",
-      posts: posts.filter((post) => !post.draft),
-    },
+    { key: "drafts", label: "Drafts", posts: drafts },
+    { key: "published", label: "Published", posts: published },
   ].filter((group) => group.posts.length > 0);
 
   return (
@@ -393,17 +389,18 @@ export function BlogTable({
         <tbody>
           {groupedPosts.map((group) => (
             <Fragment key={group.key}>
-              <tr
-                className="bg-[var(--framer-app-surface-subtle-color)]"
-                key={`${group.key}-label`}
-              >
-                <td
-                  className="border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-4 text-sm font-bold text-[color:var(--framer-fresco-panelTitle-color)]"
-                  colSpan={columns.length}
+              {hasBothGroups && (
+                <tr
+                  className="bg-[var(--framer-app-surface-subtle-color)]"
                 >
-                  {group.label}
-                </td>
-              </tr>
+                  <td
+                    className="border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-4 text-sm font-bold text-[color:var(--framer-fresco-panelTitle-color)]"
+                    colSpan={columns.length}
+                  >
+                    {group.label}
+                  </td>
+                </tr>
+              )}
               {group.posts.map((post) => (
                 <ContextMenu key={post.id}>
                   <ContextMenuTrigger asChild>

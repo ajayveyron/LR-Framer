@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ["framer-api"],
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  devIndicators: false,
   turbopack: {
     root,
   },
@@ -18,5 +19,9 @@ const nextConfig: NextConfig = {
     proxyClientMaxBodySize: "25mb",
   },
 };
+
+
+module.exports = nextConfig;
+
 
 export default nextConfig;

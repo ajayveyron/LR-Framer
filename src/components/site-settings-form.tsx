@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { FloppyDisk as SaveIcon, ShieldCheck as ShieldCheckIcon } from "@phosphor-icons/react";
@@ -71,7 +70,6 @@ export function SiteSettingsForm({
   initialProjectInput: string;
 }) {
   const notify = useNotify();
-  const router = useRouter();
   const [projectInput, setProjectInput] = useState(initialProjectInput);
   const [apiKey, setApiKey] = useState("");
   const [collections, setCollections] = useState<FramerCollectionOption[]>(
@@ -228,7 +226,6 @@ export function SiteSettingsForm({
           setSelectedCollectionId(data.collectionId);
         }
         notify.success("Workspace settings updated.");
-        router.refresh();
       } catch (nextError) {
         const message =
           nextError instanceof Error

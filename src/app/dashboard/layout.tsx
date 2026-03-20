@@ -1,6 +1,10 @@
 import { FramerStatusBanner } from "@/components/framer-status-banner";
 import { ProductConfigRequiredState } from "@/components/product-config-required-state";
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
+import {
+  DashboardMainTransition,
+  DashboardNavigationProvider,
+} from "@/components/dashboard-navigation";
 import { loadDashboardFramerStatus } from "@/lib/dashboard-data";
 import { getDashboardAccess } from "@/lib/product-access";
 
@@ -19,18 +23,22 @@ export default async function DashboardLayout({
   const framerStatus = await loadDashboardFramerStatus(access.site);
 
   return (
-    <div className="dashboard-shell overscroll-none">
-      {framerStatus.state !== "available" ? (
-        <FramerStatusBanner
-          cachedAt={framerStatus.cachedAt}
-          state={framerStatus.state}
+    <DashboardNavigationProvider>
+      <div className="dashboard-shell overscroll-none">
+        {framerStatus.state !== "available" ? (
+          <FramerStatusBanner
+            cachedAt={framerStatus.cachedAt}
+            state={framerStatus.state}
+          />
+        ) : null}
+        <DashboardSidebar
+          role={access.role}
+          siteName={access.site.name}
         />
-      ) : null}
-      <DashboardSidebar
-        role={access.role}
-        siteName={access.site.name}
-      />
-      <main className="dashboard-main">{children}</main>
-    </div>
+        <main className="dashboard-main">
+          <DashboardMainTransition>{children}</DashboardMainTransition>
+        </main>
+      </div>
+    </DashboardNavigationProvider>
   );
 }
