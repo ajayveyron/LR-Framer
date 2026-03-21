@@ -12,3 +12,7 @@ pnpm-debug.log*
 coverage
 .DS_Store
 .vercel
+.cache
+
+# Service account keys — never commit these
+keys/

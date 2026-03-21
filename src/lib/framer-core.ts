@@ -1,3 +1,87 @@
+// ---------------------------------------------------------------------------
+// Polyfill FileReader for Node.js — the Framer SDK uses it internally during
+// asset uploads, but it's a browser-only API.
+// ---------------------------------------------------------------------------
+if (typeof globalThis.FileReader === "undefined") {
+  class _FileReader extends EventTarget {
+    static readonly EMPTY = 0;
+    static readonly LOADING = 1;
+    static readonly DONE = 2;
+
+    readonly EMPTY = 0;
+    readonly LOADING = 1;
+    readonly DONE = 2;
+
+    readyState = 0;
+    result: string | ArrayBuffer | null = null;
+    error: DOMException | null = null;
+
+    onload: ((ev: Event) => void) | null = null;
+    onerror: ((ev: Event) => void) | null = null;
+    onloadend: ((ev: Event) => void) | null = null;
+    onloadstart: ((ev: Event) => void) | null = null;
+    onprogress: ((ev: Event) => void) | null = null;
+    onabort: ((ev: Event) => void) | null = null;
+
+    private _finish(result: string | ArrayBuffer | null, error?: unknown) {
+      if (error) {
+        this.error = error instanceof DOMException ? error : new DOMException(String(error));
+        this.readyState = 2;
+        const ev = new Event("error");
+        this.dispatchEvent(ev);
+        this.onerror?.(ev);
+      } else {
+        this.result = result;
+        this.readyState = 2;
+        const ev = new Event("load");
+        this.dispatchEvent(ev);
+        this.onload?.(ev);
+      }
+      const endEv = new Event("loadend");
+      this.dispatchEvent(endEv);
+      this.onloadend?.(endEv);
+    }
+
+    readAsDataURL(blob: Blob) {
+      this.readyState = 1;
+      blob
+        .arrayBuffer()
+        .then((buf) => {
+          const b64 = Buffer.from(buf).toString("base64");
+          const mime = blob.type || "application/octet-stream";
+          this._finish(`data:${mime};base64,${b64}`);
+        })
+        .catch((err) => this._finish(null, err));
+    }
+
+    readAsArrayBuffer(blob: Blob) {
+      this.readyState = 1;
+      blob
+        .arrayBuffer()
+        .then((buf) => this._finish(buf))
+        .catch((err) => this._finish(null, err));
+    }
+
+    readAsText(blob: Blob) {
+      this.readyState = 1;
+      blob
+        .text()
+        .then((txt) => this._finish(txt))
+        .catch((err) => this._finish(null, err));
+    }
+
+    abort() {
+      this.readyState = 2;
+      this.result = null;
+      const ev = new Event("abort");
+      this.dispatchEvent(ev);
+      this.onabort?.(ev);
+    }
+  }
+
+  (globalThis as any).FileReader = _FileReader;
+}
+
 import type {
   Collection,
   CollectionItem,
@@ -6,7 +90,7 @@ import type {
   Framer,
   PublishResult,
 } from "framer-api";
-import { withConnection } from "framer-api";
+import { isRetryableError, withConnection } from "framer-api";
 
 import type {
   BlogCollectionMetadata,
@@ -60,7 +144,13 @@ function extractFieldValue(entry: CollectionItem["fieldData"][string]) {
     return null;
   }
 
-  if (entry.type === "image" || entry.type === "file") {
+  if (entry.type === "image") {
+    const img = entry.value as { url?: string; altText?: string } | null;
+    if (!img?.url) return null;
+    return img.altText ? { url: img.url, alt: img.altText } : img.url;
+  }
+
+  if (entry.type === "file") {
     return entry.value?.url ?? null;
   }
 
@@ -98,6 +188,11 @@ function formatDisplayValue(value: DashboardFieldValue) {
 
   if (value === null || value === "") {
     return "";
+  }
+
+  // Image field value with alt text metadata — display the URL
+  if (typeof value === "object" && "url" in value) {
+    return String(value.url);
   }
 
   return String(value);
@@ -151,28 +246,77 @@ function indexCollectionItems(items: CollectionItem[]) {
   };
 }
 
+const FRAMER_MAX_RETRIES = 2;
+const FRAMER_RETRY_BASE_MS = 500;
+
+function isTransientConnectionError(error: unknown): boolean {
+  if (isRetryableError(error)) return true;
+
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+
+  return (
+    message.includes("no connection") ||
+    message.includes("session expired") ||
+    message.includes("project_closed")
+  );
+}
+
 async function withFramerProject<T>(callback: (framer: Framer) => Promise<T>) {
   const runtimeContext = getFramerRuntimeContext();
-  return withConnection(
-    runtimeContext.projectId,
-    async (framer) => callback(framer),
-    runtimeContext.apiKey,
-  );
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= FRAMER_MAX_RETRIES; attempt++) {
+    try {
+      return await withConnection(
+        runtimeContext.projectId,
+        async (framer) => callback(framer),
+        runtimeContext.apiKey,
+      );
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < FRAMER_MAX_RETRIES && isTransientConnectionError(error)) {
+        const delayMs = FRAMER_RETRY_BASE_MS * 2 ** attempt;
+        logEvent("warn", "framer.connection.retry", {
+          attempt: attempt + 1,
+          maxRetries: FRAMER_MAX_RETRIES,
+          delayMs,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          projectId: runtimeContext.projectId,
+        });
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  // Unreachable in practice, but satisfies TypeScript
+  throw lastError;
 }
 
 async function getBlogCollection(framer: Framer) {
   const runtimeContext = getFramerRuntimeContext();
+  if (!runtimeContext.collectionId && !runtimeContext.collectionName) {
+    throw new AppError(
+      "A Framer collection must be selected before loading CMS data.",
+      400,
+    );
+  }
+
   const collection = runtimeContext.collectionId
     ? await framer.getCollection(runtimeContext.collectionId)
     : (await framer.getCollections()).find(
         (entry) =>
           normalizeLabel(entry.name) ===
-          normalizeLabel(runtimeContext.collectionName),
+          normalizeLabel(runtimeContext.collectionName ?? ""),
       );
 
   if (!collection) {
     throw new AppError(
-      `Collection "${runtimeContext.collectionName}" was not found in the Framer project.`,
+      `Collection "${runtimeContext.collectionName ?? runtimeContext.collectionId}" was not found in the Framer project.`,
       404,
     );
   }
@@ -876,6 +1020,12 @@ export async function updateBlogPost(
 
     const existing = itemIndex.byId.get(id);
     if (!existing) {
+      logEvent("warn", "framer.updateBlogPost.notFound", {
+        postId: id,
+        collectionId: collection.id,
+        collectionName: collection.name,
+        itemCount: items.length,
+      });
       throw new AppError("Blog post not found.", 404);
     }
 
@@ -1368,5 +1518,395 @@ export async function syncBridgePostsFromRaw<T>(
       inputs,
       actor,
     );
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Generic Framer project operations (not scoped to the blog collection)
+// ---------------------------------------------------------------------------
+
+export async function getProjectInfo() {
+  return withFramerProject(async (framer) => {
+    const info = await framer.getProjectInfo();
+    return { id: info.id, name: info.name };
+  });
+}
+
+export async function getPublishInfo() {
+  return withFramerProject(async (framer) => {
+    return framer.getPublishInfo();
+  });
+}
+
+export async function publishSite() {
+  return withFramerProject(async (framer) => {
+    const result = await framer.publish();
+    return {
+      deploymentId: result.deployment.id,
+      createdAt: result.deployment.createdAt,
+      hostnames: result.hostnames.map((h) => ({
+        hostname: h.hostname,
+        type: h.type,
+        isPrimary: h.isPrimary,
+      })),
+    };
+  });
+}
+
+export async function getAllCollections() {
+  return withFramerProject(async (framer) => {
+    const collections = await framer.getCollections();
+    return collections.map((c) => ({
+      id: c.id,
+      name: c.name,
+      managedBy: c.managedBy,
+      readonly: c.readonly,
+      slugFieldName: c.slugFieldName,
+      slugFieldBasedOn: c.slugFieldBasedOn,
+    }));
+  });
+}
+
+export async function getCollectionById(collectionId: string) {
+  return withFramerProject(async (framer) => {
+    const collection = await framer.getCollection(collectionId);
+    if (!collection) {
+      throw new AppError(`Collection "${collectionId}" not found.`, 404);
+    }
+    return {
+      id: collection.id,
+      name: collection.name,
+      managedBy: collection.managedBy,
+      readonly: collection.readonly,
+      slugFieldName: collection.slugFieldName,
+      slugFieldBasedOn: collection.slugFieldBasedOn,
+    };
+  });
+}
+
+export async function getCollectionFields(collectionId: string) {
+  return withFramerProject(async (framer) => {
+    const collection = await framer.getCollection(collectionId);
+    if (!collection) {
+      throw new AppError(`Collection "${collectionId}" not found.`, 404);
+    }
+    const fields = await collection.getFields();
+    return fields.map((f) => ({
+      id: f.id,
+      name: f.name,
+      type: f.type,
+      ...(f.type === "enum" ? { cases: f.cases.map((c) => ({ id: c.id, name: c.name })) } : {}),
+      ...("required" in f && typeof f.required === "boolean" ? { required: f.required } : {}),
+      ...("collectionId" in f && typeof f.collectionId === "string"
+        ? { collectionId: f.collectionId }
+        : {}),
+    }));
+  });
+}
+
+function serializeFieldData(fieldData: Record<string, { type: string; value: unknown }>) {
+  const result: Record<string, unknown> = {};
+  for (const [fieldId, entry] of Object.entries(fieldData)) {
+    if (!entry) continue;
+    if (entry.type === "image") {
+      const img = entry.value as { url?: string; altText?: string } | null;
+      result[fieldId] = img?.url
+        ? { url: img.url, alt: img.altText ?? null }
+        : null;
+    } else if (entry.type === "file") {
+      result[fieldId] = (entry.value as { url?: string } | null)?.url ?? null;
+    } else if (entry.type === "multiCollectionReference") {
+      result[fieldId] = [...(entry.value as string[])];
+    } else if (entry.type === "formattedText") {
+      // Truncate long HTML bodies to avoid blowing up streaming JSON responses
+      const text = (entry.value as string) ?? "";
+      result[fieldId] = text.length > 500 ? text.slice(0, 500) + "…[truncated]" : text;
+    } else {
+      result[fieldId] = entry.value ?? null;
+    }
+  }
+  return result;
+}
+
+export async function getCollectionItems(collectionId: string) {
+  return withFramerProject(async (framer) => {
+    const collection = await framer.getCollection(collectionId);
+    if (!collection) {
+      throw new AppError(`Collection "${collectionId}" not found.`, 404);
+    }
+    const items = await collection.getItems();
+
+    // Include field metadata so the chat UI can render human-readable columns and image cells.
+    const _fieldNames: Record<string, string> = {};
+    const _fieldTypes: Record<string, string> = {};
+
+    try {
+      const fields = await collection.getFields();
+      for (const f of fields) {
+        _fieldNames[f.id] = f.name;
+        _fieldTypes[f.id] = f.type;
+      }
+    } catch (error) {
+      logError("framer.collection.getItems.fields_failed", error, {
+        collectionId,
+      });
+    }
+
+    return {
+      _fieldNames,
+      _fieldTypes,
+      items: items.map((item) => ({
+        id: item.id,
+        slug: item.slug,
+        draft: item.draft,
+        fieldData: serializeFieldData(
+          item.fieldData as unknown as Record<string, { type: string; value: unknown }>,
+        ),
+      })),
+    };
+  });
+}
+
+export async function addCollectionItems(
+  collectionId: string,
+  items: Array<{
+    id?: string;
+    slug: string;
+    draft?: boolean;
+    fieldData?: Record<string, { type: string; value: unknown }>;
+  }>,
+) {
+  return withFramerProject(async (framer) => {
+    const collection = await framer.getCollection(collectionId);
+    if (!collection) {
+      throw new AppError(`Collection "${collectionId}" not found.`, 404);
+    }
+    await collection.addItems(
+      items.map((item) => ({
+        ...(item.id ? { id: item.id } : {}),
+        slug: item.slug,
+        draft: item.draft,
+        fieldData: (item.fieldData ?? {}) as FieldDataInput,
+      })),
+    );
+    logEvent("info", "framer.collection.addItems", {
+      collectionId,
+      itemCount: items.length,
+    });
+    return { success: true, itemCount: items.length };
+  });
+}
+
+export async function removeCollectionItems(
+  collectionId: string,
+  itemIds: string[],
+) {
+  return withFramerProject(async (framer) => {
+    const collection = await framer.getCollection(collectionId);
+    if (!collection) {
+      throw new AppError(`Collection "${collectionId}" not found.`, 404);
+    }
+    await collection.removeItems(itemIds);
+    logEvent("info", "framer.collection.removeItems", {
+      collectionId,
+      removedCount: itemIds.length,
+    });
+    return { success: true, removedCount: itemIds.length };
+  });
+}
+
+export async function setCollectionItemAttributes(
+  collectionId: string,
+  itemId: string,
+  attributes: {
+    slug?: string;
+    draft?: boolean;
+    fieldData?: Record<string, { type: string; value: unknown }>;
+  },
+) {
+  return withFramerProject(async (framer) => {
+    const collection = await framer.getCollection(collectionId);
+    if (!collection) {
+      throw new AppError(`Collection "${collectionId}" not found.`, 404);
+    }
+    const items = await collection.getItems();
+    const item = items.find((i) => i.id === itemId);
+    if (!item) {
+      throw new AppError(`Item "${itemId}" not found in collection.`, 404);
+    }
+    const updated = await item.setAttributes({
+      ...(attributes.slug !== undefined ? { slug: attributes.slug } : {}),
+      ...(attributes.draft !== undefined ? { draft: attributes.draft } : {}),
+      ...(attributes.fieldData
+        ? { fieldData: attributes.fieldData as unknown as FieldDataInput }
+        : {}),
+    });
+    if (!updated) {
+      throw new AppError("Item was deleted before update could complete.", 404);
+    }
+    logEvent("info", "framer.collection.setItemAttributes", {
+      collectionId,
+      itemId,
+    });
+    return {
+      id: updated.id,
+      slug: updated.slug,
+      draft: updated.draft,
+      fieldData: serializeFieldData(
+        updated.fieldData as unknown as Record<string, { type: string; value: unknown }>,
+      ),
+    };
+  });
+}
+
+export async function removeCollectionItem(
+  collectionId: string,
+  itemId: string,
+) {
+  return withFramerProject(async (framer) => {
+    const collection = await framer.getCollection(collectionId);
+    if (!collection) {
+      throw new AppError(`Collection "${collectionId}" not found.`, 404);
+    }
+    const items = await collection.getItems();
+    const item = items.find((i) => i.id === itemId);
+    if (!item) {
+      throw new AppError(`Item "${itemId}" not found in collection.`, 404);
+    }
+    await item.remove();
+    logEvent("info", "framer.collection.removeItem", {
+      collectionId,
+      itemId,
+    });
+    return { success: true, itemId };
+  });
+}
+
+export async function getEnumFieldCases(
+  collectionId: string,
+  fieldId: string,
+) {
+  return withFramerProject(async (framer) => {
+    const collection = await framer.getCollection(collectionId);
+    if (!collection) {
+      throw new AppError(`Collection "${collectionId}" not found.`, 404);
+    }
+    const fields = await collection.getFields();
+    const field = fields.find((f) => f.id === fieldId);
+    if (!field || field.type !== "enum") {
+      throw new AppError(`Field "${fieldId}" is not an enum field.`, 400);
+    }
+    return field.cases.map((c) => ({ id: c.id, name: c.name }));
+  });
+}
+
+export async function addEnumCase(
+  collectionId: string,
+  fieldId: string,
+  name: string,
+) {
+  return withFramerProject(async (framer) => {
+    const collection = await framer.getCollection(collectionId);
+    if (!collection) {
+      throw new AppError(`Collection "${collectionId}" not found.`, 404);
+    }
+    const fields = await collection.getFields();
+    const field = fields.find((f) => f.id === fieldId);
+    if (!field || field.type !== "enum") {
+      throw new AppError(`Field "${fieldId}" is not an enum field.`, 400);
+    }
+    const newCase = await field.addCase({ name });
+    if (!newCase) {
+      throw new AppError("Failed to add enum case.", 500);
+    }
+    logEvent("info", "framer.enum.addCase", { collectionId, fieldId, caseName: name });
+    return { id: newCase.id, name: newCase.name };
+  });
+}
+
+export async function setEnumCaseOrder(
+  collectionId: string,
+  fieldId: string,
+  caseIds: string[],
+) {
+  return withFramerProject(async (framer) => {
+    const collection = await framer.getCollection(collectionId);
+    if (!collection) {
+      throw new AppError(`Collection "${collectionId}" not found.`, 404);
+    }
+    const fields = await collection.getFields();
+    const field = fields.find((f) => f.id === fieldId);
+    if (!field || field.type !== "enum") {
+      throw new AppError(`Field "${fieldId}" is not an enum field.`, 400);
+    }
+    await field.setCaseOrder(caseIds);
+    logEvent("info", "framer.enum.setCaseOrder", { collectionId, fieldId });
+    return { success: true };
+  });
+}
+
+export async function updateEnumCase(
+  collectionId: string,
+  fieldId: string,
+  caseId: string,
+  newName: string,
+) {
+  return withFramerProject(async (framer) => {
+    const collection = await framer.getCollection(collectionId);
+    if (!collection) {
+      throw new AppError(`Collection "${collectionId}" not found.`, 404);
+    }
+    const fields = await collection.getFields();
+    const field = fields.find((f) => f.id === fieldId);
+    if (!field || field.type !== "enum") {
+      throw new AppError(`Field "${fieldId}" is not an enum field.`, 400);
+    }
+    const enumCase = field.cases.find((c) => c.id === caseId);
+    if (!enumCase) {
+      throw new AppError(`Enum case "${caseId}" not found.`, 404);
+    }
+    const updated = await enumCase.setAttributes({ name: newName });
+    if (!updated) {
+      throw new AppError("Enum case was removed before update.", 404);
+    }
+    logEvent("info", "framer.enum.updateCase", { collectionId, fieldId, caseId });
+    return { id: updated.id, name: updated.name };
+  });
+}
+
+export async function removeEnumCase(
+  collectionId: string,
+  fieldId: string,
+  caseId: string,
+) {
+  return withFramerProject(async (framer) => {
+    const collection = await framer.getCollection(collectionId);
+    if (!collection) {
+      throw new AppError(`Collection "${collectionId}" not found.`, 404);
+    }
+    const fields = await collection.getFields();
+    const field = fields.find((f) => f.id === fieldId);
+    if (!field || field.type !== "enum") {
+      throw new AppError(`Field "${fieldId}" is not an enum field.`, 400);
+    }
+    const enumCase = field.cases.find((c) => c.id === caseId);
+    if (!enumCase) {
+      throw new AppError(`Enum case "${caseId}" not found.`, 404);
+    }
+    await enumCase.remove();
+    logEvent("info", "framer.enum.removeCase", { collectionId, fieldId, caseId });
+    return { success: true, caseId };
+  });
+}
+
+export async function setCollectionAsActive(collectionId: string) {
+  return withFramerProject(async (framer) => {
+    const collection = await framer.getCollection(collectionId);
+    if (!collection) {
+      throw new AppError(`Collection "${collectionId}" not found.`, 404);
+    }
+    await collection.setAsActive();
+    logEvent("info", "framer.collection.setAsActive", { collectionId });
+    return { success: true, collectionId };
   });
 }

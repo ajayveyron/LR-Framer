@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 
 import { decryptSecret } from "@/lib/crypto";
 import { fetchProductMutation, fetchProductQuery } from "@/lib/convex";
+import { AppError } from "@/lib/errors";
 import type { FramerRuntimeContext } from "@/lib/framer-runtime";
 import { logError } from "@/lib/logger";
 import { getProductEnvIssues } from "@/lib/product-env";
@@ -114,7 +115,7 @@ function getSuggestedSiteName(
     return `${parts.join(" ")} Team`;
   }
 
-  return "My FramerLink Team";
+  return "My Framer Bot Team";
 }
 
 async function getSafeCurrentUser() {
@@ -155,9 +156,7 @@ export const getOnboardingAccess = cache(
     if (
       site?.onboardingStatus === "ready" &&
       site.framerApiKeyCiphertext &&
-      site.framerProjectId &&
-      site.framerCollectionId &&
-      site.framerCollectionName
+      site.framerProjectId
     ) {
       redirect("/dashboard");
     }
@@ -205,9 +204,7 @@ export const getDashboardAccess = cache(
       !site ||
       site.onboardingStatus !== "ready" ||
       !site.framerApiKeyCiphertext ||
-      !site.framerProjectId ||
-      !site.framerCollectionId ||
-      !site.framerCollectionName
+      !site.framerProjectId
     ) {
       redirect("/onboarding");
     }
@@ -235,22 +232,80 @@ export async function requireAdminAccess() {
   return access;
 }
 
+export async function requireDashboardApiAccess() {
+  const issues = getProductEnvIssues();
+  if (issues.length > 0) {
+    throw new AppError(
+      "Framer Bot is missing required product environment variables.",
+      503,
+      { fieldErrors: issues },
+    );
+  }
+
+  const { orgId, orgRole, userId } = await auth();
+  if (!userId) {
+    throw new AppError("Sign in to continue.", 401);
+  }
+
+  if (!orgId) {
+    throw new AppError("Create your team before using the dashboard.", 400);
+  }
+
+  const role = mapOrganizationRole(orgRole);
+
+  const [, site] = await Promise.all([
+    syncMembership(orgId, userId, role),
+    getSiteForOrganization(orgId),
+  ]);
+
+  if (!role) {
+    throw new AppError("You do not have access to this team.", 403);
+  }
+
+  if (
+    !site ||
+    site.onboardingStatus !== "ready" ||
+    !site.framerApiKeyCiphertext ||
+    !site.framerProjectId
+  ) {
+    throw new AppError("Finish onboarding before using the dashboard.", 400);
+  }
+
+  return {
+    organizationId: orgId,
+    role,
+    site,
+    userId,
+  };
+}
+
+export async function requireAdminApiAccess() {
+  const access = await requireDashboardApiAccess();
+  if (access.role !== "admin") {
+    throw new AppError("Only admins can perform this action.", 403);
+  }
+
+  return access;
+}
+
 export function getSiteFramerRuntimeContext(
   site: ProductSite,
+  selection?: {
+    collectionId?: string | null;
+    collectionName?: string | null;
+  },
 ): FramerRuntimeContext {
   if (
     !site.framerApiKeyCiphertext ||
-    !site.framerProjectId ||
-    !site.framerCollectionId ||
-    !site.framerCollectionName
+    !site.framerProjectId
   ) {
-    throw new Error("The current FramerLink site is not fully configured.");
+    throw new Error("The current Framer Bot site is not fully configured.");
   }
 
   return {
     apiKey: decryptSecret(site.framerApiKeyCiphertext),
-    collectionId: site.framerCollectionId,
-    collectionName: site.framerCollectionName,
+    collectionId: selection?.collectionId ?? site.framerCollectionId,
+    collectionName: selection?.collectionName ?? site.framerCollectionName,
     projectId: site.framerProjectId,
   };
 }

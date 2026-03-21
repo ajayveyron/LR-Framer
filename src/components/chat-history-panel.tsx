@@ -1,0 +1,124 @@
+"use client";
+
+import { ClockCounterClockwise, Trash, ArrowLeft, CircleNotch } from "@phosphor-icons/react";
+import { useCallback, useEffect, useState } from "react";
+import { formatDistanceToNow } from "date-fns";
+
+import { Button } from "@/components/ui/button";
+import {
+  listConversations,
+  deleteConversation,
+  type SavedConversation,
+} from "@/lib/chat-history";
+
+interface ChatHistoryPanelProps {
+  onSelect: (conversation: SavedConversation) => void;
+  onBack: () => void;
+}
+
+export function ChatHistoryPanel({ onSelect, onBack }: ChatHistoryPanelProps) {
+  const [conversations, setConversations] = useState<SavedConversation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    listConversations().then((result) => {
+      if (!cancelled) {
+        setConversations(result);
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleDelete = useCallback(
+    (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      // Optimistic removal
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      deleteConversation(id);
+    },
+    [],
+  );
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Header */}
+      <div className="flex items-center gap-2 border-b border-fresco-divider px-4 py-3">
+        <Button
+          aria-label="Back to chat"
+          className="size-8 shrink-0"
+          onClick={onBack}
+          size="icon-sm"
+          type="button"
+          variant="ghost"
+        >
+          <ArrowLeft className="size-4" />
+        </Button>
+        <ClockCounterClockwise
+          className="size-5 shrink-0 text-fresco-tint"
+          weight="duotone"
+        />
+        <span className="text-sm font-semibold">Chat History</span>
+      </div>
+
+      {/* List */}
+      <div className="flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center gap-2 p-8 text-center">
+            <CircleNotch
+              className="size-6 animate-spin text-fresco-subtitle"
+            />
+            <p className="text-sm text-fresco-description">
+              Loading conversations…
+            </p>
+          </div>
+        ) : conversations.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-2 p-8 text-center">
+            <ClockCounterClockwise
+              className="size-8 text-fresco-subtitle"
+              weight="duotone"
+            />
+            <p className="text-sm text-fresco-description">
+              No past conversations yet
+            </p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-fresco-divider">
+            {conversations.map((conv) => (
+              <li key={conv.id}>
+                <div className="group flex items-start gap-2 px-2 py-1.5 transition-colors hover:bg-fresco-surface-muted">
+                  <Button
+                    className="h-auto flex-1 items-start justify-start gap-3 px-2 py-1.5 text-left font-normal"
+                    onClick={() => onSelect(conv)}
+                    type="button"
+                    variant="ghost"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-fresco-title">
+                        {conv.title}
+                      </p>
+                      <p className="mt-0.5 text-xs text-fresco-description">
+                        {conv.messages.length} message{conv.messages.length !== 1 ? "s" : ""} · {formatDistanceToNow(new Date(conv.updatedAt), { addSuffix: true })}
+                      </p>
+                    </div>
+                  </Button>
+                  <Button
+                    aria-label="Delete conversation"
+                    className="mt-0.5 opacity-0 transition-opacity hover:bg-red-500/20 hover:text-red-400 group-hover:opacity-100"
+                    onClick={(e) => handleDelete(e, conv.id)}
+                    size="icon-xs"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Trash className="size-3.5" />
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}

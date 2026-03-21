@@ -5,12 +5,12 @@ import { runWithCurrentSiteFramerContext } from "@/lib/product-framer";
 export const runtime = "nodejs";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await context.params;
-    return await runWithCurrentSiteFramerContext(() => handleGetPost(id));
+    return await runWithCurrentSiteFramerContext(request, () => handleGetPost(id));
   } catch (error) {
     return createErrorJsonResponse(error);
   }
@@ -22,19 +22,19 @@ export async function PUT(
 ) {
   try {
     const { id } = await context.params;
-    return await runWithCurrentSiteFramerContext(() => handleUpdatePost(id, request));
+    return await runWithCurrentSiteFramerContext(request, () => handleUpdatePost(id, request));
   } catch (error) {
     return createErrorJsonResponse(error);
   }
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await context.params;
-    return await runWithCurrentSiteFramerContext(() => handleDeletePost(id));
+    return await runWithCurrentSiteFramerContext(request, () => handleDeletePost(id));
   } catch (error) {
     return createErrorJsonResponse(error);
   }

@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       throw new AppError("Upload kind must be \"image\" or \"file\".", 400);
     }
 
-    const asset = await runWithCurrentSiteFramerContext(() =>
+    const asset = await runWithCurrentSiteFramerContext(request, () =>
       uploadBlogAsset(kind, file),
     );
 

@@ -6,6 +6,7 @@ import {
   type KeyboardEvent,
   useEffect,
   useEffectEvent,
+  useMemo,
   useRef,
   useState,
   useTransition,
@@ -21,8 +22,15 @@ import {
   ListBullets as ListIcon,
   ListNumbers as ListOrderedIcon,
   Quotes as TextQuoteIcon,
+  Sparkle,
+  SpinnerGap,
+  Check as CheckIcon,
+  X as XIcon,
+  ArrowCounterClockwise,
+  ChatCircle,
 } from "@phosphor-icons/react";
 
+import { AIImageDialog } from "@/components/ai-image-dialog";
 import { useNotify } from "@/components/notification-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,8 +59,12 @@ import type {
   DashboardFieldDefinition,
   DashboardFieldValue,
 } from "@/lib/cms-types";
+import { TRANSIENT_FRAMER_EDITOR_MESSAGE } from "@/lib/framer-copy";
+
 import { cn } from "@/lib/utils";
+import { logEvent, logError } from "@/lib/logger";
 import { buildPostInputSchema, type PostInputPayload } from "@/lib/post-schema";
+import { getCollectionHeader } from "@/lib/product-framer-shared";
 
 type FormValues = PostInputPayload;
 const EMPTY_SELECT_VALUE = "__none__";
@@ -60,23 +72,25 @@ const fieldClassName = "flex flex-col gap-2";
 const wideFieldClassName = "max-w-none";
 const labelRowClassName = "flex items-center justify-between gap-2.5";
 const metaBadgeClassName =
-  "h-6 rounded-full border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]";
+  "h-6 rounded-full border border-fresco-divider bg-fresco-surface-muted px-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-fresco-subtitle";
 const helperTextClassName =
-  "text-[13px] leading-[1.45] text-[color:var(--framer-fresco-panelSubtitle-color)]";
+  "text-[13px] leading-[1.45] text-fresco-subtitle";
 const fieldErrorClassName =
-  "text-[13px] text-[color:var(--framer-app-danger-callout-text-color)]";
+  "text-[13px] text-fresco-danger-callout-text";
 const formControlClassName =
-  "framer-form-control h-10 rounded-lg border px-3 py-2.5 font-sans text-sm leading-[1.4]";
+  "border-fresco-input-border bg-fresco-input-bg text-fresco-text shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] placeholder:text-[color-mix(in_srgb,var(--color-fresco-text)_34%,transparent)] focus-visible:border-fresco-input-active focus-visible:shadow-[0_0_0_4px_var(--color-fresco-tint-dimmed),inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] h-10 rounded-lg border px-3 py-2.5 font-sans text-sm leading-[1.4]";
 const titleControlClassName =
   "h-12 text-[clamp(20px,1.7vw,26px)] leading-[1.1] tracking-[-0.03em]";
 const toolbarButtonClassName =
-  "framer-form-control h-9 min-h-9 rounded-lg border px-3 py-0 shadow-none";
+  "border-fresco-input-border bg-fresco-input-bg text-fresco-text shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] placeholder:text-[color-mix(in_srgb,var(--color-fresco-text)_34%,transparent)] focus-visible:border-fresco-input-active focus-visible:shadow-[0_0_0_4px_var(--color-fresco-tint-dimmed),inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] h-9 min-h-9 rounded-lg border px-3 py-0 shadow-none";
 const toolbarActionGroupClassName =
-  "framer-toolbar-group flex flex-wrap items-center gap-1 rounded-lg";
+  "rounded-none bg-fresco-surface-muted p-1 flex flex-wrap items-center gap-1 rounded-lg";
 const toolbarActionButtonClassName =
-  "framer-toolbar-button size-8 rounded-lg border-transparent bg-transparent p-0";
-const primaryButtonClassName = "framer-primary-tint-action";
-const warningBannerClassName = "framer-callout-info";
+  "text-fresco-button-text hover:bg-fresco-button-surface-hover hover:text-fresco-title focus-visible:bg-fresco-button-surface-hover focus-visible:text-fresco-title disabled:text-[color-mix(in_srgb,var(--color-fresco-button-text)_40%,transparent)] size-8 rounded-lg border-transparent bg-transparent p-0";
+const primaryButtonClassName =
+  "bg-fresco-button-primary text-fresco-button-primary-text shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:bg-fresco-button-primary-hover";
+const warningBannerClassName =
+  "rounded-none border border-fresco-accent-callout-border bg-fresco-accent-callout-bg px-4 py-3 text-sm text-fresco-accent-callout-text";
 const editorContentClassName =
   "framer-editor-prose min-h-[280px] overflow-x-auto px-4 py-4 outline-none";
 
@@ -118,13 +132,142 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
+const ALLOWED_EDITOR_TAGS = new Set([
+  "a",
+  "blockquote",
+  "br",
+  "code",
+  "div",
+  "em",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "li",
+  "ol",
+  "p",
+  "pre",
+  "strong",
+  "table",
+  "tbody",
+  "td",
+  "th",
+  "thead",
+  "tr",
+  "u",
+  "ul",
+]);
+
+const STRIP_CONTENT_TAGS = new Set([
+  "iframe",
+  "object",
+  "script",
+  "style",
+  "svg",
+]);
+
+function sanitizeLinkHref(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("#") ||
+    trimmed.startsWith("mailto:") ||
+    trimmed.startsWith("tel:")
+  ) {
+    return trimmed;
+  }
+
+  try {
+    const normalized = /^[a-z][a-z\d+.-]*:/i.test(trimmed)
+      ? new URL(trimmed)
+      : new URL(`https://${trimmed}`);
+
+    if (normalized.protocol === "http:" || normalized.protocol === "https:") {
+      return normalized.toString();
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
+function sanitizeEditorHtml(html: string) {
+  if (typeof document === "undefined" || !html.trim()) {
+    return html;
+  }
+
+  const container = document.createElement("div");
+  container.innerHTML = html;
+
+  const sanitizeNode = (node: Node) => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        continue;
+      }
+
+      if (!(child instanceof HTMLElement)) {
+        child.parentNode?.removeChild(child);
+        continue;
+      }
+
+      const tagName = child.tagName.toLowerCase();
+      if (STRIP_CONTENT_TAGS.has(tagName)) {
+        child.remove();
+        continue;
+      }
+
+      if (!ALLOWED_EDITOR_TAGS.has(tagName)) {
+        const fragment = document.createDocumentFragment();
+        while (child.firstChild) {
+          fragment.appendChild(child.firstChild);
+        }
+        child.replaceWith(fragment);
+        sanitizeNode(node);
+        continue;
+      }
+
+      for (const attribute of Array.from(child.attributes)) {
+        const name = attribute.name.toLowerCase();
+        if (name.startsWith("on") || name === "style") {
+          child.removeAttribute(attribute.name);
+          continue;
+        }
+
+        if (tagName === "a" && name === "href") {
+          const safeHref = sanitizeLinkHref(attribute.value);
+          if (safeHref) {
+            child.setAttribute("href", safeHref);
+          } else {
+            child.removeAttribute("href");
+          }
+          continue;
+        }
+
+        child.removeAttribute(attribute.name);
+      }
+
+      sanitizeNode(child);
+    }
+  };
+
+  sanitizeNode(container);
+  return container.innerHTML;
+}
+
 function toEditorHtml(value: string) {
   if (!value) {
     return "";
   }
 
   if (looksLikeHtml(value)) {
-    return value;
+    return sanitizeEditorHtml(value);
   }
 
   return value
@@ -250,20 +393,7 @@ function getMarkdownShortcut(value: string): MarkdownShortcut | null {
 }
 
 function normalizeLinkUrl(value: string) {
-  if (!value) {
-    return "";
-  }
-
-  if (
-    value.startsWith("/") ||
-    value.startsWith("#") ||
-    value.startsWith("mailto:") ||
-    value.startsWith("tel:")
-  ) {
-    return value;
-  }
-
-  return /^[a-z][a-z\d+.-]*:/i.test(value) ? value : `https://${value}`;
+  return sanitizeLinkHref(value);
 }
 
 function slugify(value: string) {
@@ -353,7 +483,7 @@ function FieldLabel({
 }) {
   return (
     <Label
-      className="text-[13px] font-bold tracking-[-0.01em] text-[color:var(--framer-fresco-panelTitle-color)]"
+      className="text-[13px] tracking-wide text-fresco-title"
       htmlFor={htmlFor}
     >
       {name}
@@ -361,7 +491,7 @@ function FieldLabel({
         <>
           <span
             aria-hidden="true"
-            className="inline-flex text-[color:var(--framer-fresco-errorTint-color)]"
+            className="inline-flex text-fresco-error"
           >
             <AsteriskIcon className="size-2" weight="bold" />
           </span>
@@ -391,19 +521,82 @@ function ReadOnlyField({
         {field.helpText ??
           "This field type is visible but not editable in the dashboard."}
       </div>
-      <div className="framer-subtle-panel px-4 py-3 text-sm text-[color:var(--framer-fresco-settingsText-color)]">
+      <div className="rounded-none border border-fresco-divider bg-fresco-surface-subtle px-4 py-3 text-sm text-fresco-text">
         {Array.isArray(value) ? value.join(", ") : String(value ?? "")}
       </div>
     </div>
   );
 }
 
+// ── Inline rewrite diff helpers ──
+
+interface DiffSegment {
+  type: "unchanged" | "removed" | "added";
+  text: string;
+}
+
+function htmlToPlainText(html: string): string {
+  const div = document.createElement("div");
+  div.innerHTML = sanitizeEditorHtml(html);
+  return (div.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
+function computeWordDiff(oldText: string, newText: string): DiffSegment[] {
+  const oldWords = oldText.split(/\s+/).filter(Boolean);
+  const newWords = newText.split(/\s+/).filter(Boolean);
+  const m = oldWords.length;
+  const n = newWords.length;
+
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    new Array<number>(n + 1).fill(0),
+  );
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] =
+        oldWords[i - 1] === newWords[j - 1]
+          ? dp[i - 1][j - 1] + 1
+          : Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+
+  const raw: DiffSegment[] = [];
+  let i = m;
+  let j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldWords[i - 1] === newWords[j - 1]) {
+      raw.push({ type: "unchanged", text: oldWords[i - 1] });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      raw.push({ type: "added", text: newWords[j - 1] });
+      j--;
+    } else {
+      raw.push({ type: "removed", text: oldWords[i - 1] });
+      i--;
+    }
+  }
+  raw.reverse();
+
+  const segments: DiffSegment[] = [];
+  for (const seg of raw) {
+    const last = segments[segments.length - 1];
+    if (last && last.type === seg.type) {
+      last.text += " " + seg.text;
+    } else {
+      segments.push({ ...seg });
+    }
+  }
+  return segments;
+}
+
 function RichTextInput({
   onChange,
+  rewriteContext,
   placeholder,
   value,
 }: {
   onChange: (value: string) => void;
+  rewriteContext?: { title?: string; slug?: string };
   placeholder: string;
   value: string;
 }) {
@@ -418,6 +611,89 @@ function RichTextInput({
     left: number;
     top: number;
   } | null>(null);
+
+  // ── Inline rewrite state ──
+  const [rewriteStatus, setRewriteStatus] = useState<
+    "idle" | "loading" | "diff" | "error"
+  >("idle");
+  const [rewrittenHtml, setRewrittenHtml] = useState<string | null>(null);
+  const [rewriteError, setRewriteError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const diffSegments = useMemo(() => {
+    if (!rewrittenHtml) return null;
+    return computeWordDiff(htmlToPlainText(value), htmlToPlainText(rewrittenHtml));
+  }, [value, rewrittenHtml]);
+
+  async function triggerRewrite() {
+    setRewriteStatus("loading");
+    setRewriteError(null);
+    setRewrittenHtml(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    logEvent("info", "ai.rewrite.inline_requested", {
+      htmlLength: value.length,
+      hasContext: Boolean(rewriteContext),
+    });
+
+    try {
+      const res = await fetch("/api/ai/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ html: value, context: rewriteContext }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? `Rewrite failed (${res.status})`);
+      }
+
+      const data = (await res.json()) as { rewritten: string };
+      setRewrittenHtml(data.rewritten);
+      setRewriteStatus("diff");
+
+      logEvent("info", "ai.rewrite.inline_completed", {
+        originalLength: value.length,
+        rewrittenLength: data.rewritten.length,
+      });
+    } catch (err) {
+      if (controller.signal.aborted) {
+        setRewriteStatus("idle");
+        logEvent("info", "ai.rewrite.inline_cancelled", {});
+        return;
+      }
+      const msg = err instanceof Error ? err.message : "Rewrite failed.";
+      setRewriteError(msg);
+      setRewriteStatus("error");
+      logError("ai.rewrite.inline_failed", err);
+    } finally {
+      abortRef.current = null;
+    }
+  }
+
+  function acceptRewrite() {
+    if (!rewrittenHtml) return;
+    logEvent("info", "ai.rewrite.inline_accepted", {
+      originalLength: value.length,
+      rewrittenLength: rewrittenHtml.length,
+    });
+    onChange(sanitizeEditorHtml(rewrittenHtml));
+    resetRewrite();
+  }
+
+  function rejectRewrite() {
+    logEvent("info", "ai.rewrite.inline_rejected", {});
+    resetRewrite();
+  }
+
+  function resetRewrite() {
+    setRewriteStatus("idle");
+    setRewrittenHtml(null);
+    setRewriteError(null);
+  }
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -437,7 +713,7 @@ function RichTextInput({
   }, []);
 
   function syncValue() {
-    onChange(editorRef.current?.innerHTML ?? "");
+    onChange(sanitizeEditorHtml(editorRef.current?.innerHTML ?? ""));
   }
 
   function syncSelectionState() {
@@ -670,8 +946,8 @@ function RichTextInput({
   }
 
   return (
-    <div className="framer-elevated-panel relative overflow-hidden rounded-lg">
-      <div className="framer-toolbar-strip flex flex-wrap items-center gap-2 px-3 py-2">
+    <div className="rounded-none border border-fresco-divider bg-fresco-surface-elevated shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] relative overflow-hidden rounded-lg">
+      <div className="border-b border-b-fresco-divider bg-fresco-surface-subtle flex flex-wrap items-center gap-2 px-3 py-2">
         <Select
           disabled={!hasTextSelection}
           onValueChange={(nextValue) => {
@@ -682,7 +958,7 @@ function RichTextInput({
           <SelectTrigger
             className={cn(
               toolbarButtonClassName,
-              "min-w-[172px] justify-between text-left text-sm text-[color:var(--framer-fresco-settingsText-color)]",
+              "min-w-[172px] justify-between text-left text-sm text-fresco-text",
             )}
             onMouseDown={(event) => {
               event.preventDefault();
@@ -806,72 +1082,204 @@ function RichTextInput({
             <ListOrderedIcon className="size-4" />
           </Button>
         </div>
+
+        {/* {rewriteContext ? (
+          <div className={toolbarActionGroupClassName}>
+            <Button
+              aria-label="Rewrite with AI"
+              className={toolbarActionButtonClassName}
+              disabled={rewriteStatus === "loading" || rewriteStatus === "diff"}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                triggerRewrite();
+              }}
+              size="xs"
+              title="Rewrite with AI"
+              type="button"
+              variant="ghost"
+            >
+              {rewriteStatus === "loading" ? (
+                <SpinnerGap className="size-4 animate-spin" />
+              ) : (
+                <Sparkle className="size-4" weight="duotone" />
+              )}
+            </Button>
+          </div>
+        ) : null} */}
       </div>
-      <div
-        className={editorContentClassName}
-        contentEditable
-        data-placeholder={placeholder}
-        onBlur={syncValue}
-        onInput={syncValue}
-        onKeyDown={handleKeyDown}
-        onKeyUp={syncSelectionState}
-        onMouseLeave={() => setHoveredLink(null)}
-        onMouseMove={(event) => updateHoveredLink(event.target)}
-        onMouseUp={syncSelectionState}
-        ref={editorRef}
-        suppressContentEditableWarning
-      />
-      {hoveredLink ? (
-        <div
-          className="absolute z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 rounded-lg border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-menuBackground-color)] px-2.5 py-2 text-xs text-[color:var(--framer-fresco-menuText-color)] shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
-          style={{ left: hoveredLink.left, top: hoveredLink.top }}
-        >
-          <span className="max-w-52 truncate text-[color:var(--framer-fresco-panelSubtitle-color)]">
-            {hoveredLink.href}
-          </span>
+
+      {/* ── Diff view (replaces editor when active) ── */}
+      {rewriteStatus === "loading" && (
+        <div className={cn(editorContentClassName, "flex flex-col items-center justify-center gap-2 text-fresco-subtitle")}>
+          <SpinnerGap className="size-6 animate-spin" />
+          <span className="text-xs">Optimizing for SEO, GEO &amp; AEO…</span>
           <Button
-            onMouseDown={(event) => {
-              event.preventDefault();
-              selectHoveredLink();
-              handleLink();
-            }}
+            className="mt-1"
+            onClick={() => abortRef.current?.abort()}
             size="xs"
             type="button"
             variant="ghost"
           >
-            Edit
-          </Button>
-          <Button
-            onMouseDown={(event) => {
-              event.preventDefault();
-              selectHoveredLink();
-              applyCommand("unlink");
-              setHoveredLink(null);
-            }}
-            size="xs"
-            type="button"
-            variant="ghost"
-          >
-            Remove
+            <XIcon className="size-3.5" />
+            Cancel
           </Button>
         </div>
-      ) : null}
+      )}
+
+      {rewriteStatus === "diff" && diffSegments && (
+        <>
+          <div className={cn(editorContentClassName, "select-text")}>
+            {diffSegments.map((seg, idx) => {
+              if (seg.type === "removed") {
+                return (
+                  <span key={idx} className="text-red-400 line-through decoration-red-400/60">
+                    {seg.text}{" "}
+                  </span>
+                );
+              }
+              if (seg.type === "added") {
+                return (
+                  <span key={idx} className="text-emerald-400">
+                    {seg.text}{" "}
+                  </span>
+                );
+              }
+              return (
+                <span key={idx} className="text-fresco-description">
+                  {seg.text}{" "}
+                </span>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-end gap-2 border-t border-fresco-divider px-3 py-2">
+            <Button
+              onClick={rejectRewrite}
+              size="xs"
+              type="button"
+              variant="ghost"
+            >
+              <XIcon className="size-3.5" />
+              Reject
+            </Button>
+            <Button
+              onClick={() => {
+                resetRewrite();
+                triggerRewrite();
+              }}
+              size="xs"
+              type="button"
+              variant="ghost"
+            >
+              <ArrowCounterClockwise className="size-3.5" />
+              Regenerate
+            </Button>
+            <Button
+              onClick={acceptRewrite}
+              size="xs"
+              type="button"
+              variant="ghost"
+            >
+              <CheckIcon className="size-3.5" />
+              Accept
+            </Button>
+          </div>
+        </>
+      )}
+
+      {rewriteStatus === "error" && (
+        <div className={cn(editorContentClassName, "flex flex-col items-center justify-center gap-2")}>
+          <p className="text-xs text-red-400">{rewriteError}</p>
+          <Button
+            onClick={() => {
+              resetRewrite();
+              triggerRewrite();
+            }}
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
+            <ArrowCounterClockwise className="size-3.5" />
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {/* ── Normal editor (hidden during rewrite) ── */}
+      {rewriteStatus === "idle" && (
+        <>
+          <div
+            className={editorContentClassName}
+            contentEditable
+            data-placeholder={placeholder}
+            onBlur={syncValue}
+            onInput={syncValue}
+            onKeyDown={handleKeyDown}
+            onKeyUp={syncSelectionState}
+            onMouseLeave={() => setHoveredLink(null)}
+            onMouseMove={(event) => updateHoveredLink(event.target)}
+            onMouseUp={syncSelectionState}
+            ref={editorRef}
+            suppressContentEditableWarning
+          />
+          {hoveredLink ? (
+            <div
+              className="absolute z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 rounded-lg border border-fresco-divider bg-fresco-menu-bg px-2.5 py-2 text-xs text-fresco-menu-text shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+              style={{ left: hoveredLink.left, top: hoveredLink.top }}
+            >
+              <span className="max-w-52 truncate text-fresco-subtitle">
+                {hoveredLink.href}
+              </span>
+              <Button
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  selectHoveredLink();
+                  handleLink();
+                }}
+                size="xs"
+                type="button"
+                variant="ghost"
+              >
+                Edit
+              </Button>
+              <Button
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  selectHoveredLink();
+                  applyCommand("unlink");
+                  setHoveredLink(null);
+                }}
+                size="xs"
+                type="button"
+                variant="ghost"
+              >
+                Remove
+              </Button>
+            </div>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
 
 export function PostEditor({
+  activeCollectionId,
+  framerUnavailable = false,
   metadata,
   mode,
   onClose,
   onPostSaved,
   post,
+  onChatWithItem,
 }: {
+  activeCollectionId?: string;
+  framerUnavailable?: boolean;
   metadata: BlogCollectionMetadata;
   mode: "create" | "edit";
   onClose: () => void;
   onPostSaved: (post: BlogPostRecord, mode: "create" | "edit") => void;
   post: BlogPostRecord | null;
+  onChatWithItem?: () => void;
 }) {
   const notify = useNotify();
   const [pending, startSaving] = useTransition();
@@ -880,6 +1288,7 @@ export function PostEditor({
   const [pendingUploads, setPendingUploads] = useState<Record<string, boolean>>(
     {},
   );
+  const [aiImageFieldId, setAiImageFieldId] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const titleFieldId = metadata.logicalFields.title;
   const bodyFieldId = metadata.logicalFields.body;
@@ -966,6 +1375,11 @@ export function PostEditor({
     path: `fieldValues.${string}`,
     event: ChangeEvent<HTMLInputElement>,
   ) {
+    if (framerUnavailable) {
+      notify.error(TRANSIENT_FRAMER_EDITOR_MESSAGE);
+      return;
+    }
+
     const file = event.target.files?.[0];
     if (!file) {
       return;
@@ -1014,19 +1428,28 @@ export function PostEditor({
     }
   }
 
-  function submitValues(values: FormValues) {
+  function submitValues(values: FormValues, asDraft?: boolean) {
+    if (framerUnavailable) {
+      const message = TRANSIENT_FRAMER_EDITOR_MESSAGE;
+      setServerError(message);
+      notify.error(message);
+      return;
+    }
+
     setServerError(null);
     form.clearErrors();
 
     startSaving(async () => {
       const endpoint =
         mode === "create" ? "/api/posts" : `/api/posts/${post?.id}`;
+      const payload = asDraft != null ? { ...values, draft: asDraft } : values;
       const response = await fetch(endpoint, {
         method: mode === "create" ? "POST" : "PUT",
         headers: {
           "Content-Type": "application/json",
+          ...getCollectionHeader(activeCollectionId),
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       });
 
       const data = (await response.json()) as {
@@ -1053,9 +1476,12 @@ export function PostEditor({
         return;
       }
 
-      notify.success(
-        mode === "create" ? "Draft created." : "Changes saved and published.",
-      );
+      const successMessage = asDraft
+        ? "Moved to draft."
+        : mode === "create"
+          ? "Draft created."
+          : "Changes saved and published.";
+      notify.success(successMessage);
 
       startTransition(() => {
         if (data.post) {
@@ -1072,7 +1498,18 @@ export function PostEditor({
     submitValues(values);
   });
 
+  const submitUnpublish = form.handleSubmit((values) => {
+    submitValues(values, true);
+  });
+
   const openPublishConfirmation = form.handleSubmit((values) => {
+    if (framerUnavailable) {
+      const message = TRANSIENT_FRAMER_EDITOR_MESSAGE;
+      setServerError(message);
+      notify.error(message);
+      return;
+    }
+
     setServerError(null);
     setPendingValues(values);
     setConfirmOpen(true);
@@ -1120,10 +1557,10 @@ export function PostEditor({
             control={form.control}
             name={path}
             render={({ field: controllerField }) => (
-              <div className="framer-subtle-panel flex min-h-[42px] items-center justify-between gap-3 px-3">
+              <div className="rounded-none border border-fresco-divider bg-fresco-surface-subtle flex min-h-[42px] items-center justify-between gap-3 px-3">
                 <div className="min-w-0">
                   <Label
-                    className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]"
+                    className="text-sm text-fresco-title"
                     htmlFor={inputId}
                   >
                     Enabled
@@ -1237,17 +1674,17 @@ export function PostEditor({
 
                 return (
                   <div
-                    className="framer-subtle-panel flex min-h-[42px] items-center justify-between gap-3 px-3"
+                    className="rounded-none border border-fresco-divider bg-fresco-surface-subtle flex min-h-[42px] items-center justify-between gap-3 px-3"
                     key={option.slug}
                   >
                     <div className="min-w-0">
                       <Label
-                        className="text-sm text-[color:var(--framer-fresco-panelTitle-color)]"
+                        className="text-sm text-fresco-title"
                         htmlFor={optionId}
                       >
                         {option.label}
                       </Label>
-                      <div className="text-sm text-[color:var(--framer-fresco-panelSubtitle-color)]">
+                      <div className="text-sm text-fresco-subtitle">
                         {option.slug}
                       </div>
                     </div>
@@ -1361,6 +1798,10 @@ export function PostEditor({
             name={path}
             render={({ field: controllerField }) => (
               <RichTextInput
+                rewriteContext={{
+                  title: typeof titleValue === "string" ? titleValue : undefined,
+                  slug: form.getValues("slug") || undefined,
+                }}
                 onChange={controllerField.onChange}
                 placeholder={`Write ${field.name.toLowerCase()}`}
                 value={
@@ -1397,18 +1838,18 @@ export function PostEditor({
           </div>
           <div className="flex flex-col gap-3">
             {assetUrl ? (
-              <div className="framer-elevated-panel flex items-center gap-3 rounded-lg p-3">
+              <div className="rounded-none border border-fresco-divider bg-fresco-surface-elevated shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] flex items-center gap-3 rounded-lg p-3">
                 {field.type === "image" ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     alt={field.name}
-                    className="h-[80px] w-28 shrink-0 rounded-lg border border-[var(--framer-fresco-panelDivider-color)] object-cover"
+                    className="h-[80px] w-28 shrink-0 rounded-lg border border-fresco-divider object-cover"
                     src={assetUrl}
                   />
                 ) : (
                   <div
                     aria-hidden="true"
-                    className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-[var(--framer-app-surface-muted-color)] text-[color:var(--framer-fresco-settingsText-color)]"
+                    className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-fresco-surface-muted text-fresco-text"
                   >
                     <svg
                       fill="none"
@@ -1433,7 +1874,7 @@ export function PostEditor({
                   </div>
                 )}
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <strong className="truncate text-[color:var(--framer-fresco-panelTitle-color)]">
+                  <strong className="truncate text-fresco-title">
                     {getAssetLabel(assetUrl)}
                   </strong>
                   <div className="flex items-center gap-1.5">
@@ -1475,6 +1916,18 @@ export function PostEditor({
                         Remove
                       </Button>
                     ) : null}
+                    {field.type === "image" ? (
+                      <Button
+                        className="h-7 rounded-lg px-2.5 text-xs"
+                        onClick={() => setAiImageFieldId(field.id)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        <Sparkle className="size-3.5" weight="duotone" />
+                        AI
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -1507,6 +1960,18 @@ export function PostEditor({
                     {isUploading ? "Uploading..." : "Upload"}
                   </label>
                 </Button>
+                {field.type === "image" ? (
+                  <Button
+                    className="h-9 rounded-lg px-3"
+                    onClick={() => setAiImageFieldId(field.id)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Sparkle className="size-4" weight="duotone" />
+                    Generate Image
+                  </Button>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -1585,13 +2050,13 @@ export function PostEditor({
   }
 
   return (
-    <section className="flex h-full flex-col bg-[var(--framer-fresco-panelBackground-color)]">
-      <div className="sticky top-0 z-10 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-5 py-4 ">
+    <section className="flex h-full flex-col bg-fresco-panel">
+      <div className="sticky top-0 z-10 border-b border-fresco-divider bg-fresco-panel px-5 py-4 ">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 flex-1 items-center gap-4">
             <Button
               aria-label="Close editor"
-              className="framer-elevated-panel size-10 rounded-lg text-[color:var(--framer-fresco-settingsText-color)]"
+              className="rounded-none border border-fresco-divider bg-fresco-surface-elevated shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] size-10 rounded-lg text-fresco-text"
               onClick={onClose}
               size="icon-sm"
               type="button"
@@ -1620,10 +2085,10 @@ export function PostEditor({
             </Button>
             <div
               aria-hidden="true"
-              className="hidden h-[34px] w-px bg-[var(--framer-fresco-panelDivider-color)] sm:block"
+              className="hidden h-[34px] w-px bg-fresco-divider sm:block"
             />
             <div className="min-w-0 max-w-[720px]">
-              <span className="text-sm font-medium tracking-[0.12em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+              <span className="text-sm font-medium tracking-[0.12em] text-fresco-subtitle">
                 {mode === "create" ? "Create Post" : "Edit Post"}
               </span>
             </div>
@@ -1634,8 +2099,8 @@ export function PostEditor({
               className={cn(
                 "relative h-[34px] rounded-full border px-3 pl-6 text-[11px] font-bold uppercase tracking-[0.08em] before:absolute before:top-1/2 before:left-2.5 before:size-[7px] before:-translate-y-1/2 before:rounded-full before:bg-current",
                 form.formState.isDirty
-                  ? "framer-status-pill framer-status-pill-draft"
-                  : "framer-status-pill framer-status-pill-idle",
+                  ? "border border-fresco-warning-callout-border bg-fresco-warning-callout-bg text-fresco-warning-callout-text"
+                  : "border border-[color-mix(in_srgb,var(--color-fresco-tint)_18%,transparent)] bg-[color-mix(in_srgb,var(--color-fresco-tint)_10%,transparent)] text-[color-mix(in_srgb,var(--color-fresco-title)_78%,var(--color-fresco-tint))]",
               )}
               variant="outline"
             >
@@ -1643,7 +2108,7 @@ export function PostEditor({
             </Badge>
             {form.formState.isDirty ? (
               <Button
-                disabled={pending}
+                disabled={pending || framerUnavailable}
                 onClick={resetForm}
                 size="lg"
                 type="button"
@@ -1652,10 +2117,23 @@ export function PostEditor({
                 Reset
               </Button>
             ) : null}
+            {mode === "edit" && onChatWithItem ? (
+              <Button
+                className="gap-2"
+                disabled={pending || framerUnavailable}
+                onClick={onChatWithItem}
+                size="lg"
+                type="button"
+                variant="outline"
+              >
+                <ChatCircle className="size-4" weight="duotone" />
+                Chat with Item
+              </Button>
+            ) : null}
             {mode === "create" ? (
               <Button
                 className={primaryButtonClassName}
-                disabled={pending}
+                disabled={pending || framerUnavailable}
                 onClick={submitDraft}
                 size="lg"
                 type="button"
@@ -1663,23 +2141,46 @@ export function PostEditor({
                 {pending ? "Saving..." : "Create Draft"}
               </Button>
             ) : (
-              <Button
-                className={primaryButtonClassName}
-                disabled={pending || !form.formState.isDirty}
-                onClick={openPublishConfirmation}
-                size="lg"
-                type="button"
-              >
-                {pending ? "Publishing..." : "Publish"}
-              </Button>
+              <>
+                {!post?.draft ? (
+                  <Button
+                    disabled={pending || framerUnavailable}
+                    onClick={submitUnpublish}
+                    size="lg"
+                    type="button"
+                    variant="outline"
+                  >
+                    {pending ? "Saving..." : "Unpublish"}
+                  </Button>
+                ) : null}
+                <Button
+                  className={primaryButtonClassName}
+                  disabled={
+                    pending || framerUnavailable || !form.formState.isDirty
+                  }
+                  onClick={openPublishConfirmation}
+                  size="lg"
+                  type="button"
+                >
+                  {pending ? "Publishing..." : "Publish"}
+                </Button>
+              </>
             )}
           </div>
         </div>
       </div>
 
       {serverError ? (
-        <div className="framer-callout-danger mx-6 mt-4" role="alert">
+        <div className="rounded-none border border-fresco-danger-callout-border bg-fresco-danger-callout-bg px-4 py-3 text-sm text-fresco-danger-callout-text mx-6 mt-4" role="alert">
           {serverError}
+        </div>
+      ) : null}
+
+      {framerUnavailable ? (
+        <div className={cn(warningBannerClassName, "mx-6 mt-4")} role="status">
+          Framer Server API is temporarily unavailable. FramerBot is still
+          working and your content is safe. You can review cached content here,
+          but editing and publishing are disabled until the connection recovers.
         </div>
       ) : null}
 
@@ -1689,55 +2190,57 @@ export function PostEditor({
           mode === "create" ? submitDraft : (event) => event.preventDefault()
         }
       >
-        <div className="flex max-w-[840px] flex-col gap-4">
-          {titleField ? renderField(titleField) : null}
+        <fieldset className="contents" disabled={framerUnavailable}>
+          <div className="flex max-w-[840px] flex-col gap-4">
+            {titleField ? renderField(titleField) : null}
 
-          <div className={fieldClassName}>
-            <div className={labelRowClassName}>
-              <FieldLabel htmlFor="post-slug" name="Slug" required />
+            <div className={fieldClassName}>
+              <div className={labelRowClassName}>
+                <FieldLabel htmlFor="post-slug" name="Slug" required />
+              </div>
+              <Input
+                className={formControlClassName}
+                id="post-slug"
+                placeholder="my-new-post"
+                {...form.register("slug")}
+              />
+              {form.formState.errors.slug ? (
+                <span className={fieldErrorClassName}>
+                  {form.formState.errors.slug.message}
+                </span>
+              ) : null}
             </div>
-            <Input
-              className={formControlClassName}
-              id="post-slug"
-              placeholder="my-new-post"
-              {...form.register("slug")}
-            />
-            {form.formState.errors.slug ? (
-              <span className={fieldErrorClassName}>
-                {form.formState.errors.slug.message}
-              </span>
+
+            {nonContentFields.map((field) => renderField(field))}
+            {bodyField && bodyField.id !== titleField?.id
+              ? renderField(bodyField)
+              : null}
+            {contentFields.map((field) => renderField(field))}
+
+            {readOnlyFields.length > 0 ? (
+              <section className="rounded-none border border-fresco-divider bg-fresco-surface-subtle mt-2 flex flex-col gap-4 p-4">
+                <div className="flex flex-col gap-1.5">
+                  <span className="inline-flex items-center rounded-none border border-fresco-divider bg-fresco-surface-muted px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-fresco-subtitle w-fit">
+                    Read Only In Dashboard
+                  </span>
+                  <p className="text-sm leading-6 text-fresco-description">
+                    These fields are still part of the Framer schema but are not
+                    editable here.
+                  </p>
+                </div>
+                <div className="flex max-w-[840px] flex-col gap-4">
+                  {readOnlyFields.map((field) => (
+                    <ReadOnlyField
+                      field={field}
+                      key={field.id}
+                      value={post?.fieldValues[field.id] ?? ""}
+                    />
+                  ))}
+                </div>
+              </section>
             ) : null}
           </div>
-
-          {nonContentFields.map((field) => renderField(field))}
-          {bodyField && bodyField.id !== titleField?.id
-            ? renderField(bodyField)
-            : null}
-          {contentFields.map((field) => renderField(field))}
-
-          {readOnlyFields.length > 0 ? (
-            <section className="framer-subtle-panel mt-2 flex flex-col gap-4 p-4">
-              <div className="flex flex-col gap-1.5">
-                <span className="framer-kicker w-fit">
-                  Read Only In Dashboard
-                </span>
-                <p className="text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]">
-                  These fields are still part of the Framer schema but are not
-                  editable here.
-                </p>
-              </div>
-              <div className="flex max-w-[840px] flex-col gap-4">
-                {readOnlyFields.map((field) => (
-                  <ReadOnlyField
-                    field={field}
-                    key={field.id}
-                    value={post?.fieldValues[field.id] ?? ""}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </div>
+        </fieldset>
       </form>
 
       <Dialog
@@ -1750,7 +2253,7 @@ export function PostEditor({
         open={mode === "edit" && confirmOpen}
       >
         <DialogContent
-          className="framer-dialog-panel rounded-none border"
+          className="border-fresco-divider bg-fresco-panel text-fresco-title rounded-none border"
           showCloseButton={false}
         >
           <DialogHeader>
@@ -1763,7 +2266,7 @@ export function PostEditor({
           </DialogHeader>
           <DialogFooter className="-mx-0 -mb-0 flex justify-end gap-2.5 rounded-none border-0 bg-transparent p-0">
             <Button
-              disabled={pending}
+              disabled={pending || framerUnavailable}
               onClick={() => {
                 setConfirmOpen(false);
                 setPendingValues(null);
@@ -1775,7 +2278,7 @@ export function PostEditor({
             </Button>
             <Button
               className={primaryButtonClassName}
-              disabled={pending}
+              disabled={pending || framerUnavailable}
               onClick={confirmPublish}
               type="button"
             >
@@ -1784,6 +2287,38 @@ export function PostEditor({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* AI Image Generation Dialog — image fields */}
+      <AIImageDialog
+        context={{
+          title: typeof titleValue === "string" ? titleValue : undefined,
+          slug: form.getValues("slug") || undefined,
+        }}
+        defaultPrompt=""
+        onAccept={(imageUrl) => {
+          if (aiImageFieldId) {
+            const fieldPath = `fieldValues.${aiImageFieldId}` as const;
+            form.setValue(fieldPath, imageUrl, {
+              shouldDirty: true,
+              shouldTouch: true,
+              shouldValidate: true,
+            });
+            notify.success("AI image applied.");
+          }
+        }}
+        onOpenChange={(open) => {
+          if (!open) setAiImageFieldId(null);
+        }}
+        open={aiImageFieldId !== null}
+        referenceImageUrl={
+          aiImageFieldId &&
+          typeof watchedFieldValues?.[aiImageFieldId] === "string" &&
+          (watchedFieldValues[aiImageFieldId] as string).length > 0
+            ? (watchedFieldValues[aiImageFieldId] as string)
+            : undefined
+        }
+      />
+
     </section>
   );
 }

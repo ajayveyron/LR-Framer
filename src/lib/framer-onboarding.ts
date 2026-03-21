@@ -42,7 +42,7 @@ export function extractProjectId(projectInput: string) {
   }
 
   throw new AppError(
-    "Paste a Framer project URL or project ID so FramerLink can validate the connection.",
+    "Paste a Framer project URL or project ID so Framer Bot can validate the connection.",
     400,
   );
 }
@@ -72,7 +72,7 @@ export async function validateFramerConnection(input: {
 
       if (collections.length === 0) {
         throw new AppError(
-          "This project does not have any user-managed CMS collections FramerLink can control.",
+          "This project does not have any user-managed CMS collections Framer Bot can control.",
           400,
         );
       }

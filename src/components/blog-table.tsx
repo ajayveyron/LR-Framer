@@ -1,7 +1,13 @@
 "use client";
-import { Fragment, useEffect, useState } from "react";
+import {
+  Fragment,
+  useRef,
+  type MutableRefObject,
+} from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -9,28 +15,36 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Spinner } from "@phosphor-icons/react";
+import { Spinner, Sparkle, ChatCircle } from "@phosphor-icons/react";
 import type {
   BlogCollectionMetadata,
   BlogPostRecord,
   DashboardFieldDefinition,
   DashboardFieldValue,
 } from "@/lib/cms-types";
+import type { ContentNudge } from "@/lib/content-nudges";
 import type { SiteRole } from "@/lib/product-types";
+
 import { cn } from "@/lib/utils";
 
 type BlogTableProps = {
   activePostId?: string | null;
+  actionsDisabled?: boolean;
   columns: Array<{ key: string; label: string }>;
   metadata: BlogCollectionMetadata;
+  nudges?: Map<string, ContentNudge>;
+  onNudgeClick?: (postId: string, prompt: string) => void;
   onOpenPost: (postId: string) => void;
   posts: BlogPostRecord[];
   role: SiteRole;
   loadingPosts?: Set<string>;
-  onHideColumn?: (columnKey: string) => void;
-  onReorderColumns?: (sourceIndex: number, destinationIndex: number) => void;
   onDraftToggle?: (post: BlogPostRecord) => void;
   onDelete?: (postId: string) => void;
+  selectedRows?: Set<string>;
+  onToggleRow?: (rowId: string) => void;
+  onToggleAll?: (visibleRowIds: string[]) => void;
+  onShiftClick?: (rowId: string) => void;
+  onChatWithItem?: (postId: string) => void;
 };
 
 type ColumnLimits = {
@@ -128,16 +142,17 @@ function getColumnLimits(
   }
 }
 
-function clampWidth(value: number, limits: ColumnLimits) {
-  return Math.min(limits.maxWidth, Math.max(limits.minWidth, value));
-}
-
 function formatFieldValue(
   field: DashboardFieldDefinition | undefined,
   value: DashboardFieldValue,
 ) {
   if (value === null || value === undefined || value === "") {
     return "-";
+  }
+
+  // Image field value with alt text metadata
+  if (typeof value === "object" && !Array.isArray(value) && "url" in value) {
+    return truncateValue(value.url);
   }
 
   if (Array.isArray(value)) {
@@ -203,43 +218,6 @@ function renderCellContent(
   metadata: BlogCollectionMetadata,
   columnKey: string,
 ) {
-  if (columnKey === "title") {
-    return (
-      <div className="flex min-w-0 items-center gap-3 text-inherit">
-        <span
-          aria-hidden="true"
-          className="inline-flex size-4 shrink-0 items-center justify-center"
-        >
-          <svg
-            fill="none"
-            height="16"
-            viewBox="0 0 16 16"
-            width="16"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M4 1.75H8.75L12.5 5.5V13.25C12.5 13.9404 11.9404 14.5 11.25 14.5H4.75C4.05964 14.5 3.5 13.9404 3.5 13.25V3C3.5 2.30964 4.05964 1.75 4.75 1.75H4Z"
-              fill="currentColor"
-              fillOpacity="0.18"
-              stroke="currentColor"
-              strokeLinejoin="round"
-              strokeWidth="1.2"
-            />
-            <path
-              d="M8.5 1.75V5.75H12.5"
-              stroke="currentColor"
-              strokeLinejoin="round"
-              strokeWidth="1.2"
-            />
-          </svg>
-        </span>
-        <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap align-bottom">
-          {post.title}
-        </span>
-      </div>
-    );
-  }
-
   if (columnKey.startsWith("field:")) {
     const field = getFieldForColumn(metadata, columnKey);
     const fieldId = columnKey.slice("field:".length);
@@ -250,7 +228,7 @@ function renderCellContent(
         // eslint-disable-next-line @next/next/no-img-element
         <img
           alt={field.name}
-          className="block h-8 w-[76px] max-w-none overflow-hidden rounded-lg border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] object-cover object-center"
+          className="block h-8 w-[76px] max-w-none overflow-hidden rounded-lg border border-fresco-divider bg-fresco-surface-muted object-cover object-center"
           loading="lazy"
           src={value}
         />
@@ -265,44 +243,97 @@ function renderCellContent(
   );
 }
 
+function FileIcon({
+  className,
+}: {
+  className?: string;
+}) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      height="16"
+      viewBox="0 0 16 16"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M4 1.75H8.75L12.5 5.5V13.25C12.5 13.9404 11.9404 14.5 11.25 14.5H4.75C4.05964 14.5 3.5 13.9404 3.5 13.25V3C3.5 2.30964 4.05964 1.75 4.75 1.75H4Z"
+        fill="currentColor"
+        fillOpacity="0.18"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M8.5 1.75V5.75H12.5"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
+}
+
+function toggleRowSelection(
+  event: Pick<MouseEvent, "shiftKey"> | Pick<React.MouseEvent, "shiftKey">,
+  postId: string,
+  flatPostIds: string[],
+  lastClickedIndexRef: MutableRefObject<number | null>,
+  onToggleRow?: (rowId: string) => void,
+  onShiftClick?: (rowId: string) => void,
+) {
+  const postIndex = flatPostIds.indexOf(postId);
+
+  if (event.shiftKey && lastClickedIndexRef.current !== null) {
+    onShiftClick?.(postId);
+  } else {
+    onToggleRow?.(postId);
+  }
+
+  lastClickedIndexRef.current = postIndex;
+}
+
 export function BlogTable({
   activePostId = null,
+  actionsDisabled = false,
   columns,
   metadata,
+  nudges,
+  onNudgeClick,
   onOpenPost,
   posts,
   role,
   loadingPosts,
-  onHideColumn,
-  onReorderColumns,
   onDraftToggle,
   onDelete,
+  selectedRows,
+  onToggleRow,
+  onToggleAll,
+  onShiftClick,
+  onChatWithItem,
 }: BlogTableProps) {
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() =>
-    Object.fromEntries(
-      columns.map((column) => [
-        column.key,
-        getColumnLimits(metadata, column.key).defaultWidth,
-      ]),
-    ),
-  );
-  const [draggingColumn, setDraggingColumn] = useState<string | null>(null);
-  const [draggedColumnIndex, setDraggedColumnIndex] = useState<number | null>(null);
+  const lastClickedIndexRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    return () => {
-      document.body.style.removeProperty("cursor");
-      document.body.style.removeProperty("user-select");
-    };
-  }, []);
+  // Derive selection-related state
+  const hasSelection = selectedRows !== undefined && onToggleRow !== undefined;
+  const isSelectionMode = hasSelection && selectedRows.size > 0;
+  const allPostIds = posts.map((p) => p.id);
+  const allVisibleSelected = hasSelection && allPostIds.length > 0 && allPostIds.every((id) => selectedRows.has(id));
+  const someVisibleSelected = hasSelection && !allVisibleSelected && allPostIds.some((id) => selectedRows.has(id));
+  const headerCheckedState: boolean | "indeterminate" = allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false;
+
+  // Build a flat ordered list of post IDs for shift-click index tracking
+  const flatPostIds = posts.map((p) => p.id);
 
   if (posts.length === 0) {
     return (
-      <div className="flex flex-col gap-2 px-6 py-14 text-center text-[color:var(--framer-fresco-panelDescription-color)]">
-        <strong className="text-[color:var(--framer-fresco-panelTitle-color)]">
-          No posts loaded yet.
+      <div className="flex flex-col gap-2 px-6 py-14 text-center text-fresco-description">
+        <strong className="text-fresco-title">
+          Nothing to see here.
         </strong>
-        <p>Add your first draft post.</p>
+        {/* <p>Add your first draft post.</p> */}
       </div>
     );
   }
@@ -310,163 +341,114 @@ export function BlogTable({
   const tableMinWidth = columns.reduce(
     (sum, column) =>
       sum +
-      (columnWidths[column.key] ??
-        getColumnLimits(metadata, column.key).defaultWidth),
+      getColumnLimits(metadata, column.key).defaultWidth,
     0,
   );
 
+  const drafts = posts.filter((post) => post.draft);
+  const published = posts.filter((post) => !post.draft);
+  const hasBothGroups = drafts.length > 0 && published.length > 0;
+
   const groupedPosts = [
-    {
-      key: "drafts",
-      label: "Drafts",
-      posts: posts.filter((post) => post.draft),
-    },
-    {
-      key: "published",
-      label: "Published",
-      posts: posts.filter((post) => !post.draft),
-    },
+    { key: "drafts", label: "Drafts", posts: drafts },
+    { key: "published", label: "Published", posts: published },
   ].filter((group) => group.posts.length > 0);
 
   return (
-    <div className="h-full overflow-auto">
+    <div className="h-full max-w-full min-w-0 overflow-x-auto">
       <table
-        className="w-full border-collapse table-fixed"
-        style={{ minWidth: tableMinWidth }}
+        className="min-w-full border-separate border-spacing-0 table-fixed"
+        style={{ width: tableMinWidth }}
       >
         <colgroup>
           {columns.map((column) => {
-            const width =
-              columnWidths[column.key] ??
-              getColumnLimits(metadata, column.key).defaultWidth;
+            const width = getColumnLimits(metadata, column.key).defaultWidth;
 
             return <col key={column.key} style={{ width }} />;
           })}
         </colgroup>
         <thead>
           <tr>
-            {columns.map((column, index) => (
-              <ContextMenu key={column.key}>
-                <ContextMenuTrigger asChild>
-                  <th
-                    className={cn(
-                      "sticky top-0 z-10 border-b border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-fresco-panelBackground-color)] px-[22px] py-[18px] text-left text-xs font-semibold text-[color:var(--framer-fresco-panelSubtitle-color)]",
-                      column.key === "slug" && "font-mono",
-                      draggedColumnIndex === index && "opacity-50",
-                    )}
-                    draggable
-                    onDragStart={(event) => {
-                      if (draggingColumn) {
-                        event.preventDefault();
-                        return;
-                      }
-                      setDraggedColumnIndex(index);
-                      event.dataTransfer.effectAllowed = "move";
-                    }}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = "move";
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      if (draggedColumnIndex !== null && draggedColumnIndex !== index) {
-                        onReorderColumns?.(draggedColumnIndex, index);
-                      }
-                      setDraggedColumnIndex(null);
-                    }}
-                    onDragEnd={() => setDraggedColumnIndex(null)}
-                  >
-                    <div className="relative flex min-h-5 items-center pr-2">
-                      <span>{column.label}</span>
-                      <button
-                        aria-label={`Resize ${column.label} column`}
-                        className={cn(
-                          "absolute top-[-14px] right-[-12px] h-[calc(100%+28px)] w-6 cursor-col-resize touch-none bg-transparent p-0 after:absolute after:top-[20%] after:bottom-[20%] after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-[var(--framer-fresco-panelDivider-color)] after:transition-colors hover:after:bg-[var(--framer-fresco-panelSubtitle-color)] focus-visible:outline-none focus-visible:after:bg-[var(--framer-fresco-panelSubtitle-color)]",
-                          draggingColumn === column.key &&
-                            "after:bg-[var(--framer-fresco-panelSubtitle-color)]",
-                        )}
-                        onPointerDown={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-
-                          const limits = getColumnLimits(metadata, column.key);
-                          const startWidth =
-                            columnWidths[column.key] ?? limits.defaultWidth;
-                          const startX = event.clientX;
-
-                          setDraggingColumn(column.key);
-                          document.body.style.cursor = "col-resize";
-                          document.body.style.userSelect = "none";
-
-                          const handlePointerMove = (moveEvent: PointerEvent) => {
-                            const nextWidth = clampWidth(
-                              startWidth + moveEvent.clientX - startX,
-                              limits,
-                            );
-
-                            setColumnWidths((current) => ({
-                              ...current,
-                              [column.key]: nextWidth,
-                            }));
-                          };
-
-                          const stopDragging = () => {
-                            setDraggingColumn(null);
-                            document.body.style.removeProperty("cursor");
-                            document.body.style.removeProperty("user-select");
-                            window.removeEventListener(
-                              "pointermove",
-                              handlePointerMove,
-                            );
-                            window.removeEventListener("pointerup", stopDragging);
-                            window.removeEventListener(
-                              "pointercancel",
-                              stopDragging,
-                            );
-                          };
-
-                          window.addEventListener("pointermove", handlePointerMove);
-                          window.addEventListener("pointerup", stopDragging);
-                          window.addEventListener("pointercancel", stopDragging);
-                        }}
-                        type="button"
-                      />
-                    </div>
-                  </th>
-                </ContextMenuTrigger>
-                <ContextMenuContent>
-                  <ContextMenuItem onSelect={() => onHideColumn?.(column.key)}>
-                    Hide Column
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
+            {columns.map((column) => (
+              <th
+                className={cn(
+                  "text-[#888] text-sm font-normal", "relative z-10 border-b border-dash-content-border px-[22px] py-3 text-left transition-colors",
+                )}
+                key={column.key}
+              >
+                <div className="relative flex min-h-5 items-center pr-2">
+                  {column.key === "title" && hasSelection && (
+                    <span className="mr-3 inline-flex size-4 shrink-0 items-center justify-center">
+                      {isSelectionMode ? (
+                        <Checkbox
+                          aria-label={allVisibleSelected ? "Deselect all rows" : "Select all rows"}
+                          checked={headerCheckedState}
+                          onCheckedChange={() => {
+                            onToggleAll?.(allPostIds);
+                          }}
+                          onClick={(event) => event.stopPropagation()}
+                        />
+                      ) : (
+                        <FileIcon className="size-4 opacity-0" />
+                      )}
+                    </span>
+                  )}
+                  <span>{column.label}</span>
+                </div>
+              </th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <motion.tbody
+          initial="hidden"
+          animate="visible"
+          variants={{
+            visible: {
+              transition: {
+                staggerChildren: 0.05,
+              },
+            },
+          }}
+        >
           {groupedPosts.map((group) => (
             <Fragment key={group.key}>
-              <tr
-                className="bg-[var(--framer-app-surface-subtle-color)]"
-                key={`${group.key}-label`}
-              >
-                <td
-                  className="border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-4 text-[13px] font-bold text-[color:var(--framer-fresco-panelTitle-color)]"
-                  colSpan={columns.length}
+              {hasBothGroups && (
+                <tr
+                  className="bg-dash-group-bg"
                 >
-                  {group.label}
-                </td>
-              </tr>
+                  <td
+                    className={cn("text-xs font-normal", "border-b border-dash-content-border px-[22px] py-3")}
+                    colSpan={columns.length}
+                  >
+                    {group.label}
+                  </td>
+                </tr>
+              )}
+              <AnimatePresence mode="popLayout">
               {group.posts.map((post) => (
                 <ContextMenu key={post.id}>
                   <ContextMenuTrigger asChild>
-                    <tr
+                    <motion.tr
+                      variants={{
+                        hidden: { opacity: 0, filter: "blur(4px)" },
+                        visible: { opacity: 1, filter: "blur(0px)" },
+                      }}
+                      layout
+                      initial="hidden"
+                      animate="visible"
+                      exit={{ opacity: 0, filter: "blur(4px)" }}
+                      transition={{ duration: 0.2 }}
                       aria-label={`Edit ${post.title}`}
                       className={cn(
-                        "group cursor-pointer transition-all hover:bg-[var(--framer-app-surface-subtle-color)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--framer-fresco-tintDimmed-color)] focus-visible:ring-inset data-[active=true]:bg-[var(--framer-app-surface-muted-color)]",
-                        loadingPosts?.has(post.id) && "pointer-events-none opacity-50 duration-300"
+                        "bg-transparent hover:bg-dash-row-hover data-[active=true]:bg-dash-row-active data-[selected=true]:bg-dash-row-selected", "group cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresco-tint-dimmed focus-visible:ring-inset",
+                        loadingPosts?.has(post.id) && "pointer-events-none opacity-50 duration-300",
                       )}
                       data-active={post.id === activePostId}
+                      data-selected={
+                        hasSelection && selectedRows.has(post.id)
+                          ? "true"
+                          : undefined
+                      }
                       onClick={() => {
                         onOpenPost(post.id);
                       }}
@@ -486,22 +468,32 @@ export function BlogTable({
                           const isLoading = loadingPosts?.has(post.id);
                           return (
                             <td
-                              className="border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-[18px] text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]"
+                              className={cn("text-sm text-[#888] hover:text-[#fff] font-normal", "border-b border-dash-content-border px-[22px] py-[13px] transition-colors group-hover:text-fresco-title group-data-[active=true]:text-fresco-title")}
                               key={column.key}
                             >
-                              <Badge
-                                className={cn(
-                                  "h-[26px] px-2.5 text-xs font-semibold data-[loading=true]:bg-transparent data-[loading=true]:opacity-80 transition-opacity",
-                                  post.draft
-                                    ? "framer-status-pill framer-status-pill-draft"
-                                    : "framer-status-pill framer-status-pill-live",
-                                )}
-                                data-loading={isLoading}
-                                variant="outline"
-                              >
-                                {isLoading && <Spinner className="mr-1.5 size-3.5 animate-spin" />}
-                                {post.draft ? "Draft" : "Live"}
-                              </Badge>
+                              <AnimatePresence mode="wait">
+                                <motion.div
+                                  key={post.draft ? "draft" : "live"}
+                                  initial={{ rotateX: 90, opacity: 0 }}
+                                  animate={{ rotateX: 0, opacity: 1 }}
+                                  exit={{ rotateX: -90, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                >
+                                  <Badge
+                                    className={cn(
+                                      "h-5 rounded-full px-2 text-sm font-normal data-[loading=true]:bg-transparent data-[loading=true]:opacity-80 transition-opacity",
+                                      post.draft
+                                        ? "border border-fresco-warning-callout-border bg-fresco-warning-callout-bg text-fresco-warning-callout-text"
+                                        : "border border-[color-mix(in_srgb,var(--color-fresco-tint)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-fresco-tint)_14%,transparent)] text-[color-mix(in_srgb,var(--color-fresco-title)_92%,white)]",
+                                    )}
+                                    data-loading={isLoading}
+                                    variant="outline"
+                                  >
+                                    {isLoading && <Spinner className="mr-1.5 size-3.5 animate-spin" />}
+                                    {post.draft ? "Draft" : "Live"}
+                                  </Badge>
+                                </motion.div>
+                              </AnimatePresence>
                             </td>
                           );
                         }
@@ -509,20 +501,96 @@ export function BlogTable({
                         return (
                             <td
                               className={cn(
-                                "border-b border-[var(--framer-fresco-panelDivider-color)] px-[22px] py-[18px] text-[color:var(--framer-fresco-panelSubtitle-color)] transition-colors group-hover:text-[color:var(--framer-fresco-panelTitle-color)] group-data-[active=true]:text-[color:var(--framer-fresco-panelTitle-color)]",
-                                column.key === "slug" && "font-mono",
+                                "text-sm font-normal text-[#888] hover:text-[#fff] ", "border-b border-dash-content-border px-[22px] py-[13px] transition-colors group-hover:text-fresco-title group-data-[active=true]:text-fresco-title",
+                                column.key === "title" && "",
                               )}
                             key={column.key}
                             title={String(getCellValue(post, metadata, column.key))}
                           >
-                            {renderCellContent(post, metadata, column.key)}
+                            {column.key === "title" ? (
+                              <div className="flex min-w-0 items-center gap-3 text-inherit">
+                                <span className="relative inline-flex size-4 shrink-0 items-center justify-center">
+                                  {hasSelection && (
+                                    <Checkbox
+                                      aria-label={`Select ${post.title}`}
+                                      checked={selectedRows.has(post.id)}
+                                      className={cn(
+                                        "absolute inset-0 transition-opacity",
+                                        isSelectionMode || selectedRows.has(post.id)
+                                          ? "opacity-100"
+                                          : "opacity-0 group-hover:opacity-100",
+                                      )}
+                                      onCheckedChange={() => {
+                                        // Selection is handled by click for shift-key detection.
+                                      }}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        toggleRowSelection(
+                                          event,
+                                          post.id,
+                                          flatPostIds,
+                                          lastClickedIndexRef,
+                                          onToggleRow,
+                                          onShiftClick,
+                                        );
+                                      }}
+                                      onPointerDown={(event) => event.stopPropagation()}
+                                    />
+                                  )}
+                                  <FileIcon
+                                    className={cn(
+                                      "pointer-events-none size-4 transition-opacity",
+                                      hasSelection &&
+                                        (isSelectionMode || selectedRows.has(post.id))
+                                        ? "opacity-0"
+                                        : "opacity-100 group-hover:opacity-0",
+                                    )}
+                                  />
+                                </span>
+                                {nudges?.has(post.id) && onNudgeClick && (
+                                  <button
+                                    aria-label={`AI suggestions for ${post.title}`}
+                                    className="ml-1.5 inline-flex shrink-0 items-center justify-center rounded-md p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      const nudge = nudges.get(post.id);
+                                      if (nudge) onNudgeClick(post.id, nudge.prompt);
+                                    }}
+                                    title={nudges.get(post.id)!.issues.join(" · ")}
+                                    type="button"
+                                  >
+                                    <Sparkle className="size-3.5" weight="duotone" />
+                                  </button>
+                                )}
+                                <span className="max-w-full overflow-hidden whitespace-nowrap align-bottom">
+                                  {post.title}
+                                </span>
+                                {onChatWithItem && (
+                                  <button
+                                    aria-label={`Chat about ${post.title}`}
+                                    className="ml-2 inline-flex shrink-0 items-center justify-center rounded-md p-0.5 opacity-0 transition-opacity group-hover:opacity-100 text-[#888] hover:text-[#fff]"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      onChatWithItem(post.id);
+                                    }}
+                                    title="Chat with item"
+                                    type="button"
+                                  >
+                                    <ChatCircle className="size-4" weight="duotone" />
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              renderCellContent(post, metadata, column.key)
+                            )}
                           </td>
                         );
                       })}
-                    </tr>
+                    </motion.tr>
                   </ContextMenuTrigger>
                   <ContextMenuContent>
                     <ContextMenuItem
+                      disabled={actionsDisabled}
                       onSelect={() => {
                         onDraftToggle?.(post);
                       }}
@@ -533,6 +601,7 @@ export function BlogTable({
                       <>
                         <ContextMenuSeparator />
                         <ContextMenuItem
+                          disabled={actionsDisabled}
                           variant="destructive"
                           onSelect={() => {
                             if (window.confirm("Are you sure you want to delete this post?")) {
@@ -547,9 +616,10 @@ export function BlogTable({
                   </ContextMenuContent>
                 </ContextMenu>
               ))}
+              </AnimatePresence>
             </Fragment>
           ))}
-        </tbody>
+        </motion.tbody>
       </table>
     </div>
   );

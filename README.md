@@ -1,4 +1,6 @@
-# Framer Blog Editor
+# Framer Bot
+
+Framer on steroids for AI-native teams managing Framer CMS together.
 
 Internal Next.js dashboard for reading, creating, and updating posts in one existing unmanaged Framer CMS collection. The app now also supports a Notion-to-Framer bridge, so the same deployment can act as both the internal editor and the backend sync service.
 

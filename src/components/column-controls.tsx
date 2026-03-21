@@ -26,7 +26,7 @@ export function ColumnControls({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className="h-9 min-w-24 gap-2 px-3 text-sm font-semibold text-[color:var(--framer-fresco-settingsText-color)]"
+          className="h-9 min-w-24 gap-2 px-3 text-sm font-semibold text-fresco-text"
           size="sm"
           type="button"
           variant="outline"
@@ -34,7 +34,7 @@ export function ColumnControls({
           <Settings2Icon className="size-4" />
           <span>Columns</span>
           <Badge
-            className="min-w-[22px] rounded-full border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-1.5 text-[11px] text-[color:var(--framer-fresco-panelSubtitle-color)]"
+            className="min-w-[22px] rounded-full border border-fresco-divider bg-fresco-surface-muted px-1.5 text-[11px] text-fresco-subtitle"
             variant="secondary"
           >
             {selectedColumns.length}
@@ -50,14 +50,19 @@ export function ColumnControls({
         {options.map((option) => {
           const checked = selectedColumns.includes(option.key);
           const isOnlyColumn = checked && selectedColumns.length === 1;
+          const isPinnedColumn = option.key === "title";
 
           return (
             <DropdownMenuCheckboxItem
               checked={checked}
-              className="min-h-9 gap-2.5 rounded-lg px-2.5 text-[13px] text-[color:var(--framer-fresco-menuText-color)]"
-              disabled={isOnlyColumn}
+              className="min-h-9 gap-2.5 rounded-lg px-2.5 text-[13px] text-fresco-menu-text"
+              disabled={isOnlyColumn || isPinnedColumn}
               key={option.key}
+              onSelect={(e) => e.preventDefault()}
               onCheckedChange={() => {
+                if (isPinnedColumn) {
+                  return;
+                }
                 const nextSelected = checked
                   ? selectedColumns.filter((column) => column !== option.key)
                   : [...selectedColumns, option.key];

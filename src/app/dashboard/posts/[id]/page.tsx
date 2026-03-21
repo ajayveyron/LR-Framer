@@ -1,9 +1,30 @@
+import { Suspense } from "react";
+
 import { DashboardTableView } from "@/components/dashboard-table-view";
+import { DashboardTableSkeleton } from "@/components/dashboard-table-skeleton";
 import { FramerTemporaryUnavailableState } from "@/components/framer-temporary-unavailable-state";
-import { ProductConfigRequiredState } from "@/components/product-config-required-state";
 import { loadDashboardScreen } from "@/lib/dashboard-data";
 
 export const dynamic = "force-dynamic";
+
+async function EditPostContent({ id }: { id: string }) {
+  const screen = await loadDashboardScreen();
+  if (screen.kind === "framer_unavailable") {
+    return <FramerTemporaryUnavailableState />;
+  }
+
+  return (
+    <DashboardTableView
+      activeCollectionId={screen.activeCollection.id}
+      collections={screen.collections}
+      framerStatus={screen.framerStatus}
+      initialDrawerState={{ mode: "edit", postId: id }}
+      metadata={screen.metadata}
+      posts={screen.posts}
+      role={screen.access.role}
+    />
+  );
+}
 
 export default async function EditPostPage({
   params,
@@ -11,22 +32,10 @@ export default async function EditPostPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const screen = await loadDashboardScreen();
-  if (screen.kind === "config_error") {
-    return <ProductConfigRequiredState issues={screen.issues} />;
-  }
-
-  if (screen.kind === "framer_unavailable") {
-    return <FramerTemporaryUnavailableState />;
-  }
 
   return (
-    <DashboardTableView
-      initialColumns={screen.initialColumns}
-      initialDrawerState={{ mode: "edit", postId: id }}
-      metadata={screen.metadata}
-      posts={screen.posts}
-      role={screen.access.role}
-    />
+    <Suspense fallback={<DashboardTableSkeleton />}>
+      <EditPostContent id={id} />
+    </Suspense>
   );
 }

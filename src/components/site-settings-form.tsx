@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { FloppyDisk as SaveIcon, ShieldCheck as ShieldCheckIcon } from "@phosphor-icons/react";
@@ -30,20 +29,20 @@ import type { FramerCollectionOption } from "@/lib/product-types";
 
 const fieldClassName = "grid gap-2";
 const helperTextClassName =
-  "text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
+  "text-sm leading-6 text-fresco-description";
 const formControlClassName =
-  "h-10 rounded-lg border px-3 text-sm leading-[1.4]";
+  `!border-transparent !bg-[#2B2B2B] !text-fresco-text !shadow-none !rounded-lg placeholder:!text-[rgba(255,255,255,0.3)] focus-visible:!border-fresco-tint focus-visible:!shadow-none focus-visible:!outline-none h-10 rounded-lg px-3 text-sm leading-[1.4]`;
 const labelRowClassName = "flex items-center justify-between gap-3";
 const helpTriggerClassName =
-  "shrink-0 text-[11px] font-semibold tracking-[0.08em] underline decoration-dotted text-[color:var(--framer-fresco-panelSubtitle-color)] hover:text-[color:var(--framer-fresco-panelTitle-color)] transition-colors cursor-pointer";
+  "shrink-0 text-[11px] font-semibold tracking-[0.08em] underline decoration-dotted text-fresco-subtitle hover:text-fresco-title transition-colors cursor-pointer";
 const helpDialogContentClassName =
-  "max-w-lg gap-5 rounded-[28px] border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-background-color)] p-6 shadow-2xl";
+  "max-w-lg gap-5 rounded-[28px] border border-fresco-divider bg-[var(--color-fresco-app-bg)] p-6 shadow-2xl";
 const helpDialogTextClassName =
-  "text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
+  "text-sm leading-6 text-fresco-description";
 const helpDialogListClassName =
-  "grid gap-3 pl-5 text-sm leading-6 text-[color:var(--framer-fresco-panelDescription-color)]";
+  "grid gap-3 pl-5 text-sm leading-6 text-fresco-description";
 const helpCodeClassName =
-  "rounded-md bg-[var(--framer-app-surface-muted-color)] px-1.5 py-0.5 text-[13px] text-[color:var(--framer-fresco-panelTitle-color)]";
+  "rounded-md bg-fresco-surface-muted px-1.5 py-0.5 text-[13px] text-fresco-title";
 
 const FRAMER_DOCS_URL =
   "https://www.framer.com/developers/server-api-quick-start";
@@ -71,7 +70,6 @@ export function SiteSettingsForm({
   initialProjectInput: string;
 }) {
   const notify = useNotify();
-  const router = useRouter();
   const [projectInput, setProjectInput] = useState(initialProjectInput);
   const [apiKey, setApiKey] = useState("");
   const [collections, setCollections] = useState<FramerCollectionOption[]>(
@@ -87,40 +85,40 @@ export function SiteSettingsForm({
 
   if (!canManage) {
     return (
-      <section className="grid gap-4 border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] p-5">
+      <section className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#111111] p-6 grid gap-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-[color:var(--framer-fresco-panelTitle-color)]">
+            <h2 className="font-sans text-[22px] font-bold tracking-[-0.8px] leading-[1.2] text-fresco-title">
               Framer connection
             </h2>
           </div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-muted-color)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+          <span className="inline-flex items-center gap-2 rounded-full bg-[#2B2B2B] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-fresco-subtitle">
             <ShieldCheckIcon className="size-3.5" />
             Read only
           </span>
         </div>
-        <dl className="grid gap-3 mt-2 text-sm text-[color:var(--framer-fresco-panelDescription-color)]">
+        <dl className="grid gap-3 mt-2 text-sm text-fresco-description">
           <div className="grid gap-1">
-            <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+            <dt className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title">
               Project
             </dt>
-            <dd className="break-all text-[color:var(--framer-fresco-panelTitle-color)]">
+            <dd className="break-all text-fresco-title">
               {initialProjectInput}
             </dd>
           </div>
           <div className="grid gap-1">
-            <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
-              Collection
+            <dt className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title">
+              Default collection
             </dt>
-            <dd className="text-[color:var(--framer-fresco-panelTitle-color)]">
+            <dd className="text-fresco-title">
               {initialCollectionName}
             </dd>
           </div>
           <div className="grid gap-1">
-            <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--framer-fresco-panelSubtitle-color)]">
+            <dt className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title">
               API key
             </dt>
-            <dd className="text-[color:var(--framer-fresco-panelTitle-color)]">
+            <dd className="text-fresco-title">
               Stored securely on the server
             </dd>
           </div>
@@ -228,7 +226,6 @@ export function SiteSettingsForm({
           setSelectedCollectionId(data.collectionId);
         }
         notify.success("Workspace settings updated.");
-        router.refresh();
       } catch (nextError) {
         const message =
           nextError instanceof Error
@@ -241,9 +238,9 @@ export function SiteSettingsForm({
   }
 
   return (
-    <section className="grid gap-5 border border-[var(--framer-fresco-panelDivider-color)] bg-[var(--framer-app-surface-subtle-color)] p-5">
+    <section className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#111111] p-6 grid gap-5">
       <div>
-        <h2 className="text-xl font-semibold text-[color:var(--framer-fresco-panelTitle-color)]">
+        <h2 className="font-sans text-[22px] font-bold tracking-[-0.8px] leading-[1.2] text-fresco-title">
           Framer connection
         </h2>
       </div>
@@ -253,33 +250,20 @@ export function SiteSettingsForm({
         className="grid gap-4"
         onSubmit={(event) => event.preventDefault()}
       >
-        <div
-          aria-hidden="true"
-          className="absolute -m-px h-px w-px overflow-hidden whitespace-nowrap border-0 p-0 [clip:rect(0,0,0,0)]"
-        >
-          <input autoComplete="username" name="username" tabIndex={-1} type="text" />
-          <input
-            autoComplete="current-password"
-            name="password"
-            tabIndex={-1}
-            type="password"
-          />
-        </div>
-
         <div className={fieldClassName}>
           <div className={labelRowClassName}>
-            <Label htmlFor="settings-project-input">Framer project URL or ID</Label>
+            <Label className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title" htmlFor="settings-project-input">Framer project URL or ID</Label>
             <Dialog>
               <DialogTrigger asChild>
                 <div className={helpTriggerClassName}>How to find it</div>
               </DialogTrigger>
               <DialogContent className={helpDialogContentClassName}>
                 <DialogHeader className="pr-8">
-                  <DialogTitle className="font-heading text-2xl leading-tight text-[color:var(--framer-fresco-panelTitle-color)]">
+                  <DialogTitle className="font-heading text-2xl leading-tight text-fresco-title">
                     Find your Framer project URL or ID
                   </DialogTitle>
                   <DialogDescription className={helpDialogTextClassName}>
-                    FramerLink accepts either the full project URL or the raw
+                    Framer Bot accepts either the full project URL or the raw
                     project ID from the same Framer project.
                   </DialogDescription>
                 </DialogHeader>
@@ -304,9 +288,9 @@ export function SiteSettingsForm({
                   becomes{" "}
                   <code className={helpCodeClassName}>abc123</code>.
                 </p>
-                <div className="flex items-center justify-between gap-3 border-t border-[var(--framer-fresco-panelDivider-color)] pt-4">
+                <div className="flex items-center justify-between gap-3 border-t border-fresco-divider pt-4">
                   <Link
-                    className="text-sm font-medium text-[color:var(--framer-fresco-tint-color)] underline underline-offset-3"
+                    className="text-sm font-medium text-fresco-tint underline underline-offset-3"
                     href={FRAMER_DOCS_URL}
                     target="_blank"
                   >
@@ -341,14 +325,14 @@ export function SiteSettingsForm({
 
         <div className={fieldClassName}>
           <div className={labelRowClassName}>
-            <Label htmlFor="settings-api-key">Framer Server API key</Label>
+            <Label className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title" htmlFor="settings-api-key">Framer Server API key</Label>
             <Dialog>
               <DialogTrigger asChild>
                 <div className={helpTriggerClassName}>How to get it</div>
               </DialogTrigger>
               <DialogContent className={helpDialogContentClassName}>
                 <DialogHeader className="pr-8">
-                  <DialogTitle className="font-heading text-2xl leading-tight text-[color:var(--framer-fresco-panelTitle-color)]">
+                  <DialogTitle className="font-heading text-2xl leading-tight text-fresco-title">
                     Get your Framer Server API key
                   </DialogTitle>
                   <DialogDescription className={helpDialogTextClassName}>
@@ -369,9 +353,9 @@ export function SiteSettingsForm({
                   Treat this key like a password. Anyone with it can access the
                   project through Framer&apos;s Server API.
                 </p>
-                <div className="flex items-center justify-between gap-3 border-t border-[var(--framer-fresco-panelDivider-color)] pt-4">
+                <div className="flex items-center justify-between gap-3 border-t border-fresco-divider pt-4">
                   <Link
-                    className="text-sm font-medium text-[color:var(--framer-fresco-tint-color)] underline underline-offset-3"
+                    className="text-sm font-medium text-fresco-tint underline underline-offset-3"
                     href={FRAMER_DOCS_URL}
                     target="_blank"
                   >
@@ -388,7 +372,7 @@ export function SiteSettingsForm({
           </div>
           <Input
             autoCapitalize="none"
-            autoComplete="new-password"
+            autoComplete="off"
             autoCorrect="off"
             className={formControlClassName}
             data-1p-ignore="true"
@@ -405,10 +389,10 @@ export function SiteSettingsForm({
         </div>
 
         <div className={fieldClassName}>
-          <Label htmlFor="settings-collection-select">CMS collection</Label>
+          <Label className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title" htmlFor="settings-collection-select">Default collection</Label>
           <Select onValueChange={setSelectedCollectionId} value={selectedCollectionId}>
             <SelectTrigger
-              className={formControlClassName}
+              className="!border-transparent !bg-[#2B2B2B] !text-fresco-text !shadow-none !rounded-lg placeholder:!text-[rgba(255,255,255,0.3)] focus-visible:!border-fresco-tint focus-visible:!shadow-none focus-visible:!outline-none h-10 rounded-lg px-3 text-sm leading-[1.4]"
               id="settings-collection-select"
             >
               <SelectValue
@@ -427,13 +411,18 @@ export function SiteSettingsForm({
               ))}
             </SelectContent>
           </Select>
+          <p className={helperTextClassName}>
+            This only sets the default dashboard collection. Contributors can
+            switch between all validated user-managed collections from the top
+            bar.
+          </p>
         </div>
 
-        {error ? <div className="framer-callout-danger">{error}</div> : null}
+        {error ? <div className="rounded-none border border-fresco-danger-callout-border bg-fresco-danger-callout-bg px-4 py-3 text-sm text-fresco-danger-callout-text">{error}</div> : null}
 
         <div className="flex flex-wrap gap-3">
           <Button
-            className="framer-primary-action h-10 px-4 text-sm font-semibold"
+            className="bg-fresco-primary-surface text-fresco-primary-surface-text shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:bg-fresco-primary-surface-hover h-10 px-4 text-sm font-semibold"
             disabled={isValidating}
             onClick={handleValidateConnection}
             type="button"

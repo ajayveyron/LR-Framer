@@ -23,7 +23,8 @@ export type DashboardFieldValue =
   | boolean
   | null
   | string[]
-  | Array<Record<string, unknown>>;
+  | Array<Record<string, unknown>>
+  | { url: string; alt: string | null };
 
 export interface ReferenceOption {
   id: string;

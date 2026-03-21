@@ -2,6 +2,37 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  agentMemories: defineTable({
+    clerkOrganizationId: v.string(),
+    clerkUserId: v.string(),
+    category: v.union(
+      v.literal("preference"),
+      v.literal("correction"),
+      v.literal("workflow"),
+    ),
+    content: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org_user", ["clerkOrganizationId", "clerkUserId"])
+    .index("by_org_user_category", [
+      "clerkOrganizationId",
+      "clerkUserId",
+      "category",
+    ]),
+
+  chatConversations: defineTable({
+    clerkOrganizationId: v.string(),
+    clerkUserId: v.string(),
+    conversationId: v.string(),
+    createdAt: v.number(),
+    messages: v.string(),
+    title: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_org_user", ["clerkOrganizationId", "clerkUserId"])
+    .index("by_conversation", ["conversationId"]),
+
   memberships: defineTable({
     clerkOrganizationId: v.string(),
     clerkUserId: v.string(),
@@ -30,6 +61,62 @@ export default defineSchema({
     .index("by_org_user", ["clerkOrganizationId", "clerkUserId"])
     .index("by_user", ["clerkUserId"]),
 
+  aiUsageRecords: defineTable({
+    clerkOrganizationId: v.string(),
+    clerkUserId: v.string(),
+    featureType: v.union(
+      v.literal("chat"),
+      v.literal("image"),
+      v.literal("image_tool"),
+      v.literal("rewrite"),
+    ),
+    promptTokens: v.number(),
+    completionTokens: v.number(),
+    totalTokens: v.number(),
+    model: v.string(),
+    conversationId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_org_period", ["clerkOrganizationId", "createdAt"])
+    .index("by_org_user_period", [
+      "clerkOrganizationId",
+      "clerkUserId",
+      "createdAt",
+    ]),
+
+  framerProjectClaims: defineTable({
+    framerProjectId: v.string(),
+    clerkOrganizationId: v.string(),
+    claimedAt: v.number(),
+  })
+    .index("by_project", ["framerProjectId"])
+    .index("by_org", ["clerkOrganizationId"]),
+
+  subscriptions: defineTable({
+    clerkOrganizationId: v.string(),
+    dodoSubscriptionId: v.string(),
+    dodoCustomerId: v.string(),
+    planId: v.string(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("cancelled"),
+      v.literal("expired"),
+      v.literal("past_due"),
+    ),
+    monthlyTokenAllowance: v.number(),
+    currentPeriodStart: v.number(),
+    currentPeriodEnd: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["clerkOrganizationId"])
+    .index("by_dodo_subscription", ["dodoSubscriptionId"]),
+
+  processedWebhooks: defineTable({
+    createdAt: v.number(),
+    provider: v.string(),
+    webhookId: v.string(),
+  }).index("by_provider_webhook", ["provider", "webhookId"]),
+
   sites: defineTable({
     clerkOrganizationId: v.string(),
     createdAt: v.number(),
@@ -37,6 +124,8 @@ export default defineSchema({
     framerApiKeyCiphertext: v.optional(v.string()),
     framerCollectionId: v.optional(v.string()),
     framerCollectionName: v.optional(v.string()),
+    framerDashboardSnapshotJson: v.optional(v.string()),
+    framerDashboardSnapshotSyncedAt: v.optional(v.number()),
     framerMetadataJson: v.optional(v.string()),
     framerProjectId: v.optional(v.string()),
     framerProjectUrl: v.optional(v.string()),

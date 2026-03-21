@@ -1,37 +1,71 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Geist } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { Inter } from "next/font/google";
 
 import "@/app/globals.css";
 import { NotificationProvider } from "@/components/notification-provider";
-import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
-
-const heading = Space_Grotesk({
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-heading",
+  variable: "--font-inter",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "FramerLink | Framer CMS Operations",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://framerbot.com"),
+  title: {
+    default: "Framer Bot | Run Framer CMS with your team",
+    template: "%s | Framer Bot",
+  },
   description:
-    "Hosted Framer CMS operations for one user-managed collection, with contributor access and preserved backend sync flows.",
-  keywords: ["Framer", "CMS", "Dashboard", "FramerLink"],
-  authors: [{ name: "FramerLink Team" }],
+    "Empower your marketing team to manage Framer CMS content effortlessly. An AI-native, unified workspace for teams to write, review, and ship updates without needing the Framer editor.",
+  keywords: ["Framer", "Framer CMS", "Content Management System", "Framer Editor", "AI Workspace", "Team Collaboration", "Vercel", "Web Design"],
+  authors: [{ name: "Framer Bot Team", url: "https://framerbot.com" }],
+  creator: "Framer Bot Team",
+  publisher: "Framer Bot",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
   openGraph: {
-    title: "FramerLink | Framer CMS Operations",
-    description: "Hosted Framer CMS operations for one user-managed collection, with contributor access and preserved backend sync flows.",
+    title: "Framer Bot | Run Framer CMS outside the editor",
+    description:
+      "Give your team a shared workspace for Framer CMS content. Write, review, and utilize AI-assisted batch updates securely without full editor access.",
+    url: "https://framerbot.com",
+    siteName: "Framer Bot",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Framer Bot - CMS Workflows Outside the Editor",
+      },
+    ],
+    locale: "en_US",
     type: "website",
-    siteName: "FramerLink",
   },
   twitter: {
     card: "summary_large_image",
-    title: "FramerLink | Framer CMS Operations",
-    description: "Hosted Framer CMS operations for one user-managed collection, with contributor access and preserved backend sync flows.",
+    title: "Framer Bot | Framer CMS Management",
+    description: "Manage your Framer CMS rapidly with your team, strictly outside the editor using AI.",
+    images: ["/og-image.png"],
+    creator: "@framerbot",
   },
   icons: {
     icon: process.env.NODE_ENV === "development" ? "/favicon-dev.png" : "/icon.png",
+    apple: "/apple-touch-icon.png",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
   },
 };
 
@@ -56,8 +90,8 @@ export default function RootLayout({
   ) : app;
 
   return (
-    <html lang="en" className={cn("dark font-sans", geist.variable)}>
-      <body className={`${geist.variable} ${heading.variable}`}>
+    <html lang="en" className={`dark ${inter.variable}`}>
+      <body className="overscroll-none font-sans">
         {content}
       </body>
     </html>

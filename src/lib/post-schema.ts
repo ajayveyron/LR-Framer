@@ -51,7 +51,9 @@ function buildStringSchema(
       }
     });
 
-  return field.required ? base : base.optional();
+  // Always optional at the Zod level — the form only sends fields it knows about.
+  // Required-ness is enforced inside the superRefine when a value IS provided.
+  return base.optional();
 }
 
 function buildNumberSchema(field: DashboardFieldDefinition) {
@@ -90,7 +92,7 @@ function buildNumberSchema(field: DashboardFieldDefinition) {
       }
     });
 
-  return field.required ? base : base.optional();
+  return base.optional();
 }
 
 function isValidDateValue(value: string, displayTime?: boolean) {
@@ -134,7 +136,7 @@ function buildBooleanSchema(field: DashboardFieldDefinition) {
     message: `"${field.name}" must be true or false.`,
   });
 
-  return field.required ? schema : schema.optional();
+  return schema.optional();
 }
 
 function buildMultiReferenceSchema(field: DashboardFieldDefinition) {
@@ -163,7 +165,7 @@ function buildMultiReferenceSchema(field: DashboardFieldDefinition) {
       }
     });
 
-  return field.required ? base : base.optional();
+  return base.optional();
 }
 
 function buildFieldValueSchema(field: DashboardFieldDefinition) {
@@ -225,8 +227,8 @@ export function buildPostInputSchema(
         "Use lowercase letters, numbers, and hyphens only.",
       ),
     draft: z.boolean().optional(),
-    fieldValues: z.object(fieldShape).strict(),
-  }).strict();
+    fieldValues: z.object(fieldShape).passthrough(),
+  });
 }
 
 function slugify(value: string) {
