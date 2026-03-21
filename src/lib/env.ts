@@ -203,14 +203,14 @@ export function getAIEnv(): AIEnv | undefined {
 const dodoBillingEnvSchema = z.object({
   DODO_API_KEY: z.string().optional(),
   DODO_WEBHOOK_SECRET: z.string().optional(),
-  DODO_PRO_PRODUCT_ID: z.string().optional(),
+  DODO_STANDARD_PRODUCT_ID: z.string().optional(),
   DODO_BUSINESS_ID: z.string().optional(),
 });
 
 export interface DodoBillingEnv {
   DODO_API_KEY: string;
   DODO_WEBHOOK_SECRET: string;
-  DODO_PRO_PRODUCT_ID: string;
+  DODO_STANDARD_PRODUCT_ID: string;
   DODO_BUSINESS_ID: string;
 }
 
@@ -230,11 +230,11 @@ export function getDodoBillingEnvIssues(): Array<{ path: string; message: string
 
   const apiKey = normalizeOptionalValue(process.env.DODO_API_KEY);
   const webhookSecret = normalizeOptionalValue(process.env.DODO_WEBHOOK_SECRET);
-  const proProductId = normalizeOptionalValue(process.env.DODO_PRO_PRODUCT_ID);
+  const standardProductId = normalizeOptionalValue(process.env.DODO_STANDARD_PRODUCT_ID);
   const businessId = normalizeOptionalValue(process.env.DODO_BUSINESS_ID);
 
   // If none are set, billing is simply not configured — no issues.
-  if (!apiKey && !webhookSecret && !proProductId && !businessId) {
+  if (!apiKey && !webhookSecret && !standardProductId && !businessId) {
     return [];
   }
 
@@ -243,7 +243,7 @@ export function getDodoBillingEnvIssues(): Array<{ path: string; message: string
   const requiredEntries = [
     ["DODO_API_KEY", apiKey],
     ["DODO_WEBHOOK_SECRET", webhookSecret],
-    ["DODO_PRO_PRODUCT_ID", proProductId],
+    ["DODO_STANDARD_PRODUCT_ID", standardProductId],
     ["DODO_BUSINESS_ID", businessId],
   ] as const;
 
@@ -271,10 +271,10 @@ export function getDodoBillingEnv(): DodoBillingEnv | undefined {
 
   const apiKey = normalizeOptionalValue(process.env.DODO_API_KEY);
   const webhookSecret = normalizeOptionalValue(process.env.DODO_WEBHOOK_SECRET);
-  const proProductId = normalizeOptionalValue(process.env.DODO_PRO_PRODUCT_ID);
+  const standardProductId = normalizeOptionalValue(process.env.DODO_STANDARD_PRODUCT_ID);
   const businessId = normalizeOptionalValue(process.env.DODO_BUSINESS_ID);
 
-  if (!apiKey || !webhookSecret || !proProductId || !businessId) {
+  if (!apiKey || !webhookSecret || !standardProductId || !businessId) {
     cachedDodoBillingEnv = undefined;
     return undefined;
   }
@@ -282,7 +282,7 @@ export function getDodoBillingEnv(): DodoBillingEnv | undefined {
   cachedDodoBillingEnv = {
     DODO_API_KEY: apiKey,
     DODO_WEBHOOK_SECRET: webhookSecret,
-    DODO_PRO_PRODUCT_ID: proProductId,
+    DODO_STANDARD_PRODUCT_ID: standardProductId,
     DODO_BUSINESS_ID: businessId,
   };
 

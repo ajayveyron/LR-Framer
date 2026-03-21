@@ -148,7 +148,7 @@ export function UsageMeter({ isAdmin = false }: UsageMeterProps) {
               Manage Subscription
             </Button>
           ) : (
-            <UpgradeButton label="Subscribe to Pro" />
+            <UpgradeButton label="Subscribe to Standard" />
           )}
         </div>
       )}

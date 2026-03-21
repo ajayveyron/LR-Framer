@@ -36,6 +36,7 @@ import {
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
 import { EditProposalView } from "@/components/edit-proposal-view";
+import { ToolCallRow } from "@/components/ai-elements/tool";
 import { CmsActionConfirmation } from "@/components/cms-action-confirmation";
 import type { CmsActionProposal } from "@/lib/cms-action-types";
 import {
@@ -44,6 +45,7 @@ import {
   type FieldTypeMap,
 } from "@/components/ai-tool-renderers";
 import { Button } from "@/components/ui/button";
+import { Shimmer } from "@/components/ui/shimmer";
 import {
   Sheet,
   SheetContent,
@@ -127,6 +129,51 @@ const SELECTED_CHAT_SUGGESTIONS: ChatSuggestion[] = [
     prompt: "Help me turn the selected rows into a polished editorial batch.",
   },
 ];
+
+const STREAMING_STATUS_PHRASES = [
+  "Thinking",
+  "Working on it",
+  "Exploring",
+  "Tinkering",
+  "Checking details",
+];
+
+function FramerToolGlyph({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="33 23 75 97"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M 44.65 33.992 L 95.35 33.992 L 95.35 59.341 L 70 59.341 Z M 44.65 59.341 L 70 59.341 L 95.35 84.691 L 44.65 84.691 Z M 44.65 84.691 L 70 84.691 L 70 110.041 Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function formatToolName(rawToolName: string) {
+  return rawToolName.replace(/^framer_/, "").replace(/_/g, " ");
+}
+
+function StreamingStatus() {
+  const [phraseIndex, setPhraseIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setPhraseIndex((current) => (current + 1) % STREAMING_STATUS_PHRASES.length);
+    }, 1800);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  return (
+    <div aria-live="polite" className="py-1.5 pl-1">
+      <Shimmer as="span" className="text-[11px] font-medium tracking-[0.01em] text-fresco-subtitle" duration={1.8} spread={2.4}>
+        {STREAMING_STATUS_PHRASES[phraseIndex]}
+      </Shimmer>
+    </div>
+  );
+}
 
 function AttachmentPreviewStrip() {
   const attachments = usePromptInputAttachments();
@@ -595,37 +642,53 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                             const isSuccess = output?.success && output?.url;
                             if (!hasOutput) {
                               return (
-                                <div key={i} className="flex items-center gap-2 rounded-md border border-fresco-divider bg-fresco-surface-muted px-3 py-2 text-xs text-fresco-description">
-                                  <CircleNotch className="size-3.5 shrink-0 animate-spin" />
-                                  <ImageSquare className="size-3.5 shrink-0" weight="fill" />
-                                  <span>Generating image…</span>
-                                </div>
+                                <ToolCallRow
+                                  key={i}
+                                  icon={<ImageSquare className="size-3.5" weight="fill" />}
+                                  label="Generate image"
+                                  shimmer
+                                  status="Running"
+                                  summary="Creating and uploading an image for this request."
+                                  tone="accent"
+                                />
                               );
                             }
                             if (isSuccess) {
                               return (
-                                <div key={i} className="flex flex-col gap-2">
-                                  <div className="flex items-center justify-between text-xs text-fresco-description">
-                                    <div className="flex items-center gap-2">
-                                      <CheckCircle className="size-3.5 shrink-0 text-emerald-400" weight="fill" />
-                                      <ImageSquare className="size-3.5 shrink-0" weight="fill" />
-                                      <span>Image generated &amp; uploaded</span>
-                                    </div>
-                                    <a href={output.url} download={`ai-image-${Date.now()}.png`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded px-1.5 py-0.5 text-fresco-tint transition-colors hover:bg-fresco-divider">
+                                <ToolCallRow
+                                  key={i}
+                                  actions={(
+                                    <a
+                                      className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium text-fresco-tint transition-colors hover:bg-fresco-divider"
+                                      download={`ai-image-${Date.now()}.png`}
+                                      href={output.url}
+                                      rel="noopener noreferrer"
+                                      target="_blank"
+                                    >
                                       <DownloadSimple className="size-3.5" weight="bold" />
                                       <span>Download</span>
                                     </a>
-                                  </div>
+                                  )}
+                                  icon={<ImageSquare className="size-3.5" weight="fill" />}
+                                  label="Generate image"
+                                  status="Done"
+                                  summary="Image generated and uploaded."
+                                  tone="success"
+                                >
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img alt={output.prompt ?? "AI generated image"} className="max-h-64 rounded-md border border-fresco-divider object-contain" src={output.url} />
-                                </div>
+                                  <img alt={output.prompt ?? "AI generated image"} className="max-h-64 rounded-xl border border-fresco-divider object-contain" src={output.url} />
+                                </ToolCallRow>
                               );
                             }
                             return (
-                              <div key={i} className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
-                                <WarningCircle className="size-3.5 shrink-0" weight="fill" />
-                                <span>{output?.error ?? "Image generation failed"}</span>
-                              </div>
+                              <ToolCallRow
+                                key={i}
+                                icon={<ImageSquare className="size-3.5" weight="fill" />}
+                                label="Generate image"
+                                status="Error"
+                                summary={output?.error ?? "Image generation failed"}
+                                tone="danger"
+                              />
                             );
                           }
                           if (part.type === "tool-google_search") return null;
@@ -633,31 +696,41 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                             const hasOutput = "output" in part && part.output != null;
                             const output = hasOutput ? (part.output as { answer?: string; sources?: Array<{ url: string; title: string }> }) : null;
                             return (
-                              <div key={i} className="flex flex-col gap-1.5">
-                                <div className="flex items-center gap-2 rounded-md border border-fresco-divider bg-fresco-surface-muted px-3 py-2 text-xs text-fresco-description">
-                                  {hasOutput ? <CheckCircle className="size-3.5 shrink-0 text-emerald-400" weight="fill" /> : <CircleNotch className="size-3.5 shrink-0 animate-spin" />}
-                                  <GlobeSimple className="size-3.5 shrink-0" weight="fill" />
-                                  <span>Searched the web</span>
-                                </div>
-                                {output?.sources && output.sources.length > 0 && (
-                                  <div className="flex flex-wrap items-center gap-1.5 pl-1">
+                              <ToolCallRow
+                                key={i}
+                                icon={<GlobeSimple className="size-3.5" weight="fill" />}
+                                label="Web search"
+                                shimmer={!hasOutput}
+                                status={hasOutput ? "Done" : "Running"}
+                                summary={hasOutput ? "Gathered sources from the web." : "Searching the web for supporting sources."}
+                                tone={hasOutput ? "success" : "accent"}
+                              >
+                                {output?.sources && output.sources.length > 0 ? (
+                                  <div className="flex flex-wrap items-center gap-1.5">
                                     {output.sources.map((src, si) => (
-                                      <a key={si} className="inline-flex max-w-48 items-center truncate rounded border border-fresco-divider bg-fresco-surface-muted px-2 py-0.5 text-[10px] text-fresco-tint transition-colors hover:bg-fresco-divider" href={src.url} rel="noopener noreferrer" target="_blank">
+                                      <a key={si} className="inline-flex max-w-48 items-center truncate rounded-full border border-fresco-divider bg-fresco-surface-muted px-2.5 py-1 text-[10px] text-fresco-tint transition-colors hover:bg-fresco-divider" href={src.url} rel="noopener noreferrer" target="_blank">
                                         {src.title || new URL(src.url).hostname}
                                       </a>
                                     ))}
                                   </div>
-                                )}
-                              </div>
+                                ) : null}
+                              </ToolCallRow>
                             );
                           }
                           if (part.type.startsWith("tool-")) {
                             const rawToolName = part.type.slice("tool-".length);
-                            const toolName = rawToolName.replace(/_/g, " ");
+                            const toolName = formatToolName(rawToolName);
                             const hasOutput = "output" in part && part.output != null;
                             const isFramerTool = rawToolName.startsWith("framer_");
                             // A tool call is "stale" if the stream finished but it never got output
                             const isStale = !hasOutput && (!isLastMessage || !isStreaming);
+                            const tone = hasOutput ? "success" : isStale ? "warning" : "accent";
+                            const statusLabel = hasOutput ? "Done" : isStale ? "Stopped" : "Running";
+                            const toolIcon = isFramerTool ? (
+                              <FramerToolGlyph className="size-3.5" />
+                            ) : (
+                              <Wrench className="size-3.5" />
+                            );
 
                             // Try rich UI for completed Framer tool calls
                             if (hasOutput) {
@@ -668,13 +741,15 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                                 const content = input?.content ?? "";
                                 const categoryLabel = category === "correction" ? "Correction" : category === "workflow" ? "Workflow" : "Preference";
                                 return (
-                                  <div key={i} className="mt-1 flex items-start gap-2 rounded-md border border-fresco-tint/20 bg-fresco-tint/5 px-3 py-2 text-xs">
-                                    <CheckCircle className="mt-0.5 size-3.5 shrink-0 text-fresco-tint" weight="fill" />
-                                    <div className="flex min-w-0 flex-col gap-0.5">
-                                      <span className="font-medium text-fresco-tint">{categoryLabel} saved</span>
-                                      <span className="text-fresco-description">{content}</span>
-                                    </div>
-                                  </div>
+                                  <ToolCallRow
+                                    key={i}
+                                    icon={<CheckCircle className="size-3.5" weight="fill" />}
+                                    label={`${categoryLabel} saved`}
+                                    meta={categoryLabel}
+                                    status="Done"
+                                    summary={content}
+                                    tone="accent"
+                                  />
                                 );
                               }
 
@@ -686,36 +761,32 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                               );
                               if (richUI) {
                                 return (
-                                  <div key={i} className="mt-3 flex flex-col gap-2">
-                                    <div className="flex items-center gap-2 text-[10px] text-fresco-description">
-                                      <CheckCircle className="size-3 shrink-0 text-emerald-400" weight="fill" />
-                                      {isFramerTool ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="33 23 75 97" className="size-3 shrink-0" aria-hidden="true">
-                                          <path d="M 44.65 33.992 L 95.35 33.992 L 95.35 59.341 L 70 59.341 Z M 44.65 59.341 L 70 59.341 L 95.35 84.691 L 44.65 84.691 Z M 44.65 84.691 L 70 84.691 L 70 110.041 Z" fill="currentColor" />
-                                        </svg>
-                                      ) : (
-                                        <Wrench className="size-3 shrink-0" />
-                                      )}
-                                      <span className="capitalize">{toolName}</span>
-                                    </div>
+                                  <ToolCallRow
+                                    key={i}
+                                    icon={toolIcon}
+                                    label={toolName}
+                                    meta={isFramerTool ? "Framer" : "Tool"}
+                                    status={statusLabel}
+                                    summary="Completed successfully."
+                                    tone={tone}
+                                  >
                                     {richUI}
-                                  </div>
+                                  </ToolCallRow>
                                 );
                               }
                             }
 
                             return (
-                              <div key={i} className={`mt-1 flex items-center gap-2 rounded-md border ${isStale ? "border-amber-500/30 bg-amber-500/5" : "border-fresco-divider bg-fresco-surface-muted"} px-3 py-2 text-xs text-fresco-description`}>
-                                {hasOutput ? <CheckCircle className="size-3.5 shrink-0 text-emerald-400" weight="fill" /> : isStale ? <WarningCircle className="size-3.5 shrink-0 text-amber-400" weight="fill" /> : <CircleNotch className="size-3.5 shrink-0 animate-spin" />}
-                                {isFramerTool ? (
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="33 23 75 97" className="size-3.5 shrink-0" aria-hidden="true">
-                                    <path d="M 44.65 33.992 L 95.35 33.992 L 95.35 59.341 L 70 59.341 Z M 44.65 59.341 L 70 59.341 L 95.35 84.691 L 44.65 84.691 Z M 44.65 84.691 L 70 84.691 L 70 110.041 Z" fill="currentColor" />
-                                  </svg>
-                                ) : (
-                                  <Wrench className="size-3.5 shrink-0" />
-                                )}
-                                <span className="capitalize">{toolName}</span>
-                              </div>
+                              <ToolCallRow
+                                key={i}
+                                icon={toolIcon}
+                                label={toolName}
+                                meta={isFramerTool ? "Framer" : "Tool"}
+                                shimmer={!hasOutput && !isStale}
+                                status={statusLabel}
+                                summary={isStale ? "This tool stopped before returning a result." : hasOutput ? "Completed successfully." : "Working on your request."}
+                                tone={tone}
+                              />
                             );
                           }
                           return null;
@@ -726,11 +797,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                 })}
 
                 {isStreaming && (
-                  <div className="flex items-center gap-1.5 py-1">
-                    <span className="inline-block size-1.5 animate-bounce rounded-full bg-fresco-subtitle [animation-delay:0ms]" />
-                    <span className="inline-block size-1.5 animate-bounce rounded-full bg-fresco-subtitle [animation-delay:150ms]" />
-                    <span className="inline-block size-1.5 animate-bounce rounded-full bg-fresco-subtitle [animation-delay:300ms]" />
-                  </div>
+                  <StreamingStatus />
                 )}
 
                 {error && !isStreaming && (
@@ -791,7 +858,7 @@ function ChatInputOrQuotaGate({
           </span>
         </div>
         <p className="text-xs leading-relaxed text-fresco-description">
-          Your team has used 100% of this month&apos;s AI tokens. Upgrade to Pro for 100× more capacity.
+          Your team has used 100% of this month&apos;s AI tokens. Upgrade to Standard for 100× more capacity.
         </p>
         <UpgradeButton className="w-fit" />
       </div>
@@ -880,7 +947,7 @@ function QuotaOrError({ error, onRetry }: { error: Error; onRetry: () => void })
           </span>
         </div>
         <p className="text-xs leading-relaxed text-fresco-description">
-          Your team has used 100% of this month&apos;s AI tokens. Upgrade to Pro for 100× more capacity.
+          Your team has used 100% of this month&apos;s AI tokens. Upgrade to Standard for 100× more capacity.
         </p>
         <UpgradeButton className="w-fit" />
       </div>

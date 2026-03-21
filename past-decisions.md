@@ -509,3 +509,36 @@ Also fixed the payload parsing to match Dodo's actual webhook format with nested
 **Why:** First responses were taking ~20 seconds. The waterfall was: auth → syncMembership → getSite → quotaCheck (2 Convex queries) → snapshot (Framer API calls) → memory load → stream. Parallelizing the independent steps and extending the cache TTL significantly reduces the pre-stream latency.
 
 **Scope:** `src/app/api/ai/chat/route.ts` (parallel prefetch), `src/lib/product-access.ts` (parallel membership sync + site fetch in `requireDashboardApiAccess`), `src/lib/ai-context-snapshot.ts` (cache TTL 60s → 300s).
+
+
+## 2026-03-21 — Reposition billing from Free/Pro $8 to Free/Standard $19
+
+**What changed:** Renamed the paid plan from "Pro" ($8/mo) to "Standard" ($19/mo) across the entire codebase. Updated `PLAN_CONFIG` in `billing.ts` (key changed from `pro` to `standard`, price from 8 to 19, name from "Pro" to "Standard"). Updated the env var from `DODO_PRO_PRODUCT_ID` to `DODO_STANDARD_PRODUCT_ID` in `env.ts`. Updated all user-facing labels: upgrade buttons, usage meter, AI chat quota gates, and checkout route. Added backwards-compat mapping in `getPlanById` so existing subscriptions with `planId: "pro"` still resolve correctly.
+
+**Why:** GTM plan repositions the product around a tighter wedge — internal Framer CMS ops for teams. Standard at $19 with unlimited members is the only live paid plan. Agency ($49) is roadmap-only marketing copy, not a live checkout option.
+
+**Scope:** `src/lib/billing.ts`, `src/lib/env.ts`, `src/components/upgrade-button.tsx`, `src/components/usage-meter.tsx`, `src/components/ai-chat-panel.tsx`, `src/app/api/billing/checkout/route.ts`.
+
+## 2026-03-21 — Rewrite landing page for workflow-first positioning
+
+**What changed:** Rewrote `src/app/page.tsx` from a broad "AI-native Framer ops" story to a tighter workflow-first promise. New hero: "Run your Framer CMS with your team, outside the editor." Replaced value props with: "Connect one Framer site fast", "Invite your internal team", "Use AI to edit and review faster". Added pricing section (Free, Standard $19 highlighted, Agency $49 coming soon), how-it-works steps, who-it's-for section, and FAQ. Removed "AI-Native Framer Ops" badge, generic AI framing, and the gradient background.
+
+**Why:** GTM plan says to lead with the team CMS workflow, not "AI-native ops". AI is the accelerator, not the headline. Pricing section shows all three tiers but only Free and Standard are actionable.
+
+**Scope:** `src/app/page.tsx` only.
+
+## 2026-03-21 — Free plan limited to 1 invited teammate
+
+**What changed:** Added invite gating to `TeamManager` component. Free plan users can invite at most 1 teammate beyond the owner. When the limit is reached, the Invite button is replaced with an upgrade prompt ("Free plan allows 1 invited teammate" + "Upgrade for unlimited members" button). Uses `useBillingUsage` hook to detect the current plan. Standard plan has no invite limit.
+
+**Why:** GTM plan specifies Free tier allows exactly 1 invited teammate beyond the owner. This creates a natural upgrade trigger when teams grow.
+
+**Scope:** `src/components/team-manager.tsx` only.
+
+## 2026-03-21 — Remove Notion from public-facing product story
+
+**What changed:** Verified that no user-facing dashboard pages reference Notion. The `NotionBridgeState` component exists but is not imported anywhere in the dashboard. The landing page no longer mentions Notion, backend syncs, or generic "AI-native ops" framing. Notion backend code remains untouched for internal team use.
+
+**Why:** GTM plan says to remove Notion from the public product story. The Notion bridge is internal-only and should not appear in customer-facing surfaces.
+
+**Scope:** Landing page copy only. No backend Notion code was changed.

@@ -349,6 +349,16 @@
 }
 
 @layer components {
+  @keyframes tool-row-shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
   .framer-editor-prose {
     --framer-editor-body-line-height: 1.7;
     --framer-editor-body-letter-spacing: 0;

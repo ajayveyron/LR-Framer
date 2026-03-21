@@ -25,7 +25,7 @@ export async function redirectToCheckout(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 interface UpgradeButtonProps {
-  /** Button label — defaults to "Upgrade to Pro" */
+  /** Button label — defaults to "Upgrade to Standard" */
   label?: string;
   /** Extra classes merged onto the <Button> */
   className?: string;
@@ -34,7 +34,7 @@ interface UpgradeButtonProps {
 }
 
 export function UpgradeButton({
-  label = "Upgrade to Pro",
+  label = "Upgrade to Standard",
   className = "",
   size = "sm",
 }: UpgradeButtonProps) {

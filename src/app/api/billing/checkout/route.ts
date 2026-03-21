@@ -35,9 +35,9 @@ export async function POST(request: NextRequest) {
       throw new AppError("No email address found on your account.", 400);
     }
 
-    const productId = PLAN_CONFIG.pro.dodoProductId;
+    const productId = PLAN_CONFIG.standard.dodoProductId;
     if (!productId) {
-      throw new AppError("Pro plan product ID is not configured.", 503);
+      throw new AppError("Standard plan product ID is not configured.", 503);
     }
 
     const dodoBase = getDodoApiBase();
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     logEvent("info", "billing.checkout.created", {
       organizationId: orgId,
       userId,
-      planId: PLAN_CONFIG.pro.id,
+      planId: PLAN_CONFIG.standard.id,
       productId,
     });
 

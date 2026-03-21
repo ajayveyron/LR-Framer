@@ -28,8 +28,16 @@ import {
   User,
 } from "@phosphor-icons/react";
 import { TeamManagerContentSkeleton } from "@/components/dashboard-page-skeletons";
+import { UpgradeButton } from "@/components/upgrade-button";
+import { useBillingUsage } from "@/lib/use-billing-usage";
 
 import { cn } from "@/lib/utils";
+
+/**
+ * Free plan: owner + 1 invited teammate max.
+ * Standard+: unlimited members.
+ */
+const FREE_INVITE_LIMIT = 1;
 
 export function TeamManager() {
   const { user } = useUser();
@@ -37,6 +45,7 @@ export function TeamManager() {
     memberships: { pageSize: 50, keepPreviousData: true },
     invitations: { pageSize: 50, keepPreviousData: true },
   });
+  const { data: billingData } = useBillingUsage();
 
   const [activeTab, setActiveTab] = useState<"members" | "invitations">("members");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -50,6 +59,13 @@ export function TeamManager() {
 
   const isAdmin =
     memberships?.data?.find((m) => m.publicUserData?.userId === user?.id)?.role === "org:admin";
+
+  // Free plan invite gating: count non-owner members + pending invitations
+  const isFreePlan = !billingData || billingData.planName === "Free";
+  const nonOwnerMemberCount = (memberships?.count ?? 1) - 1; // subtract the owner
+  const pendingInviteCount = invitations?.count ?? 0;
+  const totalInvited = nonOwnerMemberCount + pendingInviteCount;
+  const inviteLimitReached = isFreePlan && totalInvited >= FREE_INVITE_LIMIT;
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,10 +139,19 @@ export function TeamManager() {
           Manage members and their roles.
         </p>
         {isAdmin && (
-          <Button onClick={() => setIsInviteOpen(true)} size="sm" className="gap-2">
-            <UserPlus className="h-4 w-4" />
-            Invite
-          </Button>
+          inviteLimitReached ? (
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-fresco-description">
+                Free plan allows 1 invited teammate.
+              </span>
+              <UpgradeButton label="Upgrade for unlimited members" size="sm" />
+            </div>
+          ) : (
+            <Button onClick={() => setIsInviteOpen(true)} size="sm" className="gap-2">
+              <UserPlus className="h-4 w-4" />
+              Invite
+            </Button>
+          )
         )}
       </div>
 

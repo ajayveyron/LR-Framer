@@ -25,7 +25,7 @@ export interface PlanDefinition {
  * The sole source of truth for plan definitions.
  * Every part of the system that needs plan details MUST read from here.
  */
-export const PLAN_CONFIG: Record<"free" | "pro", PlanDefinition> = {
+export const PLAN_CONFIG: Record<"free" | "standard", PlanDefinition> = {
   free: {
     id: "free",
     name: "Free",
@@ -33,12 +33,12 @@ export const PLAN_CONFIG: Record<"free" | "pro", PlanDefinition> = {
     monthlyTokenAllowance: 100_000,
     dodoProductId: null,
   },
-  pro: {
-    id: "pro",
-    name: "Pro",
-    priceMonthly: 8,
+  standard: {
+    id: "standard",
+    name: "Standard",
+    priceMonthly: 19,
     monthlyTokenAllowance: 10_000_000,
-    dodoProductId: process.env.DODO_PRO_PRODUCT_ID ?? "",
+    dodoProductId: process.env.DODO_STANDARD_PRODUCT_ID ?? "",
   },
 } as const;
 
@@ -46,7 +46,9 @@ export const PLAN_CONFIG: Record<"free" | "pro", PlanDefinition> = {
  * Resolve a plan by its ID, or `undefined` for unknown IDs.
  */
 export function getPlanById(planId: string): PlanDefinition | undefined {
-  if (planId === "free" || planId === "pro") {
+  // Support legacy "pro" plan IDs from existing subscriptions
+  if (planId === "pro") return PLAN_CONFIG.standard;
+  if (planId === "free" || planId === "standard") {
     return PLAN_CONFIG[planId];
   }
   return undefined;

@@ -14,6 +14,7 @@ import {
   ShieldCheck,
 } from "@phosphor-icons/react";
 
+import { ToolCallRow, type ToolTone } from "@/components/ai-elements/tool";
 import { Button } from "@/components/ui/button";
 import type {
   CmsAction,
@@ -34,24 +35,21 @@ function severityStyles(severity: ActionSeverity) {
   switch (severity) {
     case "destructive":
       return {
-        border: "border-red-500/30",
-        bg: "bg-red-500/5",
         iconColor: "text-red-400",
         buttonVariant: "destructive" as const,
+        tone: "danger" as ToolTone,
       };
     case "warning":
       return {
-        border: "border-amber-500/30",
-        bg: "bg-amber-500/5",
         iconColor: "text-amber-400",
         buttonVariant: "default" as const,
+        tone: "warning" as ToolTone,
       };
     default:
       return {
-        border: "border-fresco-divider",
-        bg: "bg-fresco-surface-muted",
         iconColor: "text-fresco-tint",
         buttonVariant: "default" as const,
+        tone: "accent" as ToolTone,
       };
   }
 }
@@ -157,6 +155,52 @@ export function CmsActionConfirmation({ proposal, onExecuted }: CmsActionConfirm
   const severity = getActionSeverity(proposal.payload);
   const styles = severityStyles(severity);
   const label = getActionLabel(proposal.payload);
+  const stateTone: ToolTone =
+    state === "approved"
+      ? "success"
+      : state === "failed"
+        ? "danger"
+        : state === "rejected"
+          ? "neutral"
+          : styles.tone;
+  const statusLabel =
+    state === "pending"
+      ? "Needs approval"
+      : state === "executing"
+        ? "Running"
+        : state === "approved"
+          ? "Done"
+          : state === "rejected"
+            ? "Rejected"
+            : "Error";
+  const summaryText =
+    state === "failed"
+      ? errorMsg ?? "Execution failed"
+      : state === "rejected"
+        ? "The proposed action was not executed."
+        : proposal.description;
+  const metaText =
+    state === "pending"
+      ? "Approval is required before Framer is changed."
+      : state === "executing"
+        ? "Applying this change in Framer."
+        : state === "approved"
+          ? "Framer was updated successfully."
+          : state === "rejected"
+            ? "No CMS changes were made."
+            : "The action could not be completed.";
+  const headerIcon =
+    state === "approved" ? (
+      <CheckCircle className="size-3.5" weight="fill" />
+    ) : state === "executing" ? (
+      <SpinnerGap className="size-3.5 animate-spin" />
+    ) : state === "rejected" ? (
+      <XCircle className="size-3.5" weight="fill" />
+    ) : state === "failed" ? (
+      <Warning className="size-3.5" weight="fill" />
+    ) : (
+      <ShieldCheck className="size-3.5" weight="fill" />
+    );
 
   async function handleApprove() {
     setState("executing");
@@ -185,89 +229,58 @@ export function CmsActionConfirmation({ proposal, onExecuted }: CmsActionConfirm
   }
 
   return (
-    <div className={`flex flex-col gap-2.5 rounded-lg border ${styles.border} ${styles.bg} p-3`}>
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        <ShieldCheck className={`size-4 shrink-0 ${styles.iconColor}`} weight="fill" />
-        <span className="text-xs font-semibold uppercase tracking-[0.08em] text-fresco-subtitle">
-          Confirmation Required
-        </span>
-      </div>
-
-      {/* Action summary */}
-      <div className="flex items-start gap-2.5 rounded-md border border-fresco-divider bg-fresco-panel px-3 py-2.5">
-        <ActionIcon action={proposal.payload} className={`mt-0.5 size-4 shrink-0 ${styles.iconColor}`} />
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="text-xs font-medium text-fresco-title">
-            {label}
-          </span>
-          <span className="text-[11px] leading-relaxed text-fresco-description">
-            {proposal.description}
-          </span>
-          <ActionDetails action={proposal.payload} />
-        </div>
-      </div>
-
-      {/* Buttons */}
-      {state === "pending" && (
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant={styles.buttonVariant}
-            className="flex-1 gap-1.5"
-            onClick={handleApprove}
-          >
-            <CheckCircle className="size-3.5" weight="bold" />
-            Approve
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 gap-1.5"
-            onClick={handleReject}
-          >
-            <XCircle className="size-3.5" weight="bold" />
-            Reject
-          </Button>
-        </div>
-      )}
-
-      {/* Executing */}
-      {state === "executing" && (
-        <div className="flex items-center gap-2 text-xs text-fresco-description">
-          <SpinnerGap className="size-3.5 animate-spin" />
-          <span>Executing…</span>
-        </div>
-      )}
-
-      {/* Approved */}
-      {state === "approved" && (
-        <div className="flex items-center gap-2 text-xs text-emerald-400">
-          <CheckCircle className="size-3.5" weight="fill" />
-          <span>Done</span>
-        </div>
-      )}
-
-      {/* Rejected */}
-      {state === "rejected" && (
-        <div className="flex items-center gap-2 text-xs text-fresco-description">
-          <XCircle className="size-3.5" weight="fill" />
-          <span>Rejected by user</span>
-        </div>
-      )}
-
-      {/* Failed */}
-      {state === "failed" && (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2 text-xs text-red-400">
-            <Warning className="size-3.5" weight="fill" />
-            <span>{errorMsg ?? "Execution failed"}</span>
+    <ToolCallRow
+      elevated
+      icon={headerIcon}
+      label={label}
+      meta={metaText}
+      shimmer={state === "executing"}
+      status={statusLabel}
+      summary={summaryText}
+      tone={stateTone}
+    >
+      <div className="flex flex-col gap-3">
+        <div className="rounded-2xl border border-fresco-divider/80 bg-fresco-panel/70 px-3 py-2.5">
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-fresco-subtitle">
+            Review change
           </div>
+          <div className="flex items-start gap-2.5">
+            <ActionIcon action={proposal.payload} className={`mt-0.5 size-4 shrink-0 ${styles.iconColor}`} />
+            <div className="min-w-0 flex-1 text-[11px] leading-relaxed text-fresco-description">
+              <ActionDetails action={proposal.payload} />
+            </div>
+          </div>
+        </div>
+
+        {state === "pending" && (
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={styles.buttonVariant}
+              className="flex-1 gap-1.5"
+              onClick={handleApprove}
+            >
+              <CheckCircle className="size-3.5" weight="bold" />
+              {severity === "destructive" ? "Approve removal" : severity === "warning" ? "Approve publish" : "Approve"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 gap-1.5"
+              onClick={handleReject}
+            >
+              <XCircle className="size-3.5" weight="bold" />
+              Reject
+            </Button>
+          </div>
+        )}
+
+        {state === "failed" && (
           <Button size="sm" variant="outline" className="w-full gap-1.5" onClick={handleApprove}>
             Retry
           </Button>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </ToolCallRow>
   );
 }

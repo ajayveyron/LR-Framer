@@ -36,6 +36,7 @@ Agents working here should optimize for safe, incremental changes and avoid brea
 - Preserve graceful degradation when optional integrations are missing. Missing AI, billing, or Notion config should not break the base dashboard.
 - Do not commit or revert unrelated user changes.
 - Keep edits small and localized. Reuse existing helpers before adding new abstractions.
+- Never ever try to touch or modify the ENV file ever. nor through your tool calls or terminal use. in no way you should be able to make changes to env file. neither by copying env exmple into env
 
 ## Product Model
 

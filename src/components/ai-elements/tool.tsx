@@ -36,6 +36,13 @@ export const Tool = ({ className, ...props }: ToolProps) => (
 
 export type ToolPart = ToolUIPart | DynamicToolUIPart;
 
+export type ToolTone =
+  | "neutral"
+  | "accent"
+  | "warning"
+  | "success"
+  | "danger";
+
 export type ToolHeaderProps = {
   title?: string;
   className?: string;
@@ -49,11 +56,11 @@ export type ToolHeaderProps = {
 );
 
 const statusLabels: Record<ToolPart["state"], string> = {
-  "approval-requested": "Awaiting Approval",
-  "approval-responded": "Responded",
+  "approval-requested": "Needs approval",
+  "approval-responded": "Approved",
   "input-available": "Running",
-  "input-streaming": "Pending",
-  "output-available": "Completed",
+  "input-streaming": "Running",
+  "output-available": "Done",
   "output-denied": "Denied",
   "output-error": "Error",
 };
@@ -68,12 +75,165 @@ const statusIcons: Record<ToolPart["state"], ReactNode> = {
   "output-error": <XCircleIcon className="size-4 text-red-600" />,
 };
 
+const toneClasses: Record<
+  ToolTone,
+  {
+    row: string;
+    icon: string;
+    iconFrame: string;
+    status: string;
+  }
+> = {
+  neutral: {
+    row: "bg-fresco-surface-subtle text-fresco-description",
+    icon: "text-fresco-subtitle",
+    iconFrame: "bg-fresco-surface-muted text-fresco-subtitle",
+    status: "text-fresco-subtitle",
+  },
+  accent: {
+    row: "bg-[color-mix(in_srgb,var(--color-fresco-tint)_10%,transparent)] text-fresco-description",
+    icon: "text-fresco-tint",
+    iconFrame:
+      "bg-[color-mix(in_srgb,var(--color-fresco-tint)_14%,transparent)] text-fresco-tint",
+    status: "text-fresco-tint",
+  },
+  warning: {
+    row: "bg-fresco-warning-callout-bg text-fresco-warning-callout-text",
+    icon: "text-fresco-warning",
+    iconFrame: "bg-[color-mix(in_srgb,var(--color-fresco-warning)_16%,transparent)] text-fresco-warning",
+    status: "text-fresco-warning-callout-text",
+  },
+  success: {
+    row: "bg-fresco-success-callout-bg text-fresco-success-callout-text",
+    icon: "text-fresco-success",
+    iconFrame: "bg-[color-mix(in_srgb,var(--color-fresco-success)_16%,transparent)] text-fresco-success",
+    status: "text-fresco-success-callout-text",
+  },
+  danger: {
+    row: "bg-fresco-danger-callout-bg text-fresco-danger-callout-text",
+    icon: "text-fresco-error",
+    iconFrame: "bg-[color-mix(in_srgb,var(--color-fresco-error)_16%,transparent)] text-fresco-error",
+    status: "text-fresco-danger-callout-text",
+  },
+};
+
+export function getToolStateMeta(state: ToolPart["state"]): {
+  label: string;
+  tone: ToolTone;
+  shimmer: boolean;
+  icon: ReactNode;
+} {
+  const tone: ToolTone =
+    state === "approval-requested"
+      ? "warning"
+      : state === "approval-responded"
+        ? "accent"
+        : state === "output-available"
+          ? "success"
+          : state === "output-denied"
+            ? "warning"
+            : state === "output-error"
+              ? "danger"
+              : "accent";
+
+  return {
+    label: statusLabels[state],
+    tone,
+    shimmer: state === "input-available" || state === "input-streaming",
+    icon: statusIcons[state],
+  };
+}
+
 export const getStatusBadge = (status: ToolPart["state"]) => (
   <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
     {statusIcons[status]}
     {statusLabels[status]}
   </Badge>
 );
+
+export type ToolCallRowProps = ComponentProps<"div"> & {
+  icon?: ReactNode;
+  label: string;
+  status: string;
+  summary?: ReactNode;
+  meta?: ReactNode;
+  actions?: ReactNode;
+  tone?: ToolTone;
+  shimmer?: boolean;
+  elevated?: boolean;
+};
+
+export const ToolCallRow = ({
+  className,
+  icon,
+  label,
+  status,
+  summary,
+  meta,
+  actions,
+  tone = "neutral",
+  shimmer = false,
+  elevated = false,
+  children,
+  ...props
+}: ToolCallRowProps) => {
+  const toneClass = toneClasses[tone];
+
+  return (
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-[18px] px-3 py-2.5",
+        elevated
+          ? "border border-fresco-divider/80 bg-fresco-surface-muted shadow-[0_18px_50px_rgba(0,0,0,0.22)]"
+          : "border border-transparent",
+        toneClass.row,
+        shimmer &&
+          "before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.02)_36%,rgba(255,255,255,0.12)_50%,rgba(255,255,255,0.02)_64%,transparent_100%)] before:animate-[tool-row-shimmer_1.8s_ease-in-out_infinite]",
+        className
+      )}
+      {...props}
+    >
+      <div className="relative z-10 flex flex-col gap-2">
+        <div className="flex items-start gap-2.5">
+          <div
+            className={cn(
+              "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full",
+              toneClass.iconFrame
+            )}
+          >
+            <span className={cn("flex items-center justify-center", toneClass.icon)}>
+              {icon}
+            </span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-[13px] font-medium text-fresco-title">
+                {label}
+              </span>
+              <span className={cn("shrink-0 text-[11px] font-medium", toneClass.status)}>
+                {status}
+              </span>
+            </div>
+            {(summary || meta) && (
+              <div className="mt-0.5 flex min-w-0 flex-col gap-0.5">
+                {summary ? (
+                  <div className="min-w-0 text-[11px] leading-relaxed text-fresco-description">
+                    {summary}
+                  </div>
+                ) : null}
+                {meta ? (
+                  <div className="min-w-0 text-[10px] text-fresco-subtitle">{meta}</div>
+                ) : null}
+              </div>
+            )}
+          </div>
+          {actions ? <div className="shrink-0">{actions}</div> : null}
+        </div>
+        {children ? <div className="pl-9">{children}</div> : null}
+      </div>
+    </div>
+  );
+};
 
 export const ToolHeader = ({
   className,
