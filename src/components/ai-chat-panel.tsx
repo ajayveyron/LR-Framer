@@ -45,6 +45,7 @@ import {
   type FieldNameMap,
   type FieldTypeMap,
 } from "@/components/ai-tool-renderers";
+import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
 import { Button } from "@/components/ui/button";
 import { Shimmer } from "@/components/ui/shimmer";
 import {
@@ -137,7 +138,20 @@ const STREAMING_STATUS_PHRASES = [
   "Conjuring",
   "Percolating",
   "Calculating",
+  "Manspreading",
+  "Travelling",
+  "Exercising",
+  "Fertilizing",
   "Speculating",
+  "Running from cops",
+  "Stirring the pot",
+  "Spinning plates",
+  "Performing",
+  "Using Em Dash",
+  "Finding AGI",
+  "Rage quitting",
+  "Binge watching",
+  "Something with an ing",
   "Quantumizing",
   "Brainstorming",
   "Wizarding",
@@ -157,7 +171,7 @@ const STREAMING_STATUS_PHRASES = [
   "Brainjuicing",
   "Thinkulating",
   "Mindbending",
-  "Chronosyncing"
+  "Chronosyncing",
 ];
 
 function FramerToolGlyph({ className }: { className?: string }) {
@@ -243,50 +257,6 @@ function DirectAttachButton() {
     <PromptInputButton aria-label="Add file" onClick={() => attachments.openFileDialog()} type="button">
       <Plus className="size-4" />
     </PromptInputButton>
-  );
-}
-
-function ChatPromptSuggestions({ selectedCount }: { selectedCount: number }) {
-  const controller = usePromptInputController();
-  const draft = controller.textInput.value.trim();
-  const suggestions = selectedCount > 0 ? SELECTED_CHAT_SUGGESTIONS : EMPTY_CHAT_SUGGESTIONS;
-
-  if (draft.length > 0) {
-    return null;
-  }
-
-  return (
-    <div className="mt-1 space-y-2">
-      {/* <div className="text-sm font-medium uppercase tracking-[0.18em] text-fresco-subtitle">
-        Quick starts
-      </div> */}
-      <div className="grid gap-2 sm:grid-cols-2">
-        {suggestions.map((suggestion) => (
-          <Button
-            key={suggestion.title}
-            className="h-auto flex-col items-start rounded-xl border-fresco-divider bg-fresco-surface-muted px-3 py-2 text-center transition-colors hover:border-fresco-tint hover:bg-fresco-divider"
-            onClick={() => {
-              controller.textInput.setInput(suggestion.prompt);
-              window.requestAnimationFrame(() => {
-                const textarea = document.querySelector('textarea[name="message"]') as HTMLTextAreaElement | null;
-                textarea?.focus();
-                textarea?.setSelectionRange(suggestion.prompt.length, suggestion.prompt.length);
-              });
-            }}
-            size="default"
-            type="button"
-            variant="outline"
-          >
-            <span className="text-sm font-medium text-fresco-title">
-              {suggestion.title}
-            </span>
-            {/* <span className="text-xs leading-snug text-fresco-description">
-              {suggestion.description}
-            </span> */}
-          </Button>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -635,7 +605,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                           Ask me anything about this CMS, the active Framer collection, or the rows you&apos;ve selected.
                         </p>
                       </div>
-                      <ChatPromptSuggestions selectedCount={selectedPosts.length} />
+
                     </div>
                   </ConversationEmptyState>
                 )}
@@ -898,6 +868,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
               <ChatInputOrQuotaGate
                 totalTokens={totalTokens}
                 selectedPosts={selectedPosts}
+                messageCount={messages.length}
                 isStreaming={isStreaming}
                 sendMessage={handleSendWithContext}
                 stop={stop}
@@ -919,6 +890,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
 function ChatInputOrQuotaGate({
   totalTokens,
   selectedPosts,
+  messageCount,
   isStreaming,
   sendMessage,
   stop,
@@ -926,13 +898,19 @@ function ChatInputOrQuotaGate({
 }: {
   totalTokens: { input: number; output: number; total: number };
   selectedPosts: BlogPostRecord[];
+  messageCount: number;
   isStreaming: boolean;
   sendMessage: (msg: { text: string }) => void;
   stop: () => void;
   onClearSelection?: () => void;
 }) {
+  const controller = usePromptInputController();
+  const draft = controller.textInput.value.trim();
   const { data } = useBillingUsage();
   const isExhausted = data && data.planName === "Free" && data.percentUsed >= 100;
+
+  const suggestions = selectedPosts.length > 0 ? SELECTED_CHAT_SUGGESTIONS : EMPTY_CHAT_SUGGESTIONS;
+  const showSuggestions = messageCount === 0 && draft.length === 0 && !isStreaming && !isExhausted;
 
   if (isExhausted) {
     return (
@@ -960,6 +938,17 @@ function ChatInputOrQuotaGate({
             {totalTokens.total.toLocaleString()} tokens this session
           </span>
         </div>
+      )}
+      {showSuggestions && (
+        <Suggestions className="mb-2">
+          {suggestions.map((s) => (
+            <Suggestion
+              key={s.title}
+              suggestion={s.title}
+              onClick={() => sendMessage({ text: s.prompt })}
+            />
+          ))}
+        </Suggestions>
       )}
       <ChipInputPromptArea
         selectedPosts={selectedPosts}
