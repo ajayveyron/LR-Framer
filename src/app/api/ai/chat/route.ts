@@ -62,16 +62,19 @@ function buildSystemPrompt(
     ? `The active collection is "${activeCollection.name}" (id: ${activeCollection.id}). When the user refers to "blog", "posts", or "items" without specifying a collection, they mean this one. Use this collection ID directly — do NOT call framer_get_collections first.`
     : "No active collection is set. You may need to call framer_get_collections to discover available collections.";
 
+  // Build a quick fieldId→name lookup for readable selection output
+  const fieldNameMap = new Map(fields.map((f) => [f.id, f.name]));
+
   const selectionBlock =
     rows.length > 0
-      ? `The user has selected ${rows.length} CMS row(s). Here they are:\n\n${rows
+      ? `SELECTED ROWS — The user has selected ${rows.length} CMS row(s) in the dashboard. You ALREADY HAVE their full data below. Do NOT call framer_get_collection_items or any fetch tool — use this data directly.\n\n${rows
           .map((r) => {
             const vals = Object.entries(r.fieldValues)
-              .map(([k, v]) => `  ${k}: ${JSON.stringify(v)}`)
+              .map(([k, v]) => `  ${fieldNameMap.get(k) ?? k} (${k}): ${JSON.stringify(v)}`)
               .join("\n");
             return `Row "${r.title}" (id: ${r.id}, slug: ${r.slug}):\n${vals}`;
           })
-          .join("\n\n")}`
+          .join("\n\n")}\n\nWhen the user says "this post", "this item", "the selected post", or refers to content without specifying which item, they mean the selected row(s) above. Act on them immediately using the data you already have.`
       : "No rows are currently selected. The user can still ask about the project, collections, publishing, or any Framer CMS operation.";
 
   return `You are an AI assistant for a CMS dashboard powered by Framer.
@@ -159,7 +162,7 @@ EFFICIENCY RULES — minimize tool calls and token usage:
 
 When the user asks you to make changes to selected rows, use the propose_edits tool to suggest edits. For each row, provide the fieldId as the key and the new value directly. Example: changes: { "Fv4S6mkrw": "New description text" }.
 
-CRITICAL: You already have the selected rows' data in this prompt. When the user asks to edit, update, or change a selected post, use propose_edits IMMEDIATELY with the data you already have. Do NOT call framer_get_collection_items or any other fetch tool first — you already have everything you need. Only call framer_get_collection_items if the user explicitly asks about items that are NOT in the selected rows above.
+CRITICAL: You already have the selected rows' data in the SELECTED ROWS section above — including all field IDs, field names, and current values. When the user asks to edit, update, change, or do anything with a selected post, act IMMEDIATELY using that data. Do NOT call framer_get_collection_items or any other fetch tool — you have everything you need. Only fetch items if the user explicitly asks about items that are NOT in the selected rows.
 
 When the user asks about the Framer project, collections, publishing, or wants to perform operations beyond the selected rows, use the appropriate framer_* tool or propose_cms_action.
 

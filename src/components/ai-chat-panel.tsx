@@ -131,11 +131,31 @@ const SELECTED_CHAT_SUGGESTIONS: ChatSuggestion[] = [
 ];
 
 const STREAMING_STATUS_PHRASES = [
-  "Thinking",
-  "Working on it",
-  "Exploring",
-  "Tinkering",
-  "Checking details",
+  "Pondering",
+  "Conjuring",
+  "Percolating",
+  "Calculating",
+  "Speculating",
+  "Quantumizing",
+  "Brainstorming",
+  "Wizarding",
+  "Enchanting",
+  "Alchemying",
+  "Cosmicking",
+  "Galaxifying",
+  "Neuronizing",
+  "Overclocking",
+  "Hyperthinking",
+  "Metaing",
+  "Dimensioning",
+  "Vibing",
+  "Telepathing",
+  "Goblining",
+  "Wizardmaxxing",
+  "Brainjuicing",
+  "Thinkulating",
+  "Mindbending",
+  "Chronosyncing"
 ];
 
 function FramerToolGlyph({ className }: { className?: string }) {
