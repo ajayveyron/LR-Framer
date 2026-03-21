@@ -115,6 +115,9 @@ export function getLegacyFramerApiKey() {
 const aiEnvSchema = z.object({
   GOOGLE_CLOUD_PROJECT: z.string().optional(),
   GOOGLE_CLOUD_LOCATION: z.string().optional(),
+  GOOGLE_CLIENT_EMAIL: z.string().optional(),
+  GOOGLE_PRIVATE_KEY: z.string().optional(),
+  GOOGLE_PRIVATE_KEY_ID: z.string().optional(),
 });
 
 /** Gemini 3.1 Flash Lite — fast, cost-efficient text generation */
@@ -125,9 +128,17 @@ export const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image-preview";
 export interface AIEnv {
   GOOGLE_CLOUD_PROJECT: string;
   GOOGLE_CLOUD_LOCATION: string;
+  GOOGLE_CLIENT_EMAIL?: string;
+  GOOGLE_PRIVATE_KEY?: string;
+  GOOGLE_PRIVATE_KEY_ID?: string;
 }
 
 let cachedAIEnv: AIEnv | undefined | null = null; // null = not yet resolved
+
+function normalizeOptionalPrivateKey(value: string | undefined) {
+  const normalized = normalizeOptionalValue(value);
+  return normalized ? normalized.replace(/\\n/g, "\n") : undefined;
+}
 
 /**
  * Returns diagnostics for AI-related env vars.
@@ -143,9 +154,11 @@ export function getAIEnvIssues(): Array<{ path: string; message: string }> {
 
   const project = normalizeOptionalValue(process.env.GOOGLE_CLOUD_PROJECT);
   const location = normalizeOptionalValue(process.env.GOOGLE_CLOUD_LOCATION);
+  const clientEmail = normalizeOptionalValue(process.env.GOOGLE_CLIENT_EMAIL);
+  const privateKey = normalizeOptionalPrivateKey(process.env.GOOGLE_PRIVATE_KEY);
 
   // If neither is set, AI features are simply not configured — no issues.
-  if (!project && !location) {
+  if (!project && !location && !clientEmail && !privateKey) {
     return [];
   }
 
@@ -167,6 +180,22 @@ export function getAIEnvIssues(): Array<{ path: string; message: string }> {
     });
   }
 
+  if (clientEmail && !privateKey) {
+    issues.push({
+      path: "GOOGLE_PRIVATE_KEY",
+      message:
+        "GOOGLE_PRIVATE_KEY is required when GOOGLE_CLIENT_EMAIL is set.",
+    });
+  }
+
+  if (privateKey && !clientEmail) {
+    issues.push({
+      path: "GOOGLE_CLIENT_EMAIL",
+      message:
+        "GOOGLE_CLIENT_EMAIL is required when GOOGLE_PRIVATE_KEY is set.",
+    });
+  }
+
   return issues;
 }
 
@@ -182,6 +211,9 @@ export function getAIEnv(): AIEnv | undefined {
 
   const project = normalizeOptionalValue(process.env.GOOGLE_CLOUD_PROJECT);
   const location = normalizeOptionalValue(process.env.GOOGLE_CLOUD_LOCATION);
+  const clientEmail = normalizeOptionalValue(process.env.GOOGLE_CLIENT_EMAIL);
+  const privateKey = normalizeOptionalPrivateKey(process.env.GOOGLE_PRIVATE_KEY);
+  const privateKeyId = normalizeOptionalValue(process.env.GOOGLE_PRIVATE_KEY_ID);
 
   if (!project || !location) {
     cachedAIEnv = undefined;
@@ -191,6 +223,9 @@ export function getAIEnv(): AIEnv | undefined {
   cachedAIEnv = {
     GOOGLE_CLOUD_PROJECT: project,
     GOOGLE_CLOUD_LOCATION: location,
+    GOOGLE_CLIENT_EMAIL: clientEmail,
+    GOOGLE_PRIVATE_KEY: privateKey,
+    GOOGLE_PRIVATE_KEY_ID: privateKeyId,
   };
 
   return cachedAIEnv;

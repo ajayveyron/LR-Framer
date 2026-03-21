@@ -19,9 +19,23 @@ export function getAIConfig(): AIConfig | undefined {
     return undefined;
   }
 
+  const googleAuthOptions =
+    env.GOOGLE_CLIENT_EMAIL && env.GOOGLE_PRIVATE_KEY
+      ? {
+          credentials: {
+            type: "service_account",
+            project_id: env.GOOGLE_CLOUD_PROJECT,
+            client_email: env.GOOGLE_CLIENT_EMAIL,
+            private_key: env.GOOGLE_PRIVATE_KEY,
+            private_key_id: env.GOOGLE_PRIVATE_KEY_ID,
+          },
+        }
+      : undefined;
+
   const provider = createVertex({
     project: env.GOOGLE_CLOUD_PROJECT,
     location: env.GOOGLE_CLOUD_LOCATION,
+    googleAuthOptions,
   });
 
   return {
