@@ -21,7 +21,8 @@ function buildGenerateAndUploadImageTool(runInFramerContext?: RunInFramerContext
       "Generate an image from a text prompt using AI, then upload it to Framer as an asset. " +
       "Returns the uploaded image URL which can be used to set image fields on CMS items via framer_set_item_attributes " +
       'with fieldData: { fieldId: { type: "image", value: returnedUrl } }. ' +
-      "Optionally accepts a referenceImageUrl to guide the style/composition of the generated image.",
+      "Accepts referenceImageUrls (array of up to 3 sibling item image URLs) to match the collection's visual style, " +
+      "or referenceImageUrl (single URL) for a user-uploaded reference.",
     inputSchema: z.object({
       prompt: z.string().describe("Text description of the image to generate"),
       context: z
@@ -35,10 +36,16 @@ function buildGenerateAndUploadImageTool(runInFramerContext?: RunInFramerContext
         .string()
         .optional()
         .describe(
-          "URL of a reference image to guide style/composition. Pass the user's uploaded image URL here when available.",
+          "URL of a single reference image (e.g. user-uploaded attachment). For collection style references, prefer referenceImageUrls.",
+        ),
+      referenceImageUrls: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "URLs of up to 3 reference images from sibling collection items to guide the visual style. The model will analyze all of them to match the collection's aesthetic.",
         ),
     }),
-    execute: async ({ prompt, context, referenceImageUrl }) => {
+    execute: async ({ prompt, context, referenceImageUrl, referenceImageUrls }) => {
       const startMs = Date.now();
       const config = getAIConfig();
 
@@ -47,9 +54,15 @@ function buildGenerateAndUploadImageTool(runInFramerContext?: RunInFramerContext
       }
 
       logEvent("info", "ai.tool.generate_image.called", {
+        prompt,
         promptLength: prompt.length,
         hasContext: Boolean(context),
+        contextTitle: context?.title ?? null,
+        contextSlug: context?.slug ?? null,
         hasReferenceImage: Boolean(referenceImageUrl),
+        referenceImageUrl: referenceImageUrl ?? null,
+        referenceImageUrls: referenceImageUrls ?? [],
+        referenceImageCount: (referenceImageUrls?.length ?? 0) + (referenceImageUrl ? 1 : 0),
       });
 
       try {
@@ -65,8 +78,23 @@ function buildGenerateAndUploadImageTool(runInFramerContext?: RunInFramerContext
           });
         }
 
-        if (referenceImageUrl) {
-          userContent.push({ type: "image", image: referenceImageUrl });
+        // Collect all reference image URLs (single + array)
+        const allRefs: string[] = [];
+        if (referenceImageUrls && referenceImageUrls.length > 0) {
+          allRefs.push(...referenceImageUrls.slice(0, 3));
+        }
+        if (referenceImageUrl && !allRefs.includes(referenceImageUrl)) {
+          allRefs.push(referenceImageUrl);
+        }
+
+        if (allRefs.length > 0) {
+          userContent.push({
+            type: "text",
+            text: `\nCRITICAL STYLE INSTRUCTION: The following ${allRefs.length} image(s) are REFERENCES for the visual aesthetics. You MUST match their shared style, color palette, lighting, composition, and textures in your generated image.`,
+          });
+          for (const url of allRefs) {
+            userContent.push({ type: "image", image: url });
+          }
         }
 
         const systemPrompt = await getImageSystemPrompt();
@@ -108,6 +136,12 @@ function buildGenerateAndUploadImageTool(runInFramerContext?: RunInFramerContext
         logEvent("info", "ai.tool.generate_image.completed", {
           durationMs: Date.now() - startMs,
           assetUrl: asset.url,
+          prompt,
+          referenceImageUrl: referenceImageUrl ?? null,
+          referenceImageUrls: referenceImageUrls ?? [],
+          referenceImageCount: allRefs.length,
+          mimeType,
+          imageSizeBytes: buffer.length,
         });
 
         try {

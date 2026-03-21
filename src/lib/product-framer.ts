@@ -3,6 +3,7 @@ import "server-only";
 import { AppError } from "@/lib/errors";
 import { getAllCollections } from "@/lib/framer";
 import { runWithFramerRuntimeContext } from "@/lib/framer-runtime";
+import { logEvent } from "@/lib/logger";
 import { getDashboardAccess, getSiteFramerRuntimeContext } from "@/lib/product-access";
 import { ACTIVE_COLLECTION_COOKIE } from "@/lib/product-framer-shared";
 import type { FramerCollectionOption } from "@/lib/product-types";
@@ -19,23 +20,27 @@ function getRequestedCollectionId(request?: Request) {
   }
 
   const fromHeader = request.headers.get("x-framer-collection-id")?.trim();
+
+  const cookieHeader = request.headers.get("cookie");
+  const cookieMatch = cookieHeader
+    ?.split(";")
+    .map((entry) => entry.trim())
+    .find((entry) => entry.startsWith(`${ACTIVE_COLLECTION_COOKIE}=`));
+  const fromCookie = cookieMatch
+    ? decodeURIComponent(cookieMatch.slice(ACTIVE_COLLECTION_COOKIE.length + 1)).trim()
+    : undefined;
+
+  logEvent("info", "framer.resolveCollection.sources", {
+    fromHeader: fromHeader ?? null,
+    fromCookie: fromCookie ?? null,
+    resolved: fromHeader ?? fromCookie ?? null,
+  });
+
   if (fromHeader) {
     return fromHeader;
   }
 
-  const cookieHeader = request.headers.get("cookie");
-  if (!cookieHeader) {
-    return undefined;
-  }
-
-  const match = cookieHeader
-    .split(";")
-    .map((entry) => entry.trim())
-    .find((entry) => entry.startsWith(`${ACTIVE_COLLECTION_COOKIE}=`));
-
-  return match
-    ? decodeURIComponent(match.slice(ACTIVE_COLLECTION_COOKIE.length + 1)).trim()
-    : undefined;
+  return fromCookie;
 }
 
 export async function resolveCurrentSiteCollection(

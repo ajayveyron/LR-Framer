@@ -30,6 +30,7 @@ import {
 import { TeamManagerContentSkeleton } from "@/components/dashboard-page-skeletons";
 import { UpgradeButton } from "@/components/upgrade-button";
 import { useBillingUsage } from "@/lib/use-billing-usage";
+import { motion, AnimatePresence } from "framer-motion";
 
 import { cn } from "@/lib/utils";
 
@@ -72,7 +73,7 @@ export function TeamManager() {
     if (!inviteEmail) return;
     try {
       setIsInviting(true);
-      await organization.inviteMember({ emailAddress: inviteEmail, role: inviteRole });
+      await organization?.inviteMember({ emailAddress: inviteEmail, role: inviteRole });
       setInviteEmail("");
       setIsInviteOpen(false);
       invitations?.revalidate?.();
@@ -214,11 +215,33 @@ export function TeamManager() {
               <th className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "py-3 px-6 uppercase tracking-wider text-fresco-subtitle text-right")}>Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[rgba(255,255,255,0.06)]">
+          <motion.tbody 
+            className="divide-y divide-[rgba(255,255,255,0.06)]"
+            initial="hidden"
+            animate="visible"
+            variants={{
+              visible: {
+                transition: {
+                  staggerChildren: 0.05,
+                },
+              },
+            }}
+          >
+            <AnimatePresence mode="popLayout">
             {activeTab === "members" && memberships?.data?.map((membership) => {
               const isSelf = membership.publicUserData?.userId === user?.id;
               return (
-                <tr key={membership.id} className="hover:bg-[rgba(255,255,255,0.02)] transition-colors">
+                <motion.tr 
+                  key={membership.id} 
+                  className="hover:bg-[rgba(255,255,255,0.02)] transition-colors"
+                  variants={{
+                    hidden: { opacity: 0, filter: "blur(4px)", y: 10 },
+                    visible: { opacity: 1, filter: "blur(0px)", y: 0 },
+                  }}
+                  initial="hidden"
+                  animate="visible"
+                  exit={{ opacity: 0, filter: "blur(4px)" }}
+                >
                   <td className="py-4 px-6 flex items-center gap-3">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={membership.publicUserData?.imageUrl || ""} alt="Avatar" className="h-8 w-8 rounded-full bg-[#2B2B2B] object-cover" />
@@ -259,14 +282,24 @@ export function TeamManager() {
                       </DropdownMenu>
                     )}
                   </td>
-                </tr>
+                </motion.tr>
               );
             })}
+            </AnimatePresence>
             {activeTab === "members" && memberships?.data?.length === 0 && (
               <tr><td colSpan={4} className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "py-8 text-center text-fresco-description")}>No members found.</td></tr>
             )}
+            <AnimatePresence mode="popLayout">
             {activeTab === "invitations" && invitations?.data?.map((invitation) => (
-              <tr key={invitation.id} className="hover:bg-[rgba(255,255,255,0.02)] transition-colors">
+              <motion.tr key={invitation.id} className="hover:bg-[rgba(255,255,255,0.02)] transition-colors"
+                variants={{
+                  hidden: { opacity: 0, filter: "blur(4px)" },
+                  visible: { opacity: 1, filter: "blur(0px)" },
+                }}
+                initial="hidden"
+                animate="visible"
+                exit={{ opacity: 0, filter: "blur(4px)" }}
+              >
                 <td className="py-4 px-6"><span className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "text-fresco-title")}>{invitation.emailAddress}</span></td>
                 <td className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "py-4 px-6 text-fresco-description")}>{formatDate(invitation.createdAt)}</td>
                 <td className="py-4 px-6"><span className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "text-fresco-description")}>{invitation.role === "org:admin" ? "Admin" : "Member"}</span></td>
@@ -280,12 +313,15 @@ export function TeamManager() {
                     </DropdownMenu>
                   )}
                 </td>
-              </tr>
+              </motion.tr>
             ))}
+            </AnimatePresence>
             {activeTab === "invitations" && invitations?.data?.length === 0 && (
-              <tr><td colSpan={4} className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "py-8 text-center text-fresco-description")}>No pending invitations.</td></tr>
+              <motion.tr variants={{ hidden: { opacity: 0 }, visible: { opacity: 1 } }}>
+                <td colSpan={4} className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "py-8 text-center text-fresco-description")}>No pending invitations.</td>
+              </motion.tr>
             )}
-          </tbody>
+          </motion.tbody>
         </table>
       </div>
 
@@ -294,7 +330,7 @@ export function TeamManager() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Invite Member</DialogTitle>
-            <DialogDescription>Send an invitation email for someone to join {organization.name}.</DialogDescription>
+            <DialogDescription>Send an invitation email for someone to join {organization?.name}.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleInvite}>
             <div className="grid gap-4 py-4">

@@ -1020,6 +1020,12 @@ export async function updateBlogPost(
 
     const existing = itemIndex.byId.get(id);
     if (!existing) {
+      logEvent("warn", "framer.updateBlogPost.notFound", {
+        postId: id,
+        collectionId: collection.id,
+        collectionName: collection.name,
+        itemCount: items.length,
+      });
       throw new AppError("Blog post not found.", 404);
     }
 

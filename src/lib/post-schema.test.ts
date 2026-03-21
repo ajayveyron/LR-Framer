@@ -56,7 +56,7 @@ test("parsePostInput accepts valid metadata-aware payloads", () => {
   assert.equal(result.fieldValues.title, "Hello world");
 });
 
-test("parsePostInput rejects unknown fields and invalid enum values", () => {
+test("parsePostInput rejects invalid enum values", () => {
   assert.throws(
     () =>
       parsePostInput(metadata, {
@@ -64,9 +64,22 @@ test("parsePostInput rejects unknown fields and invalid enum values", () => {
         fieldValues: {
           title: "Hello world",
           category: "Unknown",
-          extra: "nope",
         },
       }),
-    /available option|Unrecognized key/,
+    /available option/,
   );
+});
+
+test("parsePostInput passes through unknown field IDs without error", () => {
+  const result = parsePostInput(metadata, {
+    slug: "hello-world",
+    fieldValues: {
+      title: "Hello world",
+      category: "News",
+      unknownFieldId: "some value",
+    },
+  });
+
+  assert.equal(result.slug, "hello-world");
+  assert.equal((result.fieldValues as Record<string, unknown>).unknownFieldId, "some value");
 });

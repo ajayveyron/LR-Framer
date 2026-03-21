@@ -38,7 +38,7 @@ import {
 import type { BlogCollectionMetadata, BlogPostRecord } from '@/lib/cms-types';
 import { analyzeAllPosts } from '@/lib/content-nudges';
 import { SiteInsightsPill } from '@/components/site-insights-overlay';
-import { ACTIVE_COLLECTION_COOKIE } from '@/lib/product-framer-shared';
+import { ACTIVE_COLLECTION_COOKIE, getCollectionHeader } from '@/lib/product-framer-shared';
 import type { FramerCollectionOption, SiteRole } from '@/lib/product-types';
 import { toggleRow, toggleAllRows, shiftClickRange } from '@/lib/selection';
 import { cn } from '@/lib/utils';
@@ -662,7 +662,7 @@ export function DashboardTableView({
 									className='size-[15px]'
 									weight='duotone'
 								/>
-								<span>AI Assistant</span>
+								<span>{selectedRows.size > 0 ? `Chat with ${selectedRows.size} row${selectedRows.size === 1 ? '' : 's'}` : 'AI Assistant'}</span>
 							</Button>
 						</div>
 					</div>
@@ -701,6 +701,7 @@ export function DashboardTableView({
 											headers: {
 												'Content-Type':
 													'application/json',
+												...getCollectionHeader(activeCollectionId),
 											},
 											body: JSON.stringify({
 												slug: post.slug,
@@ -739,7 +740,7 @@ export function DashboardTableView({
 								try {
 									const response = await fetch(
 										`/api/posts/${postId}`,
-										{ method: 'DELETE' },
+										{ method: 'DELETE', headers: getCollectionHeader(activeCollectionId) },
 									);
 									if (response.ok) {
 										setCachedPosts((current) =>
@@ -760,6 +761,10 @@ export function DashboardTableView({
 										return next;
 									});
 								}
+							}}
+							onChatWithItem={(postId) => {
+								setSelectedRows(new Set([postId]));
+								setChatOpen(true);
 							}}
 						/>
 					}
@@ -872,6 +877,7 @@ export function DashboardTableView({
 					<div className='flex min-h-0 flex-1 [&>*]:min-w-0 [&>*]:flex-1'>
 						{isCreateRoute ?
 							<PostEditor
+								activeCollectionId={activeCollectionId}
 								framerUnavailable={framerUnavailable}
 								key={`new:${editorRevision}`}
 								metadata={metadata}
@@ -882,6 +888,7 @@ export function DashboardTableView({
 							/>
 						: activePost ?
 							<PostEditor
+								activeCollectionId={activeCollectionId}
 								framerUnavailable={framerUnavailable}
 								key={`${activePost.id}:${editorRevision}`}
 								metadata={metadata}
@@ -889,6 +896,10 @@ export function DashboardTableView({
 								onClose={handleCloseDrawer}
 								onPostSaved={handlePostSaved}
 								post={activePost}
+								onChatWithItem={() => {
+									setSelectedRows(new Set([activePost.id]));
+									setChatOpen(true);
+								}}
 							/>
 						:	<div className='flex h-full flex-col gap-3.5 p-7'>
 								<span

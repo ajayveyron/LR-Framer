@@ -4,17 +4,17 @@ import { z } from "zod";
 
 import { createErrorJsonResponse } from "@/lib/api";
 import { requireAIConfig } from "@/lib/ai-config";
-import { loadAgentMemories, formatMemoriesForPrompt } from "@/lib/ai-memory";
-import { sanitizeChatMessages } from "@/lib/ai-guardrails";
 import {
   formatSnapshotForPrompt,
   getAIContextSnapshotWithRunner,
 } from "@/lib/ai-context-snapshot";
+import { sanitizeChatMessages } from "@/lib/ai-guardrails";
+import { createScopedGenerateAndUploadImageTool } from "@/lib/ai-image-tool";
+import { loadAgentMemories, formatMemoriesForPrompt } from "@/lib/ai-memory";
+import { webSearchTool } from "@/lib/ai-search-tool";
 import { checkQuota, trackTokenUsage, type QuotaCheckResult } from "@/lib/billing";
 import { AppError } from "@/lib/errors";
 import { createScopedFramerTools } from "@/lib/framer-tools";
-import { createScopedGenerateAndUploadImageTool } from "@/lib/ai-image-tool";
-import { webSearchTool } from "@/lib/ai-search-tool";
 import { logEvent, logError } from "@/lib/logger";
 import {
   getSiteFramerRuntimeContext,
@@ -51,7 +51,6 @@ function buildSystemPrompt(
   rows: z.infer<typeof bodyDataSchema>["selectedRows"],
   fields: z.infer<typeof bodyDataSchema>["fieldDefinitions"],
   activeCollection?: { id: string; name: string },
-  snapshotBlock?: string,
   memoryBlock?: string,
 ) {
   const fieldList = fields
@@ -85,13 +84,27 @@ Available fields in the active collection:
 ${fieldList}
 
 ${selectionBlock}
-${snapshotBlock ? `\n${snapshotBlock}\n` : ""}${memoryBlock ? `\n${memoryBlock}\n` : ""}
+${memoryBlock ? `\n${memoryBlock}\n` : ""}
+FIRST TURN RULE — load project context immediately:
+- You have a get_project_context tool that fetches the full Framer project snapshot (all collections, fields, enum cases).
+- On your VERY FIRST response in a conversation, ALWAYS call get_project_context before doing anything else. Say something like "Let me load the project context first…" and then call the tool.
+- Once you have the context, use it for the rest of the conversation. Do NOT call it again unless you need to refresh after a mutation.
+- The context gives you collection IDs, field IDs, enum cases — everything you need to avoid redundant framer_get_collections / framer_get_collection_fields calls.
+
 PRESENTATION RULE — never show internal IDs to the user:
 - When referring to collections, fields, items, or enum cases in your responses, use their human-readable names only (e.g. "Blogs", "Title", "Author").
 - Never include raw IDs like (id: esdNAc4Vu) or field IDs in your messages. IDs are for your internal use when calling tools — users don't need to see them.
 - When listing collections or items, present them as clean, readable lists with just names and relevant details.
 
-TOOL RESULT DISPLAY RULE — do not repeat tool output data:
+TRANSPARENCY RULE — narrate your process:
+- CRITICAL: You MUST output a conversational text message BEFORE calling ANY tool. Never begin a turn or a tool chain by just calling a tool. Always explain what you are going to do first so the user sees text immediately.
+- Before calling any tool, briefly tell the user what you're about to do and why. For example: "Let me check the existing thumbnails in this collection first…" or "I'll fetch the collection items to see the current style."
+- Between tool calls, share your observations and reasoning. For example: "I can see the existing thumbnails use a dark gradient style with bold typography. I'll generate something similar."
+- After completing a task, give a brief summary of what you did and the result.
+- Do NOT silently chain multiple tool calls in a row without any text between them. The user should always understand what's happening and why.
+- Keep narration concise — one or two sentences per step is enough. Don't over-explain.
+
+TOOL RESULT DISPLAY RULE — do not repeat tool output data (but DO narrate):
 - The following tool results are automatically rendered as rich UI components in the chat: framer_get_collections (card grid), framer_get_collection_fields (field chips), framer_get_collection_items (table), framer_get_enum_cases (chips).
 - When these tools return data, NEVER list, enumerate, or repeat the same data in your text response. The user already sees it rendered visually above your message.
 - Your text response after these tools should ONLY be a brief one-sentence summary like "Here are your 6 collections" or "Found 12 items in the Blogs collection." Do NOT list names, titles, slugs, field names, or any item-level details — the UI already shows all of that.
@@ -109,6 +122,13 @@ You can generate images using the generate_and_upload_image tool. It creates an 
 If the user has attached an image in their message, pass its URL as the referenceImageUrl parameter so the generated image matches the style and composition of the reference.
 
 IMPORTANT: You may only call generate_and_upload_image ONCE per user message. If the user asks for images for multiple items, generate one image and reuse it, or ask the user to send separate messages for each image. Never batch multiple image generation calls in a single turn.
+
+IMAGE GENERATION — reference existing collection images:
+- When generating a thumbnail, cover image, or any visual asset for a CMS item, you MUST first look at existing images from OTHER items in the same collection to understand the visual style.
+- CRITICAL: Reference images must come from DIFFERENT items in the collection — never use the target post's own current image. The goal is to match the collection's overall visual language, not recreate the same image.
+- If you don't have other collection items loaded, call framer_get_collection_items first. Then pick up to 3 image URLs from SIBLING items (not the target item) and pass them as referenceImageUrls (the array parameter). This gives the model a stronger style signal than a single reference.
+- Write a detailed, specific prompt that describes the subject matter based on the blog post title and content, not a generic abstract image. For example, for a post titled "The Future of Deep Linking" the prompt should describe a scene related to deep linking, mobile apps, or connected networks — not random geometric shapes.
+- Never generate a generic abstract image unless the user explicitly asks for one.
 
 IMAGE ALT TEXT — setting alt text on CMS image fields:
 - Image fields in Framer CMS support alt text for accessibility and SEO.
@@ -153,16 +173,14 @@ NEVER try to call the old direct write tools (framer_add_collection_items, frame
 When proposing actions, write a clear, concise description that tells the user exactly what will happen. For example: "Add a new blog post titled 'Getting Started' as a draft" or "Remove 3 outdated changelog entries".
 
 EFFICIENCY RULES — minimize tool calls and token usage:
-- You have PRE-LOADED CONTEXT above with project info, all collections, their fields, and enum cases. Use that data directly instead of calling framer_get_project_info, framer_get_collections, framer_get_collection_fields, or framer_get_enum_cases. Only call these tools if you need to REFRESH the data after a mutation.
-- When the user asks about items in a collection, call framer_get_collection_items ONCE with the collection ID from the pre-loaded context. Do NOT enumerate all collections and fetch items from each one.
+- After calling get_project_context on the first turn, you have the full project snapshot. Use that data directly instead of calling framer_get_project_info, framer_get_collections, framer_get_collection_fields, or framer_get_enum_cases. Only call these tools if you need to REFRESH the data after a mutation.
+- When the user asks about items in a collection, call framer_get_collection_items ONCE with the collection ID from the snapshot. Do NOT enumerate all collections and fetch items from each one.
 - If the user asks to "find 1 item" or "find a few items" matching some criteria, fetch items from the active collection ONCE, scan the results yourself, and act on what you find. Do not make redundant calls.
-- Only call framer_get_collections when the user explicitly asks about other collections or you genuinely don't know which collection to use.
 - Prefer fewer, targeted tool calls over many exploratory ones.
-- IMPORTANT: You already have field definitions for every collection in the pre-loaded context. When fetching items from any collection, the UI can use those field names directly — no need to call framer_get_collection_fields first.
 
 When the user asks you to make changes to selected rows, use the propose_edits tool to suggest edits. For each row, provide the fieldId as the key and the new value directly. Example: changes: { "Fv4S6mkrw": "New description text" }.
 
-CRITICAL: You already have the selected rows' data in the SELECTED ROWS section above — including all field IDs, field names, and current values. When the user asks to edit, update, change, or do anything with a selected post, act IMMEDIATELY using that data. Do NOT call framer_get_collection_items or any other fetch tool — you have everything you need. Only fetch items if the user explicitly asks about items that are NOT in the selected rows.
+CRITICAL: You already have the selected rows' data in the SELECTED ROWS section above — including all field IDs, field names, and current values. When the user asks to edit, update, change, or do anything with a selected post, act IMMEDIATELY using that data. Do NOT call framer_get_collection_items just to read the selected rows. However, if you need to analyze OTHER items in the collection (for example, to match an image style or see naming conventions), you ARE explicitly allowed and expected to call framer_get_collection_items.
 
 When the user asks about the Framer project, collections, publishing, or wants to perform operations beyond the selected rows, use the appropriate framer_* tool or propose_cms_action.
 
@@ -213,22 +231,15 @@ export async function POST(request: Request) {
       runWithFramerRuntimeContext(baseContext, fn);
 
     // ── PARALLEL PREFETCH ──
-    // Run quota check, context snapshot, and memory load concurrently
-    // to minimize time-to-first-token. Quota is fail-open.
-    const snapshotCacheKey = access.site.framerProjectId
-      ? `framer-project:${access.site.framerProjectId}`
-      : `org:${access.organizationId}`;
-
-    const [quotaResult, snapshot, memories] = await Promise.all([
+    // Run quota check and memory load concurrently.
+    // Snapshot is now a tool the agent calls visibly — no blocking prefetch.
+    const [quotaResult, memories] = await Promise.all([
       orgId
         ? checkQuota(orgId).catch((error) => {
             logError("billing.quota.check_failed", error, { organizationId: orgId });
             return { allowed: true, currentUsage: 0, allowance: 0, percentUsed: 0 } as QuotaCheckResult;
           })
         : Promise.resolve(null),
-      getAIContextSnapshotWithRunner(runInFramerContext, {
-        cacheKey: snapshotCacheKey,
-      }),
       loadAgentMemories(orgId, userId),
     ]);
 
@@ -245,7 +256,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const snapshotBlock = formatSnapshotForPrompt(snapshot);
+    // Snapshot is no longer pre-fetched — it's a tool the agent calls visibly.
     const memoryBlock = formatMemoriesForPrompt(memories);
     const framerTools = createScopedFramerTools(runInFramerContext);
     const generateAndUploadImage = createScopedGenerateAndUploadImageTool(
@@ -260,9 +271,18 @@ export async function POST(request: Request) {
       model: config.textModel,
     });
 
+    const systemPrompt = buildSystemPrompt(selectedRows, fieldDefinitions, activeCollection, memoryBlock);
+
+    logEvent("info", "ai.chat.system_prompt", {
+      systemPromptLength: systemPrompt.length,
+      selectedRowCount: selectedRows.length,
+      messageCount: sanitizedMessages.length,
+      model: config.textModel,
+    });
+
     const result = streamText({
       model: config.provider(config.textModel),
-      system: buildSystemPrompt(selectedRows, fieldDefinitions, activeCollection, snapshotBlock, memoryBlock),
+      system: systemPrompt,
       messages: await convertToModelMessages(sanitizedMessages as any),
       stopWhen: stepCountIs(20),
       tools: {
@@ -283,6 +303,25 @@ export async function POST(request: Request) {
           execute: async (input) => input,
         }),
         ...framerTools,
+        get_project_context: tool({
+          description:
+            "Fetch the full Framer project snapshot — project info, all collections, their fields, and enum cases. " +
+            "Call this ONCE at the start of every new conversation to load context. " +
+            "The result gives you collection IDs, field IDs, enum options — everything you need to avoid redundant tool calls.",
+          inputSchema: z.object({}),
+          execute: async () => {
+            const cacheKey = access.site.framerProjectId
+              ? `framer-project:${access.site.framerProjectId}`
+              : `org:${access.organizationId}`;
+            const snapshot = await getAIContextSnapshotWithRunner(runInFramerContext, { cacheKey });
+            const formatted = formatSnapshotForPrompt(snapshot);
+            logEvent("info", "ai.tool.get_project_context.completed", {
+              collectionCount: snapshot.collections.length,
+              totalFields: snapshot.collections.reduce((sum, c) => sum + c.fields.length, 0),
+            });
+            return formatted;
+          },
+        }),
         generate_and_upload_image: generateAndUploadImage,
         web_search: webSearchTool,
         save_preference: tool({
@@ -319,11 +358,13 @@ export async function POST(request: Request) {
         }),
       },
       onFinish: async ({ usage }) => {
-        logEvent("info", "ai.bulk_edit.completed", {
+        logEvent("info", "ai.chat.completed", {
           selectedRowCount: selectedRows.length,
           durationMs: Date.now() - startMs,
           inputTokens: usage?.inputTokens,
           outputTokens: usage?.outputTokens,
+          totalTokens: (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0),
+          model: config.textModel,
         });
 
         if (orgId && userId && usage) {

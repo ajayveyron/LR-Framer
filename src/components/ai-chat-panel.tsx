@@ -2,8 +2,10 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Sparkle, X, WarningCircle, ArrowClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop, GlobeSimple, ImageSquare, DownloadSimple, Plus, ClockCounterClockwise, PlusIcon, Rows, Gauge, CurrencyDollarIcon } from "@phosphor-icons/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Sparkle, X, WarningCircle, ArrowClockwise, Wrench, CheckCircle, CircleNotch, PaperPlaneRight, Stop, GlobeSimple, ImageSquare, DownloadSimple, Plus, ClockCounterClockwise, PlusIcon, Rows, Gauge, CurrencyDollarIcon, ChatCircleIcon, Database } from "@phosphor-icons/react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
+
+import { ChipInput, type ChipInputHandle } from "@/components/chip-input";
 
 import { useBillingUsage, deriveMeterState, METER_COLORS, METER_BG_COLORS, invalidateBillingUsage } from "@/lib/use-billing-usage";
 
@@ -26,7 +28,6 @@ import {
 } from "@/components/ai-elements/message";
 import {
   PromptInput,
-  PromptInputTextarea,
   PromptInputFooter,
   PromptInputHeader,
   PromptInputSubmit,
@@ -58,6 +59,7 @@ import type {
 } from "@/lib/cms-types";
 import { parseEditProposals } from "@/lib/ai-edit-parser";
 import type { BulkApplyResult } from "@/lib/ai-bulk-apply";
+import { getCollectionHeader } from "@/lib/product-framer-shared";
 
 interface AIChatPanelProps {
   open: boolean;
@@ -354,6 +356,8 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
     [selectedPosts, metadata.fields, metadata.collectionId, metadata.collectionName],
   );
 
+  const sendSnapshotRef = useRef<typeof bodyData | null>(null);
+
   const chatTransport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -392,7 +396,9 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
               }),
             };
           });
-          return { body: { ...bodyData, id, messages: sanitized, trigger, messageId } };
+          
+          const payloadBodyData = sendSnapshotRef.current || bodyData;
+          return { body: { ...payloadBodyData, id, messages: sanitized, trigger, messageId } };
         },
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -422,6 +428,39 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
     sendMessage({ text: pendingPrompt });
     onPendingPromptConsumed?.();
   }, [pendingPrompt, status, sendMessage, onPendingPromptConsumed]);
+
+  // Track which selected posts were attached to each user message
+  const messageContextRef = useRef<Map<string, Array<{ id: string; title: string }>>>(new Map());
+  const pendingContextRef = useRef<Array<{ id: string; title: string }> | null>(null);
+
+  // When a new user message appears, associate pending context with it
+  const prevMessageCountRef = useRef(messages.length);
+  useEffect(() => {
+    if (messages.length > prevMessageCountRef.current && pendingContextRef.current) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === "user") {
+          messageContextRef.current.set(messages[i].id, pendingContextRef.current);
+          pendingContextRef.current = null;
+          break;
+        }
+      }
+    }
+    prevMessageCountRef.current = messages.length;
+  }, [messages]);
+
+  const handleSendWithContext = useCallback(
+    (msg: { text: string }) => {
+      if (selectedPosts.length > 0) {
+        pendingContextRef.current = selectedPosts.map((p) => ({ id: p.id, title: p.title || p.slug }));
+      }
+      sendSnapshotRef.current = bodyData;
+      sendMessage(msg);
+      if (selectedPosts.length > 0) {
+        onClearSelection?.();
+      }
+    },
+    [selectedPosts, bodyData, sendMessage, onClearSelection],
+  );
 
   // Map field IDs → human-readable names for rich tool output rendering
   // Scans all messages for framer_get_collection_fields outputs to cover any collection
@@ -542,7 +581,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
   function handleApplied(result: BulkApplyResult) {
     if (result.succeeded.length > 0) {
       Promise.all(
-        result.succeeded.map((id) => fetch(`/api/posts/${id}`).then((r) => r.json()).then((data) => data.post as BlogPostRecord)),
+        result.succeeded.map((id) => fetch(`/api/posts/${id}`, { headers: getCollectionHeader() }).then((r) => r.json()).then((data) => data.post as BlogPostRecord)),
       ).then((updatedPosts) => { onPostsUpdated(updatedPosts.filter(Boolean)); });
     }
   }
@@ -561,7 +600,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
 
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-fresco-divider px-4 py-3">
-          <Sparkle className="size-5 shrink-0 text-fresco-tint" weight="duotone" />
+          <ChatCircleIcon className="size-5 shrink-0 text-fresco-tint" weight="duotone" />
           <div className="min-w-0 flex-1">
             <span className="text-sm font-semibold">AI Assistant</span>
           </div>
@@ -611,6 +650,19 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                   return (
                     <Message key={message.id} from={message.role}>
                       <MessageContent>
+                        {message.role === "user" && messageContextRef.current.has(message.id) && (
+                          <div className="flex flex-wrap gap-1.5 mb-1">
+                            {messageContextRef.current.get(message.id)!.map((ctx) => (
+                              <span
+                                key={ctx.id}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-fresco-divider bg-fresco-surface-muted px-2 py-0.5 text-[11px] font-medium text-fresco-tint"
+                              >
+                                <Rows className="size-3 shrink-0" weight="fill" />
+                                <span className="max-w-32 truncate">{ctx.title}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         {sources.length > 0 && (
                           <div className="flex flex-wrap items-center gap-1.5">
                             <GlobeSimple className="size-3.5 shrink-0 text-fresco-subtitle" weight="fill" />
@@ -656,6 +708,20 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                             return <CmsActionConfirmation key={i} proposal={proposal} />;
                           }
                           if (part.type === "source-url" || part.type === "source-document") return null;
+                          if (part.type === "tool-get_project_context") {
+                            const hasOutput = "output" in part && part.output != null;
+                            return (
+                              <ToolCallRow
+                                key={i}
+                                icon={<Database className="size-3.5" weight="fill" />}
+                                label="Load project context"
+                                shimmer={!hasOutput}
+                                status={hasOutput ? "Done" : "Running"}
+                                summary={hasOutput ? "Project context loaded." : "Fetching collections, fields, and enum cases…"}
+                                tone={hasOutput ? "success" : "accent"}
+                              />
+                            );
+                          }
                           if (part.type === "tool-generate_and_upload_image") {
                             const hasOutput = "output" in part && part.output != null;
                             const output = hasOutput ? (part.output as { success?: boolean; url?: string; error?: string; prompt?: string }) : null;
@@ -833,9 +899,9 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                 totalTokens={totalTokens}
                 selectedPosts={selectedPosts}
                 isStreaming={isStreaming}
-                sendMessage={sendMessage}
-                onClearSelection={onClearSelection}
+                sendMessage={handleSendWithContext}
                 stop={stop}
+                onClearSelection={onClearSelection}
               />
             </div>
           </>
@@ -855,15 +921,15 @@ function ChatInputOrQuotaGate({
   selectedPosts,
   isStreaming,
   sendMessage,
-  onClearSelection,
   stop,
+  onClearSelection,
 }: {
   totalTokens: { input: number; output: number; total: number };
   selectedPosts: BlogPostRecord[];
   isStreaming: boolean;
   sendMessage: (msg: { text: string }) => void;
-  onClearSelection?: () => void;
   stop: () => void;
+  onClearSelection?: () => void;
 }) {
   const { data } = useBillingUsage();
   const isExhausted = data && data.planName === "Free" && data.percentUsed >= 100;
@@ -895,58 +961,141 @@ function ChatInputOrQuotaGate({
           </span>
         </div>
       )}
-      <PromptInput
-        onSubmit={(message) => {
-          if (!message.text.trim()) return;
-          sendMessage({ text: message.text });
-        }}
-      >
-        <AttachmentPreviewStrip />
-        <PromptInputTextarea
-          autoFocus
-          name="message"
-          placeholder={
-            selectedPosts.length > 0
-              ? `Ask about ${selectedPosts.length} selected post${selectedPosts.length > 1 ? "s" : ""}…`
-              : "Ask anything about this collection…"
-          }
-          rows={2}
-        />
-        <PromptInputFooter>
-          <DirectAttachButton />
-          {selectedPosts.length > 0 && onClearSelection && (
-            <Button
-              className="h-auto gap-1 px-2 py-1 text-[11px] text-fresco-tint hover:bg-fresco-divider"
-              onClick={onClearSelection}
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              <X className="size-3" />
-              {selectedPosts.length} selected
-            </Button>
-          )}
-          <div className="flex-1" />
-          {isStreaming ? (
-            <Button
-              aria-label="Stop generating"
-              className="size-8 shrink-0"
-              onClick={stop}
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            >
-              <Stop className="size-4" weight="fill" />
-            </Button>
-          ) : (
-            <PromptInputSubmit aria-label="Send message" className="size-8 shrink-0" size="icon-sm" type="submit">
-              <PaperPlaneRight className="size-4" weight="fill" />
-            </PromptInputSubmit>
-          )}
-        </PromptInputFooter>
-      </PromptInput>
+      <ChipInputPromptArea
+        selectedPosts={selectedPosts}
+        isStreaming={isStreaming}
+        sendMessage={sendMessage}
+        stop={stop}
+        onClearSelection={onClearSelection}
+      />
       <ChatUsageBar />
     </>
+  );
+}
+
+/**
+ * Wraps PromptInput with an inline ChipInput that replaces the textarea.
+ * Selected post chips render inline before the text cursor.
+ */
+function ChipInputPromptArea({
+  selectedPosts,
+  isStreaming,
+  sendMessage,
+  stop,
+  onClearSelection,
+}: {
+  selectedPosts: BlogPostRecord[];
+  isStreaming: boolean;
+  sendMessage: (msg: { text: string }) => void;
+  stop: () => void;
+  onClearSelection?: () => void;
+}) {
+  const controller = usePromptInputController();
+  const attachments = usePromptInputAttachments();
+  const chipInputRef = useRef<ChipInputHandle>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const chips = useMemo(
+    () =>
+      selectedPosts.length > 0
+        ? [{ id: "__selection", label: selectedPosts.length === 1 ? "1 row selected" : `${selectedPosts.length} rows selected` }]
+        : [],
+    [selectedPosts.length],
+  );
+
+  const handleRemoveChip = useCallback(() => {
+    onClearSelection?.();
+  }, [onClearSelection]);
+
+  const handleChange = useCallback(
+    (text: string) => {
+      controller.textInput.setInput(text);
+    },
+    [controller.textInput],
+  );
+
+  const handleSubmit = useCallback(() => {
+    const form = wrapperRef.current?.closest("form");
+    if (!form) return;
+    const submitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+    if (submitBtn?.disabled) return;
+    form.requestSubmit();
+  }, []);
+
+  const handlePaste = useCallback(
+    (e: ClipboardEvent<HTMLDivElement>) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (const item of items) {
+        if (item.kind === "file") {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+      if (files.length > 0) {
+        e.preventDefault();
+        attachments.add(files);
+      }
+    },
+    [attachments],
+  );
+
+  const handleBackspaceEmpty = useCallback(() => {
+    if (attachments.files.length > 0) {
+      const last = attachments.files.at(-1);
+      if (last) attachments.remove(last.id);
+    }
+  }, [attachments]);
+
+  return (
+    <PromptInput
+      onSubmit={(message) => {
+        if (!message.text.trim()) return;
+        sendMessage({ text: message.text });
+        chipInputRef.current?.clear();
+      }}
+    >
+      <AttachmentPreviewStrip />
+      <div ref={wrapperRef} data-align="block-start" className="flex w-full flex-col !pt-0">
+        <ChipInput
+          ref={chipInputRef}
+          autoFocus
+          chips={chips}
+          value={controller.textInput.value}
+          onChange={handleChange}
+          onSubmit={handleSubmit}
+          onPaste={handlePaste}
+          onBackspaceEmpty={handleBackspaceEmpty}
+          onRemoveChip={handleRemoveChip}
+          placeholder={
+            selectedPosts.length > 0
+              ? "Ask about these items…"
+              : "Ask anything about this collection…"
+          }
+        />
+      </div>
+      <PromptInputFooter>
+        <DirectAttachButton />
+        <div className="flex-1" />
+        {isStreaming ? (
+          <Button
+            aria-label="Stop generating"
+            className="size-8 shrink-0"
+            onClick={stop}
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          >
+            <Stop className="size-4" weight="fill" />
+          </Button>
+        ) : (
+          <PromptInputSubmit aria-label="Send message" className="size-8 shrink-0" size="icon-sm" type="submit">
+            <PaperPlaneRight className="size-4" weight="fill" />
+          </PromptInputSubmit>
+        )}
+      </PromptInputFooter>
+    </PromptInput>
   );
 }
 

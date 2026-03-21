@@ -1,6 +1,7 @@
 import type { BlogPostRecord, DashboardFieldValue } from "@/lib/cms-types";
 import type { ProposedEdit } from "@/lib/ai-edit-parser";
 import { logEvent, logError } from "@/lib/logger";
+import { getCollectionHeader } from "@/lib/product-framer-shared";
 
 export interface BulkApplyResult {
   succeeded: string[];
@@ -33,7 +34,7 @@ export async function applyBulkEdits(
       const local = postMap.get(edit.rowId);
       if (local) return { edit, post: local };
 
-      const res = await fetch(`/api/posts/${edit.rowId}`);
+      const res = await fetch(`/api/posts/${edit.rowId}`, { headers: getCollectionHeader() });
       if (!res.ok) throw new Error(`Could not fetch post ${edit.rowId}`);
       const data = await res.json() as { post: BlogPostRecord };
       return { edit, post: data.post };
@@ -63,7 +64,7 @@ export async function applyBulkEdits(
 
       const response = await fetch(`/api/posts/${edit.rowId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getCollectionHeader() },
         body: JSON.stringify({
           slug: post.slug,
           draft: post.draft,

@@ -27,6 +27,7 @@ import {
   Check as CheckIcon,
   X as XIcon,
   ArrowCounterClockwise,
+  ChatCircle,
 } from "@phosphor-icons/react";
 
 import { AIImageDialog } from "@/components/ai-image-dialog";
@@ -63,6 +64,7 @@ import { TRANSIENT_FRAMER_EDITOR_MESSAGE } from "@/lib/framer-copy";
 import { cn } from "@/lib/utils";
 import { logEvent, logError } from "@/lib/logger";
 import { buildPostInputSchema, type PostInputPayload } from "@/lib/post-schema";
+import { getCollectionHeader } from "@/lib/product-framer-shared";
 
 type FormValues = PostInputPayload;
 const EMPTY_SELECT_VALUE = "__none__";
@@ -148,6 +150,12 @@ const ALLOWED_EDITOR_TAGS = new Set([
   "p",
   "pre",
   "strong",
+  "table",
+  "tbody",
+  "td",
+  "th",
+  "thead",
+  "tr",
   "u",
   "ul",
 ]);
@@ -1255,19 +1263,23 @@ function RichTextInput({
 }
 
 export function PostEditor({
+  activeCollectionId,
   framerUnavailable = false,
   metadata,
   mode,
   onClose,
   onPostSaved,
   post,
+  onChatWithItem,
 }: {
+  activeCollectionId?: string;
   framerUnavailable?: boolean;
   metadata: BlogCollectionMetadata;
   mode: "create" | "edit";
   onClose: () => void;
   onPostSaved: (post: BlogPostRecord, mode: "create" | "edit") => void;
   post: BlogPostRecord | null;
+  onChatWithItem?: () => void;
 }) {
   const notify = useNotify();
   const [pending, startSaving] = useTransition();
@@ -1416,7 +1428,7 @@ export function PostEditor({
     }
   }
 
-  function submitValues(values: FormValues) {
+  function submitValues(values: FormValues, asDraft?: boolean) {
     if (framerUnavailable) {
       const message = TRANSIENT_FRAMER_EDITOR_MESSAGE;
       setServerError(message);
@@ -1430,12 +1442,14 @@ export function PostEditor({
     startSaving(async () => {
       const endpoint =
         mode === "create" ? "/api/posts" : `/api/posts/${post?.id}`;
+      const payload = asDraft != null ? { ...values, draft: asDraft } : values;
       const response = await fetch(endpoint, {
         method: mode === "create" ? "POST" : "PUT",
         headers: {
           "Content-Type": "application/json",
+          ...getCollectionHeader(activeCollectionId),
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       });
 
       const data = (await response.json()) as {
@@ -1462,9 +1476,12 @@ export function PostEditor({
         return;
       }
 
-      notify.success(
-        mode === "create" ? "Draft created." : "Changes saved and published.",
-      );
+      const successMessage = asDraft
+        ? "Moved to draft."
+        : mode === "create"
+          ? "Draft created."
+          : "Changes saved and published.";
+      notify.success(successMessage);
 
       startTransition(() => {
         if (data.post) {
@@ -1479,6 +1496,10 @@ export function PostEditor({
 
   const submitDraft = form.handleSubmit((values) => {
     submitValues(values);
+  });
+
+  const submitUnpublish = form.handleSubmit((values) => {
+    submitValues(values, true);
   });
 
   const openPublishConfirmation = form.handleSubmit((values) => {
@@ -2096,6 +2117,19 @@ export function PostEditor({
                 Reset
               </Button>
             ) : null}
+            {mode === "edit" && onChatWithItem ? (
+              <Button
+                className="gap-2"
+                disabled={pending || framerUnavailable}
+                onClick={onChatWithItem}
+                size="lg"
+                type="button"
+                variant="outline"
+              >
+                <ChatCircle className="size-4" weight="duotone" />
+                Chat with Item
+              </Button>
+            ) : null}
             {mode === "create" ? (
               <Button
                 className={primaryButtonClassName}
@@ -2107,17 +2141,30 @@ export function PostEditor({
                 {pending ? "Saving..." : "Create Draft"}
               </Button>
             ) : (
-              <Button
-                className={primaryButtonClassName}
-                disabled={
-                  pending || framerUnavailable || !form.formState.isDirty
-                }
-                onClick={openPublishConfirmation}
-                size="lg"
-                type="button"
-              >
-                {pending ? "Publishing..." : "Publish"}
-              </Button>
+              <>
+                {!post?.draft ? (
+                  <Button
+                    disabled={pending || framerUnavailable}
+                    onClick={submitUnpublish}
+                    size="lg"
+                    type="button"
+                    variant="outline"
+                  >
+                    {pending ? "Saving..." : "Unpublish"}
+                  </Button>
+                ) : null}
+                <Button
+                  className={primaryButtonClassName}
+                  disabled={
+                    pending || framerUnavailable || !form.formState.isDirty
+                  }
+                  onClick={openPublishConfirmation}
+                  size="lg"
+                  type="button"
+                >
+                  {pending ? "Publishing..." : "Publish"}
+                </Button>
+              </>
             )}
           </div>
         </div>

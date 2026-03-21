@@ -22,7 +22,7 @@ import {
 } from "@/lib/framer";
 import { logEvent, logError } from "@/lib/logger";
 
-const MAX_TOOL_RESULT_BYTES = 8_000;
+const MAX_TOOL_RESULT_BYTES = 500_000;
 
 type RunInFramerContext = <T>(fn: () => Promise<T>) => Promise<T>;
 
@@ -62,14 +62,24 @@ const cmsActionPayloadSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("add_items"),
     collectionId: z.string().describe("The ID of the collection"),
-    items: z.array(
-      z.object({
-        id: z.string().optional().describe("Existing item ID to update (omit for new items)"),
-        slug: z.string().describe("Unique slug for the item"),
-        draft: z.boolean().optional().describe("Whether the item is a draft"),
-        fieldData: z.record(z.string(), z.object({ type: z.string(), value: z.unknown() })).optional(),
-      }),
-    ).describe("Items to add or upsert"),
+    items: z
+      .array(
+        z.object({
+          id: z
+            .string()
+            .optional()
+            .describe("Existing item ID to update (omit for new items)"),
+          slug: z.string().describe("Unique slug for the item"),
+          draft: z.boolean().optional().describe("Whether the item is a draft"),
+          fieldData: z
+            .record(
+              z.string(),
+              z.object({ type: z.string(), value: z.unknown() }),
+            )
+            .optional(),
+        }),
+      )
+      .describe("Items to add or upsert"),
   }),
   z.object({
     action: z.literal("remove_items"),
@@ -87,7 +97,9 @@ const cmsActionPayloadSchema = z.discriminatedUnion("action", [
     itemId: z.string().describe("The ID of the item to update"),
     slug: z.string().optional().describe("New slug value"),
     draft: z.boolean().optional().describe("New draft status"),
-    fieldData: z.record(z.string(), z.object({ type: z.string(), value: z.unknown() })).optional(),
+    fieldData: z
+      .record(z.string(), z.object({ type: z.string(), value: z.unknown() }))
+      .optional(),
   }),
   z.object({
     action: z.literal("add_enum_case"),
@@ -121,14 +133,16 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext) {
   const framerGetProjectInfo = tool({
     description: "Get the Framer project name and hashed project ID.",
     inputSchema: z.object({}),
-    execute: () => wrapExecute("getProjectInfo", getProjectInfo, {}, runInFramerContext),
+    execute: () =>
+      wrapExecute("getProjectInfo", getProjectInfo, {}, runInFramerContext),
   });
 
   const framerGetPublishInfo = tool({
     description:
       "Get publish/deployment info for both staging and production environments. Returns deployment time, URL, and optimization status for each.",
     inputSchema: z.object({}),
-    execute: () => wrapExecute("getPublishInfo", getPublishInfo, {}, runInFramerContext),
+    execute: () =>
+      wrapExecute("getPublishInfo", getPublishInfo, {}, runInFramerContext),
   });
 
   const framerPublish = tool({
@@ -142,7 +156,8 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext) {
     description:
       "List all CMS collections in the Framer project. Returns each collection's ID, name, managedBy status, readonly flag, and slug field info.",
     inputSchema: z.object({}),
-    execute: () => wrapExecute("getCollections", getAllCollections, {}, runInFramerContext),
+    execute: () =>
+      wrapExecute("getCollections", getAllCollections, {}, runInFramerContext),
   });
 
   const framerGetCollection = tool({
@@ -198,14 +213,24 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext) {
       items: z
         .array(
           z.object({
-            id: z.string().optional().describe("Existing item ID to update (omit for new items)"),
+            id: z
+              .string()
+              .optional()
+              .describe("Existing item ID to update (omit for new items)"),
             slug: z.string().describe("Unique slug for the item"),
-            draft: z.boolean().optional().describe("Whether the item is a draft"),
+            draft: z
+              .boolean()
+              .optional()
+              .describe("Whether the item is a draft"),
             fieldData: z
               .record(
                 z.string(),
                 z.object({
-                  type: z.string().describe("Field type (string, number, boolean, formattedText, date, enum, image, file, link, color, collectionReference, multiCollectionReference)"),
+                  type: z
+                    .string()
+                    .describe(
+                      "Field type (string, number, boolean, formattedText, date, enum, image, file, link, color, collectionReference, multiCollectionReference)",
+                    ),
                   value: z.unknown().describe("The value for the field"),
                 }),
               )
@@ -319,11 +344,14 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext) {
   });
 
   const framerSetEnumCaseOrder = tool({
-    description: "Reorder the cases of an enum field by providing case IDs in the desired order.",
+    description:
+      "Reorder the cases of an enum field by providing case IDs in the desired order.",
     inputSchema: z.object({
       collectionId: z.string().describe("The ID of the collection"),
       fieldId: z.string().describe("The ID of the enum field"),
-      caseIds: z.array(z.string()).describe("Array of case IDs in the desired order"),
+      caseIds: z
+        .array(z.string())
+        .describe("Array of case IDs in the desired order"),
     }),
     execute: ({ collectionId, fieldId, caseIds }) =>
       wrapExecute(
@@ -368,7 +396,8 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext) {
   });
 
   const framerSetCollectionAsActive = tool({
-    description: "Set a collection as the active/selected collection in the Framer UI.",
+    description:
+      "Set a collection as the active/selected collection in the Framer UI.",
     inputSchema: z.object({
       collectionId: z.string().describe("The ID of the collection to activate"),
     }),
@@ -387,8 +416,12 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext) {
       "Use this for ALL mutations: adding/removing/updating items, enum cases, and publishing. " +
       "The user will see a confirmation card and must approve before the action runs.",
     inputSchema: z.object({
-      description: z.string().describe("Human-readable summary of what this action does and why"),
-      payload: cmsActionPayloadSchema.describe("The action payload to execute if approved"),
+      description: z
+        .string()
+        .describe("Human-readable summary of what this action does and why"),
+      payload: cmsActionPayloadSchema.describe(
+        "The action payload to execute if approved",
+      ),
     }),
     execute: async (input) => input,
   });
@@ -415,7 +448,9 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext) {
   } as const;
 }
 
-export function createScopedFramerTools(runInFramerContext: RunInFramerContext) {
+export function createScopedFramerTools(
+  runInFramerContext: RunInFramerContext,
+) {
   return buildFramerTools(runInFramerContext);
 }
 

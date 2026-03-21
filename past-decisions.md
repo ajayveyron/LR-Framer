@@ -557,3 +557,77 @@ Also fixed the payload parsing to match Dodo's actual webhook format with nested
 **Why:** CMS images were losing alt text during read/write cycles because `extractFieldValue` stripped it to just the URL string and `serializeFieldData` didn't pass it through. This hurt accessibility and SEO. The site insights pill surfaces this proactively so users can fix it with one click via the AI agent.
 
 **Scope:** `src/lib/framer-core.ts`, `src/lib/cms-types.ts`, `src/lib/content-nudges.ts` (new site insight functions), `src/components/site-insights-overlay.tsx` (new), `src/components/dashboard-table-view.tsx`, `src/components/blog-table.tsx`, `src/components/ai-tool-renderers.tsx`, `src/app/api/ai/chat/route.ts`.
+
+## 2026-03-21 — Inline contentEditable chip input for AI chat selected rows
+
+**What changed:** Replaced the overlay/padding workaround for showing selected post chips in the AI chat input with a proper `contentEditable`-based `ChipInput` component (`src/components/chip-input.tsx`). Selected post chips now render inline before the text cursor inside the input area — like Cursor/Kiro file reference chips.
+
+**Why:** The previous approach used absolutely positioned chip overlays above the textarea with `pt-10` padding to push text down. User rejected this as a workaround — wanted true inline chips that flow with the text cursor, which is the industry standard pattern (Cursor, ChatGPT, Kiro all do this). A `<textarea>` can't render inline elements, so a `contentEditable` div with non-editable chip spans was the correct approach.
+
+**How it works:** The `ChipInput` component renders a flex-wrap container with `contentEditable={false}` chip spans followed by a `contentEditable` text span. Text syncs bidirectionally with the `usePromptInputController` text state. Enter submits the parent `PromptInput` form, Shift+Enter allows newlines, paste handles both files (delegated to attachments) and plain text (strips formatting). The editable span uses CSS `[&:empty]:before:content-[attr(data-placeholder)]` for placeholder text.
+
+**Scope:** `src/components/chip-input.tsx` (new file), `src/components/ai-chat-panel.tsx` (replaced overlay approach in `ChatInputOrQuotaGate` with new `ChipInputPromptArea` component, removed `PromptInputTextarea` import).
+
+## 2026-03-21 — AI agent transparency: narrate between tool calls
+
+**What changed:** Added a "TRANSPARENCY RULE — narrate your process" section to the AI chat system prompt. The agent is now instructed to briefly tell the user what it's about to do before each tool call, share observations between tool calls, and summarize after completing a task. It must not silently chain multiple tool calls in a row without any text between them.
+
+**Why:** The agent was too "actionable" — it would fire off a sequence of tool calls back-to-back with zero intermediary messages, then dump a summary at the end. The user couldn't tell what was happening or why. Adding narration makes the agent feel more like a collaborator walking you through its process.
+
+**Scope:** `src/app/api/ai/chat/route.ts` (system prompt only). Also cleaned up a duplicate orphaned `TOOL RESULT DISPLAY RULE` header that was left from the edit.
+
+## 2026-03-21 — AI image generation: reference existing collection images + topic-specific prompts
+
+**What changed:** Added an "IMAGE GENERATION — reference existing collection images" section to the AI chat system prompt. The agent is now instructed to:
+1. Look at existing images in the same collection before generating a new one.
+2. Pass a representative existing image URL as `referenceImageUrl` to `generate_and_upload_image`.
+3. Write detailed, topic-specific prompts based on the blog post title/content — never generic abstract images.
+
+**Why:** When asked to generate a thumbnail for a blog post, the agent fetched collection items to see other thumbnails but didn't pass any existing thumbnail URL as `referenceImageUrl`. It also generated a generic abstract image unrelated to the blog post topic. The new instructions ensure visual consistency with the collection's existing style and topical relevance to the post content.
+
+**Scope:** `src/app/api/ai/chat/route.ts` (system prompt only).
+
+## 2026-03-21 — Convert AI context snapshot from blocking prefetch to visible tool call
+
+**What changed:** The Framer project context snapshot (all collections, fields, enum cases) is no longer fetched in a blocking `Promise.all` before `streamText` starts. Instead, it's exposed as a `get_project_context` tool that the agent calls visibly on its first turn. The system prompt has a "FIRST TURN RULE" instructing the agent to always call this tool first and narrate it ("Let me load the project context first…").
+
+**Why:** The snapshot fetch could take 2-5 seconds depending on how many collections/fields the project has. During that time the stream hadn't started yet, so the user saw zero activity — just a stuck loading state. Converting it to a tool means `streamText` starts immediately, the agent outputs text right away ("Let me load the project context…"), and the user sees the tool call spinner while the snapshot loads. Much better perceived performance.
+
+**Scope:** `src/app/api/ai/chat/route.ts` (removed snapshot from `Promise.all`, added `get_project_context` tool, updated system prompt with FIRST TURN RULE and EFFICIENCY RULES), `src/components/ai-chat-panel.tsx` (added Database icon + `tool-get_project_context` renderer).
+
+## 2026-03-21 — Replace console.log debug dumps with structured wide-event logging
+
+**What changed:** Removed the `console.log("================ AI RAW REQUEST ================")` and `console.log("================ AI RAW RESPONSE ================")` debug dumps from the chat route. Replaced with proper `logEvent` calls: `ai.chat.system_prompt` (logs prompt length, row count, message count, model) and `ai.chat.completed` (logs duration, token usage, model). Image gen tool now logs the full prompt text, reference URL, context title/slug, asset URL, mime type, and image size in bytes.
+
+**Why:** Console.log dumps are noisy, unstructured, and hard to search. Wide-event structured JSON logs are the project standard — they're filterable, parseable, and work with log aggregation tools. The image gen tool now logs everything you need to debug quality issues: what prompt went in, what reference image was used, and what came out.
+
+**Scope:** `src/app/api/ai/chat/route.ts` (replaced console.logs with logEvent), `src/lib/ai-image-tool.ts` (enriched log events with full prompt, reference URL, context, and output details).
+
+## 2026-03-21 — Relax post schema to passthrough unknown fields and make all field values optional
+
+**What changed:** In `post-schema.ts`, changed `z.object(fieldShape).strict()` → `z.object(fieldShape).passthrough()` on the `fieldValues` sub-schema, and removed `.strict()` from the outer schema. All individual field schemas (string, number, boolean, multiReference) are now always `.optional()` at the Zod level. Required-ness is still enforced inside `superRefine` when a value IS provided, but `undefined` no longer causes a type error.
+
+**Why:** The Framer collection can have fields added/removed at any time. When new fields appear in Framer, the form doesn't know about them yet, so the PUT payload includes field IDs the schema hasn't seen — `.strict()` rejected those as "unrecognized keys". Similarly, the form only sends fields it renders, so fields the schema expects but the form doesn't send arrive as `undefined` — the old non-optional schemas rejected those as "expected string, received undefined". Both caused ZodErrors on save.
+
+**Scope:** `src/lib/post-schema.ts` (schema relaxation), `src/lib/post-schema.test.ts` (split the combined test into separate enum validation and passthrough tests).
+
+## 2026-03-21 — Add Unpublish button to post editor, respect draft flag on update
+
+**What changed:**
+1. `handleUpdatePost` in `post-route-logic.ts` now reads `body.draft` and sets `publish: !isDraft`. Previously it hardcoded `draft: body.draft ?? false, publish: true`, meaning every update auto-published regardless of intent.
+2. `submitValues` in `post-editor.tsx` now accepts an optional `asDraft` parameter. When truthy, it sends `draft: true` in the payload.
+3. Added an "Unpublish" button in the editor header for edit mode when the post is currently published (`!post.draft`). Clicking it saves the current form values with `draft: true`, which sets the item as draft in Framer without publishing.
+
+**Why:** There was no way to move a published post back to draft status from the dashboard. The update handler always published, and the editor had no UI for it.
+
+**Scope:** `src/components/post-editor.tsx` (Unpublish button + `asDraft` param on `submitValues`), `src/lib/post-route-logic.ts` (conditional publish based on draft flag).
+
+## 2026-03-21 — Fix collection context mismatch on client-side post API calls
+
+**What changed:** Added `getCollectionHeader()` helper to `product-framer-shared.ts` that reads the active collection ID from the `lr-active-collection` cookie and returns it as an `x-framer-collection-id` header. All client-side `fetch` calls to `/api/posts` now include this header: post editor save, table draft toggle, table delete, AI bulk apply, AI post refresh, and edit proposal view.
+
+**Why:** The server resolves the active collection from (in priority order): query param → `x-framer-collection-id` header → cookie → site default → first collection. When the user switches collections in the dashboard, the cookie updates, but the server-side route handler was sometimes resolving to a different collection than the one the user was viewing. This caused "Blog post not found" errors because the post existed in collection A but the server was looking in collection B. Sending the header explicitly from the client ensures the server always uses the correct collection.
+
+**Root cause from logs:** Post `ZpIjoTPfM` was being looked up in "Case Studies" (collection `wL5B2TE8R`, 2 items) when it actually lived in a different collection. The cookie was stale or the fallback resolution picked the wrong collection.
+
+**Scope:** `src/lib/product-framer-shared.ts` (new `getCollectionHeader` helper), `src/components/dashboard-table-view.tsx`, `src/components/post-editor.tsx`, `src/components/ai-chat-panel.tsx`, `src/components/edit-proposal-view.tsx`, `src/lib/ai-bulk-apply.ts` (all fetch calls updated).

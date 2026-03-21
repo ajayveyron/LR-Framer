@@ -93,14 +93,16 @@ export async function handleUpdatePost(
   try {
     const metadata = await dependencies.getBlogMetadata();
     const body = parsePostInput(metadata, await request.json());
+    const isDraft = body.draft === true;
     const result = await dependencies.updateBlogPost(
       id,
-      { ...body, draft: body.draft ?? false, publish: true },
+      { ...body, draft: isDraft, publish: !isDraft },
       "open-dashboard",
     );
 
     logEvent("info", "api.posts.update.succeeded", {
       actor: "open-dashboard",
+      draft: isDraft,
       postId: result.post.id,
       publishCreatedAt: result.publish?.createdAt ?? null,
       slug: result.post.slug,

@@ -4,6 +4,7 @@ import {
   useRef,
   type MutableRefObject,
 } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,7 +15,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Spinner, Sparkle } from "@phosphor-icons/react";
+import { Spinner, Sparkle, ChatCircle } from "@phosphor-icons/react";
 import type {
   BlogCollectionMetadata,
   BlogPostRecord,
@@ -43,6 +44,7 @@ type BlogTableProps = {
   onToggleRow?: (rowId: string) => void;
   onToggleAll?: (visibleRowIds: string[]) => void;
   onShiftClick?: (rowId: string) => void;
+  onChatWithItem?: (postId: string) => void;
 };
 
 type ColumnLimits = {
@@ -310,6 +312,7 @@ export function BlogTable({
   onToggleRow,
   onToggleAll,
   onShiftClick,
+  onChatWithItem,
 }: BlogTableProps) {
   const lastClickedIndexRef = useRef<number | null>(null);
 
@@ -396,7 +399,17 @@ export function BlogTable({
             ))}
           </tr>
         </thead>
-        <tbody>
+        <motion.tbody
+          initial="hidden"
+          animate="visible"
+          variants={{
+            visible: {
+              transition: {
+                staggerChildren: 0.05,
+              },
+            },
+          }}
+        >
           {groupedPosts.map((group) => (
             <Fragment key={group.key}>
               {hasBothGroups && (
@@ -411,10 +424,20 @@ export function BlogTable({
                   </td>
                 </tr>
               )}
+              <AnimatePresence mode="popLayout">
               {group.posts.map((post) => (
                 <ContextMenu key={post.id}>
                   <ContextMenuTrigger asChild>
-                    <tr
+                    <motion.tr
+                      variants={{
+                        hidden: { opacity: 0, filter: "blur(4px)" },
+                        visible: { opacity: 1, filter: "blur(0px)" },
+                      }}
+                      layout
+                      initial="hidden"
+                      animate="visible"
+                      exit={{ opacity: 0, filter: "blur(4px)" }}
+                      transition={{ duration: 0.2 }}
                       aria-label={`Edit ${post.title}`}
                       className={cn(
                         "bg-transparent hover:bg-dash-row-hover data-[active=true]:bg-dash-row-active data-[selected=true]:bg-dash-row-selected", "group cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresco-tint-dimmed focus-visible:ring-inset",
@@ -448,19 +471,29 @@ export function BlogTable({
                               className={cn("text-sm text-[#888] hover:text-[#fff] font-normal", "border-b border-dash-content-border px-[22px] py-[13px] transition-colors group-hover:text-fresco-title group-data-[active=true]:text-fresco-title")}
                               key={column.key}
                             >
-                              <Badge
-                                className={cn(
-                                  "h-5 rounded-full px-2 text-sm font-normal data-[loading=true]:bg-transparent data-[loading=true]:opacity-80 transition-opacity",
-                                  post.draft
-                                    ? "border border-fresco-warning-callout-border bg-fresco-warning-callout-bg text-fresco-warning-callout-text"
-                                    : "border border-[color-mix(in_srgb,var(--color-fresco-tint)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-fresco-tint)_14%,transparent)] text-[color-mix(in_srgb,var(--color-fresco-title)_92%,white)]",
-                                )}
-                                data-loading={isLoading}
-                                variant="outline"
-                              >
-                                {isLoading && <Spinner className="mr-1.5 size-3.5 animate-spin" />}
-                                {post.draft ? "Draft" : "Live"}
-                              </Badge>
+                              <AnimatePresence mode="wait">
+                                <motion.div
+                                  key={post.draft ? "draft" : "live"}
+                                  initial={{ rotateX: 90, opacity: 0 }}
+                                  animate={{ rotateX: 0, opacity: 1 }}
+                                  exit={{ rotateX: -90, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                >
+                                  <Badge
+                                    className={cn(
+                                      "h-5 rounded-full px-2 text-sm font-normal data-[loading=true]:bg-transparent data-[loading=true]:opacity-80 transition-opacity",
+                                      post.draft
+                                        ? "border border-fresco-warning-callout-border bg-fresco-warning-callout-bg text-fresco-warning-callout-text"
+                                        : "border border-[color-mix(in_srgb,var(--color-fresco-tint)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-fresco-tint)_14%,transparent)] text-[color-mix(in_srgb,var(--color-fresco-title)_92%,white)]",
+                                    )}
+                                    data-loading={isLoading}
+                                    variant="outline"
+                                  >
+                                    {isLoading && <Spinner className="mr-1.5 size-3.5 animate-spin" />}
+                                    {post.draft ? "Draft" : "Live"}
+                                  </Badge>
+                                </motion.div>
+                              </AnimatePresence>
                             </td>
                           );
                         }
@@ -532,7 +565,20 @@ export function BlogTable({
                                 <span className="max-w-full overflow-hidden whitespace-nowrap align-bottom">
                                   {post.title}
                                 </span>
-                                
+                                {onChatWithItem && (
+                                  <button
+                                    aria-label={`Chat about ${post.title}`}
+                                    className="ml-2 inline-flex shrink-0 items-center justify-center rounded-md p-0.5 opacity-0 transition-opacity group-hover:opacity-100 text-[#888] hover:text-[#fff]"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      onChatWithItem(post.id);
+                                    }}
+                                    title="Chat with item"
+                                    type="button"
+                                  >
+                                    <ChatCircle className="size-4" weight="duotone" />
+                                  </button>
+                                )}
                               </div>
                             ) : (
                               renderCellContent(post, metadata, column.key)
@@ -540,7 +586,7 @@ export function BlogTable({
                           </td>
                         );
                       })}
-                    </tr>
+                    </motion.tr>
                   </ContextMenuTrigger>
                   <ContextMenuContent>
                     <ContextMenuItem
@@ -570,9 +616,10 @@ export function BlogTable({
                   </ContextMenuContent>
                 </ContextMenu>
               ))}
+              </AnimatePresence>
             </Fragment>
           ))}
-        </tbody>
+        </motion.tbody>
       </table>
     </div>
   );

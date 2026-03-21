@@ -15,6 +15,7 @@ import type {
 } from "@/lib/cms-types";
 import type { ProposedEdit } from "@/lib/ai-edit-parser";
 import { applyBulkEdits, type BulkApplyResult } from "@/lib/ai-bulk-apply";
+import { getCollectionHeader } from "@/lib/product-framer-shared";
 
 interface EditProposalViewProps {
   edits: ProposedEdit[];
@@ -55,7 +56,7 @@ export function EditProposalView({
     let cancelled = false;
     Promise.allSettled(
       missingIds.map(async (id) => {
-        const res = await fetch(`/api/posts/${id}`);
+        const res = await fetch(`/api/posts/${id}`, { headers: getCollectionHeader() });
         if (!res.ok) return { id, title: id };
         const data = (await res.json()) as { post?: { title?: string } };
         return { id, title: data.post?.title ?? id };
