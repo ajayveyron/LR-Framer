@@ -2,6 +2,25 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  agentMemories: defineTable({
+    clerkOrganizationId: v.string(),
+    clerkUserId: v.string(),
+    category: v.union(
+      v.literal("preference"),
+      v.literal("correction"),
+      v.literal("workflow"),
+    ),
+    content: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org_user", ["clerkOrganizationId", "clerkUserId"])
+    .index("by_org_user_category", [
+      "clerkOrganizationId",
+      "clerkUserId",
+      "category",
+    ]),
+
   chatConversations: defineTable({
     clerkOrganizationId: v.string(),
     clerkUserId: v.string(),

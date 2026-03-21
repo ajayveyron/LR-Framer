@@ -54,7 +54,7 @@ export interface AIContextSnapshot {
 }
 
 // In-memory cache with TTL — snapshot data changes rarely
-const SNAPSHOT_CACHE_TTL_MS = 60_000;
+const SNAPSHOT_CACHE_TTL_MS = 300_000;
 const SNAPSHOT_COLLECTION_CONCURRENCY = 2;
 const SNAPSHOT_ENUM_CONCURRENCY = 2;
 

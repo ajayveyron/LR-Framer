@@ -483,3 +483,29 @@ Also fixed the payload parsing to match Dodo's actual webhook format with nested
 **Why:** The previous limits were too restrictive — 10 steps cut off complex multi-step CMS operations, and 2k char truncation clipped useful tool result context.
 
 **Scope:** `src/app/api/ai/chat/route.ts` (step limit), `src/lib/ai-guardrails.ts` (truncation limit).
+
+## 2026-03-21 — Agent memory across conversations
+
+**What changed:** Added a `save_preference` tool to the AI chat agent that persists user preferences, corrections, and workflow habits to a new `agentMemories` Convex table. Memories are loaded at the start of each chat request and injected into the system prompt so the agent remembers things across conversations.
+
+**Why:** The agent previously started fresh every conversation with no recall of past interactions. Repeat users had to re-state preferences every time. Memory makes the agent feel personal and reduces friction.
+
+**Scope:** New Convex table `agentMemories` with `listMemories`, `saveMemory`, `deleteMemory` functions. New API route `GET/POST /api/ai/memory`. New `src/lib/ai-memory.ts` helper for loading and formatting memories. `save_preference` tool added to the chat route's tool set. System prompt updated to include memory block and instructions for when to save memories silently.
+
+**Design:** Memories are org+user scoped, capped at 50 per user, deduplicated by content within category. Three categories: preference, correction, workflow. The agent saves memories proactively without asking permission. Memory loading is fail-open (empty array on error) so it never blocks chat.
+
+## 2026-03-21 — Inline AI nudges on blog table rows
+
+**What changed:** Blog table rows now show a subtle sparkle icon (on hover) next to the title when the post has content quality issues. Clicking the sparkle selects that post, opens the AI chat panel, and auto-sends a contextual prompt asking the agent to help fix the issues.
+
+**Why:** The AI agent previously lived only in the side panel — users had to context-switch into the chat to get help. Inline nudges pull the agent into the user's natural workflow by surfacing actionable suggestions directly on the table.
+
+**Scope:** New `src/lib/content-nudges.ts` utility that analyzes posts for: short/missing titles, empty/short body content, missing image fields, and stale drafts (>7 days). `BlogTable` component gets `nudges` and `onNudgeClick` props. `DashboardTableView` computes nudges via `useMemo`, handles nudge clicks by selecting the row + opening chat + queuing a prompt. `AIChatPanel` gets `pendingPrompt`/`onPendingPromptConsumed` props to auto-send queued prompts.
+
+## 2026-03-21 — Parallelized chat route prefetch to reduce time-to-first-token
+
+**What changed:** The `/api/ai/chat` POST handler now runs quota check, AI context snapshot, and agent memory loading in a single `Promise.all` instead of sequentially. The `requireDashboardApiAccess` helper also now runs `syncMembership` and `getSiteForOrganization` in parallel. The snapshot cache TTL was bumped from 60s to 5 minutes.
+
+**Why:** First responses were taking ~20 seconds. The waterfall was: auth → syncMembership → getSite → quotaCheck (2 Convex queries) → snapshot (Framer API calls) → memory load → stream. Parallelizing the independent steps and extending the cache TTL significantly reduces the pre-stream latency.
+
+**Scope:** `src/app/api/ai/chat/route.ts` (parallel prefetch), `src/lib/product-access.ts` (parallel membership sync + site fetch in `requireDashboardApiAccess`), `src/lib/ai-context-snapshot.ts` (cache TTL 60s → 300s).

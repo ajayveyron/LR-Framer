@@ -4,13 +4,11 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --font-sans:
-    "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --font-dashboard-ui:
-    "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --font-heading:
-    "Avenir Next Condensed", "Avenir Next", "Segoe UI", "Helvetica Neue",
-    Arial, sans-serif;
+  --font-platform: var(--font-inter);
+  --font-sans: var(--font-platform);
+  --font-dashboard-ui: var(--font-platform);
+  --font-heading: var(--font-platform);
+  --font-mono: var(--font-platform);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -157,8 +155,9 @@
 }
 
 @theme inline {
-  --font-sans: var(--font-sans);
-  --font-heading: var(--font-heading);
+  --font-sans: var(--font-platform);
+  --font-heading: var(--font-platform);
+  --font-mono: var(--font-platform);
   --color-fresco-tint: var(--framer-fresco-tint-color);
   --color-fresco-tint-dark: var(--framer-fresco-tintDark-color);
   --color-fresco-tint-dimmed: var(--framer-fresco-tintDimmed-color);
@@ -455,7 +454,7 @@
     border-radius: 6px;
     background-color: var(--framer-app-surface-muted-color);
     padding: 0.125rem 0.375rem;
-    font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+    font-family: var(--font-mono);
     font-size: 13px;
     color: var(--framer-fresco-panelTitle-color);
   }
@@ -466,7 +465,7 @@
     border: 1px solid var(--framer-fresco-panelDivider-color);
     background-color: var(--framer-app-surface-muted-color);
     padding: 0.75rem 1rem;
-    font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+    font-family: var(--font-mono);
     font-size: 13px;
     line-height: var(--framer-editor-code-line-height);
     color: var(--framer-fresco-settingsText-color);

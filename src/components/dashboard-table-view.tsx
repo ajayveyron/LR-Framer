@@ -36,6 +36,7 @@ import {
 	SheetTitle,
 } from '@/components/ui/sheet';
 import type { BlogCollectionMetadata, BlogPostRecord } from '@/lib/cms-types';
+import { analyzeAllPosts } from '@/lib/content-nudges';
 import { ACTIVE_COLLECTION_COOKIE } from '@/lib/product-framer-shared';
 import type { FramerCollectionOption, SiteRole } from '@/lib/product-types';
 import { toggleRow, toggleAllRows, shiftClickRange } from '@/lib/selection';
@@ -273,6 +274,7 @@ export function DashboardTableView({
 	const searchInputRef = useRef<HTMLInputElement | null>(null);
 	const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 	const [chatOpen, setChatOpen] = useState(readStoredAIChatOpen);
+	const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
 	const lastClickedIndexRef = useRef<number | null>(null);
 	const [searchIndex, setSearchIndex] = useState(() =>
 		buildSearchIndex(posts, metadata),
@@ -473,9 +475,30 @@ export function DashboardTableView({
 		lastClickedIndexRef.current = null;
 	}
 
+	const handleNudgeClick = useCallback(
+		(postId: string, prompt: string) => {
+			// Select the post so the agent has context
+			setSelectedRows(new Set([postId]));
+			lastClickedIndexRef.current = null;
+			// Open chat and queue the prompt
+			setChatOpen(true);
+			setPendingPrompt(prompt);
+		},
+		[],
+	);
+
+	const handlePendingPromptConsumed = useCallback(() => {
+		setPendingPrompt(null);
+	}, []);
+
 	const selectedPosts = useMemo(
 		() => cachedPosts.filter((p) => selectedRows.has(p.id)),
 		[cachedPosts, selectedRows],
+	);
+
+	const nudges = useMemo(
+		() => analyzeAllPosts(cachedPosts, metadata),
+		[cachedPosts, metadata],
 	);
 
 	const handlePostsUpdated = useCallback((updatedPosts: BlogPostRecord[]) => {
@@ -644,6 +667,8 @@ export function DashboardTableView({
 							actionsDisabled={framerUnavailable}
 							columns={activeColumns}
 							metadata={metadata}
+							nudges={nudges}
+							onNudgeClick={handleNudgeClick}
 							onOpenPost={handleOpenPost}
 							posts={visiblePosts}
 							role={role}
@@ -893,6 +918,8 @@ export function DashboardTableView({
 				onPostsUpdated={handlePostsUpdated}
 				onClearSelection={handleClearSelection}
 				open={chatOpen}
+				pendingPrompt={pendingPrompt}
+				onPendingPromptConsumed={handlePendingPromptConsumed}
 				selectedPosts={selectedPosts}
 			/>
 		</section>

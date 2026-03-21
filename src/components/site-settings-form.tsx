@@ -88,7 +88,7 @@ export function SiteSettingsForm({
       <section className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#111111] p-6 grid gap-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[22px] font-bold tracking-[-0.8px] leading-[1.2] text-fresco-title">
+            <h2 className="font-sans text-[22px] font-bold tracking-[-0.8px] leading-[1.2] text-fresco-title">
               Framer connection
             </h2>
           </div>
@@ -99,7 +99,7 @@ export function SiteSettingsForm({
         </div>
         <dl className="grid gap-3 mt-2 text-sm text-fresco-description">
           <div className="grid gap-1">
-            <dt className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[12px] font-medium leading-[1.6] text-fresco-title">
+            <dt className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title">
               Project
             </dt>
             <dd className="break-all text-fresco-title">
@@ -107,7 +107,7 @@ export function SiteSettingsForm({
             </dd>
           </div>
           <div className="grid gap-1">
-            <dt className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[12px] font-medium leading-[1.6] text-fresco-title">
+            <dt className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title">
               Default collection
             </dt>
             <dd className="text-fresco-title">
@@ -115,7 +115,7 @@ export function SiteSettingsForm({
             </dd>
           </div>
           <div className="grid gap-1">
-            <dt className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[12px] font-medium leading-[1.6] text-fresco-title">
+            <dt className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title">
               API key
             </dt>
             <dd className="text-fresco-title">
@@ -240,7 +240,7 @@ export function SiteSettingsForm({
   return (
     <section className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#111111] p-6 grid gap-5">
       <div>
-        <h2 className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[22px] font-bold tracking-[-0.8px] leading-[1.2] text-fresco-title">
+        <h2 className="font-sans text-[22px] font-bold tracking-[-0.8px] leading-[1.2] text-fresco-title">
           Framer connection
         </h2>
       </div>
@@ -252,7 +252,7 @@ export function SiteSettingsForm({
       >
         <div className={fieldClassName}>
           <div className={labelRowClassName}>
-            <Label className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[12px] font-medium leading-[1.6] text-fresco-title" htmlFor="settings-project-input">Framer project URL or ID</Label>
+            <Label className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title" htmlFor="settings-project-input">Framer project URL or ID</Label>
             <Dialog>
               <DialogTrigger asChild>
                 <div className={helpTriggerClassName}>How to find it</div>
@@ -325,7 +325,7 @@ export function SiteSettingsForm({
 
         <div className={fieldClassName}>
           <div className={labelRowClassName}>
-            <Label className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[12px] font-medium leading-[1.6] text-fresco-title" htmlFor="settings-api-key">Framer Server API key</Label>
+            <Label className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title" htmlFor="settings-api-key">Framer Server API key</Label>
             <Dialog>
               <DialogTrigger asChild>
                 <div className={helpTriggerClassName}>How to get it</div>
@@ -389,7 +389,7 @@ export function SiteSettingsForm({
         </div>
 
         <div className={fieldClassName}>
-          <Label className="font-[Inter,system-ui,-apple-system,'system-ui','Segoe_UI',Roboto,Helvetica,Arial,sans-serif] text-[12px] font-medium leading-[1.6] text-fresco-title" htmlFor="settings-collection-select">Default collection</Label>
+          <Label className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title" htmlFor="settings-collection-select">Default collection</Label>
           <Select onValueChange={setSelectedCollectionId} value={selectedCollectionId}>
             <SelectTrigger
               className="!border-transparent !bg-[#2B2B2B] !text-fresco-text !shadow-none !rounded-lg placeholder:!text-[rgba(255,255,255,0.3)] focus-visible:!border-fresco-tint focus-visible:!shadow-none focus-visible:!outline-none h-10 rounded-lg px-3 text-sm leading-[1.4]"

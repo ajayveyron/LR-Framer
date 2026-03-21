@@ -14,13 +14,14 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Spinner } from "@phosphor-icons/react";
+import { Spinner, Sparkle } from "@phosphor-icons/react";
 import type {
   BlogCollectionMetadata,
   BlogPostRecord,
   DashboardFieldDefinition,
   DashboardFieldValue,
 } from "@/lib/cms-types";
+import type { ContentNudge } from "@/lib/content-nudges";
 import type { SiteRole } from "@/lib/product-types";
 
 import { cn } from "@/lib/utils";
@@ -30,6 +31,8 @@ type BlogTableProps = {
   actionsDisabled?: boolean;
   columns: Array<{ key: string; label: string }>;
   metadata: BlogCollectionMetadata;
+  nudges?: Map<string, ContentNudge>;
+  onNudgeClick?: (postId: string, prompt: string) => void;
   onOpenPost: (postId: string) => void;
   posts: BlogPostRecord[];
   role: SiteRole;
@@ -290,6 +293,8 @@ export function BlogTable({
   actionsDisabled = false,
   columns,
   metadata,
+  nudges,
+  onNudgeClick,
   onOpenPost,
   posts,
   role,
@@ -359,7 +364,7 @@ export function BlogTable({
             {columns.map((column) => (
               <th
                 className={cn(
-                  "text-dash-header-text text-[12px] font-medium tracking-[-0.01em] leading-[1.35]", "relative z-10 border-b border-dash-content-border bg-fresco-panel px-[22px] py-3 text-left transition-colors",
+                  "text-[#888] text-sm font-normal", "relative z-10 border-b border-dash-content-border px-[22px] py-3 text-left transition-colors",
                 )}
                 key={column.key}
               >
@@ -394,7 +399,7 @@ export function BlogTable({
                   className="bg-dash-group-bg"
                 >
                   <td
-                    className={cn("text-fresco-title text-[12px] font-semibold tracking-[-0.01em]", "border-b border-dash-content-border px-[22px] py-3")}
+                    className={cn("text-xs font-normal", "border-b border-dash-content-border px-[22px] py-3")}
                     colSpan={columns.length}
                   >
                     {group.label}
@@ -435,12 +440,12 @@ export function BlogTable({
                           const isLoading = loadingPosts?.has(post.id);
                           return (
                             <td
-                              className={cn("text-dash-cell-text text-[12px] font-normal tracking-[-0.01em] leading-[1.35]", "border-b border-dash-content-border px-[22px] py-[13px] transition-colors group-hover:text-fresco-title group-data-[active=true]:text-fresco-title")}
+                              className={cn("text-sm text-[#888] hover:text-[#fff] font-normal", "border-b border-dash-content-border px-[22px] py-[13px] transition-colors group-hover:text-fresco-title group-data-[active=true]:text-fresco-title")}
                               key={column.key}
                             >
                               <Badge
                                 className={cn(
-                                  "h-5 rounded-full px-2 text-[11px] font-medium data-[loading=true]:bg-transparent data-[loading=true]:opacity-80 transition-opacity",
+                                  "h-5 rounded-full px-2 text-sm font-normal data-[loading=true]:bg-transparent data-[loading=true]:opacity-80 transition-opacity",
                                   post.draft
                                     ? "border border-fresco-warning-callout-border bg-fresco-warning-callout-bg text-fresco-warning-callout-text"
                                     : "border border-[color-mix(in_srgb,var(--color-fresco-tint)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-fresco-tint)_14%,transparent)] text-[color-mix(in_srgb,var(--color-fresco-title)_92%,white)]",
@@ -458,8 +463,8 @@ export function BlogTable({
                         return (
                             <td
                               className={cn(
-                                "text-dash-cell-text text-[12px] font-normal tracking-[-0.01em] leading-[1.35]", "border-b border-dash-content-border px-[22px] py-[13px] transition-colors group-hover:text-fresco-title group-data-[active=true]:text-fresco-title",
-                                column.key === "title" && "text-fresco-title font-medium",
+                                "text-sm font-normal text-[#888] hover:text-[#fff] ", "border-b border-dash-content-border px-[22px] py-[13px] transition-colors group-hover:text-fresco-title group-data-[active=true]:text-fresco-title",
+                                column.key === "title" && "",
                               )}
                             key={column.key}
                             title={String(getCellValue(post, metadata, column.key))}
@@ -504,9 +509,25 @@ export function BlogTable({
                                     )}
                                   />
                                 </span>
-                                <span className="block max-w-full overflow-hidden whitespace-nowrap align-bottom">
+                                {nudges?.has(post.id) && onNudgeClick && (
+                                  <button
+                                    aria-label={`AI suggestions for ${post.title}`}
+                                    className="ml-1.5 inline-flex shrink-0 items-center justify-center rounded-md p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      const nudge = nudges.get(post.id);
+                                      if (nudge) onNudgeClick(post.id, nudge.prompt);
+                                    }}
+                                    title={nudges.get(post.id)!.issues.join(" · ")}
+                                    type="button"
+                                  >
+                                    <Sparkle className="size-3.5" weight="duotone" />
+                                  </button>
+                                )}
+                                <span className="max-w-full overflow-hidden whitespace-nowrap align-bottom">
                                   {post.title}
                                 </span>
+                                
                               </div>
                             ) : (
                               renderCellContent(post, metadata, column.key)

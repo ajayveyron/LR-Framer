@@ -252,13 +252,16 @@ export async function requireDashboardApiAccess() {
   }
 
   const role = mapOrganizationRole(orgRole);
-  await syncMembership(orgId, userId, role);
+
+  const [, site] = await Promise.all([
+    syncMembership(orgId, userId, role),
+    getSiteForOrganization(orgId),
+  ]);
 
   if (!role) {
     throw new AppError("You do not have access to this team.", 403);
   }
 
-  const site = await getSiteForOrganization(orgId);
   if (
     !site ||
     site.onboardingStatus !== "ready" ||

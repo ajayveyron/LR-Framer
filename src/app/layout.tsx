@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
+import { Inter } from "next/font/google";
 
 import "@/app/globals.css";
 import { NotificationProvider } from "@/components/notification-provider";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Framer Bot | Framer On Steroids",
@@ -49,8 +56,8 @@ export default function RootLayout({
   ) : app;
 
   return (
-    <html lang="en" className="dark font-sans">
-      <body className="overscroll-none">
+    <html lang="en" className={`dark ${inter.variable}`}>
+      <body className="overscroll-none font-sans">
         {content}
       </body>
     </html>

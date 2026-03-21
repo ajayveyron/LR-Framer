@@ -64,6 +64,8 @@ interface AIChatPanelProps {
   metadata: BlogCollectionMetadata;
   onPostsUpdated: (updatedPosts: BlogPostRecord[]) => void;
   onClearSelection?: () => void;
+  pendingPrompt?: string | null;
+  onPendingPromptConsumed?: () => void;
 }
 
 type ChatSuggestion = {
@@ -186,14 +188,14 @@ function ChatPromptSuggestions({ selectedCount }: { selectedCount: number }) {
 
   return (
     <div className="mt-1 space-y-2">
-      <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-fresco-subtitle">
+      {/* <div className="text-sm font-medium uppercase tracking-[0.18em] text-fresco-subtitle">
         Quick starts
-      </div>
+      </div> */}
       <div className="grid gap-2 sm:grid-cols-2">
         {suggestions.map((suggestion) => (
           <Button
             key={suggestion.title}
-            className="h-auto flex-col items-start rounded-xl border-fresco-divider bg-fresco-surface-muted px-3 py-2 text-left transition-colors hover:border-fresco-tint hover:bg-fresco-divider"
+            className="h-auto flex-col items-start rounded-xl border-fresco-divider bg-fresco-surface-muted px-3 py-2 text-center transition-colors hover:border-fresco-tint hover:bg-fresco-divider"
             onClick={() => {
               controller.textInput.setInput(suggestion.prompt);
               window.requestAnimationFrame(() => {
@@ -209,9 +211,9 @@ function ChatPromptSuggestions({ selectedCount }: { selectedCount: number }) {
             <span className="text-sm font-medium text-fresco-title">
               {suggestion.title}
             </span>
-            <span className="text-xs leading-snug text-fresco-description">
+            {/* <span className="text-xs leading-snug text-fresco-description">
               {suggestion.description}
-            </span>
+            </span> */}
           </Button>
         ))}
       </div>
@@ -260,7 +262,7 @@ function clearPersistedChatSession() {
   window.localStorage.removeItem(AI_CHAT_SESSION_STORAGE_KEY);
 }
 
-function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPostsUpdated, onClearSelection }: AIChatPanelProps) {
+function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPostsUpdated, onClearSelection, pendingPrompt, onPendingPromptConsumed }: AIChatPanelProps) {
   const { textInput } = usePromptInputController();
   const initialSessionRef = useRef<PersistedChatSession | null | undefined>(
     undefined,
@@ -346,6 +348,13 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
     setMessages(initialSession.messages);
     initialSessionRef.current = null;
   }, [setMessages]);
+
+  // Auto-send a pending prompt from inline nudges
+  useEffect(() => {
+    if (!pendingPrompt || status !== "ready") return;
+    sendMessage({ text: pendingPrompt });
+    onPendingPromptConsumed?.();
+  }, [pendingPrompt, status, sendMessage, onPendingPromptConsumed]);
 
   // Map field IDs → human-readable names for rich tool output rendering
   // Scans all messages for framer_get_collection_fields outputs to cover any collection
@@ -652,6 +661,23 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
 
                             // Try rich UI for completed Framer tool calls
                             if (hasOutput) {
+                              // save_preference — show a compact "memory saved" chip
+                              if (rawToolName === "save_preference") {
+                                const input = "input" in part ? (part as any).input : null;
+                                const category = input?.category ?? "preference";
+                                const content = input?.content ?? "";
+                                const categoryLabel = category === "correction" ? "Correction" : category === "workflow" ? "Workflow" : "Preference";
+                                return (
+                                  <div key={i} className="mt-1 flex items-start gap-2 rounded-md border border-fresco-tint/20 bg-fresco-tint/5 px-3 py-2 text-xs">
+                                    <CheckCircle className="mt-0.5 size-3.5 shrink-0 text-fresco-tint" weight="fill" />
+                                    <div className="flex min-w-0 flex-col gap-0.5">
+                                      <span className="font-medium text-fresco-tint">{categoryLabel} saved</span>
+                                      <span className="text-fresco-description">{content}</span>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
                               const richUI = renderFramerToolOutput(
                                 rawToolName,
                                 (part as any).output,

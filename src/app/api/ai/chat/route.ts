@@ -4,12 +4,13 @@ import { z } from "zod";
 
 import { createErrorJsonResponse } from "@/lib/api";
 import { requireAIConfig } from "@/lib/ai-config";
+import { loadAgentMemories, formatMemoriesForPrompt } from "@/lib/ai-memory";
 import { sanitizeChatMessages } from "@/lib/ai-guardrails";
 import {
   formatSnapshotForPrompt,
   getAIContextSnapshotWithRunner,
 } from "@/lib/ai-context-snapshot";
-import { checkQuota, trackTokenUsage } from "@/lib/billing";
+import { checkQuota, trackTokenUsage, type QuotaCheckResult } from "@/lib/billing";
 import { AppError } from "@/lib/errors";
 import { createScopedFramerTools } from "@/lib/framer-tools";
 import { createScopedGenerateAndUploadImageTool } from "@/lib/ai-image-tool";
@@ -51,6 +52,7 @@ function buildSystemPrompt(
   fields: z.infer<typeof bodyDataSchema>["fieldDefinitions"],
   activeCollection?: { id: string; name: string },
   snapshotBlock?: string,
+  memoryBlock?: string,
 ) {
   const fieldList = fields
     .map((f) => `- ${f.name} (id: ${f.id}, type: ${f.type})`)
@@ -80,7 +82,7 @@ Available fields in the active collection:
 ${fieldList}
 
 ${selectionBlock}
-${snapshotBlock ? `\n${snapshotBlock}\n` : ""}
+${snapshotBlock ? `\n${snapshotBlock}\n` : ""}${memoryBlock ? `\n${memoryBlock}\n` : ""}
 PRESENTATION RULE — never show internal IDs to the user:
 - When referring to collections, fields, items, or enum cases in your responses, use their human-readable names only (e.g. "Blogs", "Title", "Author").
 - Never include raw IDs like (id: esdNAc4Vu) or field IDs in your messages. IDs are for your internal use when calling tools — users don't need to see them.
@@ -141,7 +143,14 @@ CRITICAL: You already have the selected rows' data in this prompt. When the user
 
 When the user asks about the Framer project, collections, publishing, or wants to perform operations beyond the selected rows, use the appropriate framer_* tool or propose_cms_action.
 
-Be concise and helpful. If the user's request is ambiguous, ask for clarification before proposing edits.`;
+Be concise and helpful. If the user's request is ambiguous, ask for clarification before proposing edits.
+
+MEMORY TOOL — learn from the user:
+You have a save_preference tool that persists things you learn about the user across conversations. Use it proactively when:
+- The user corrects you (category: "correction") — e.g. "I prefer shorter titles", "Don't use emojis in slugs"
+- The user states a preference (category: "preference") — e.g. "Always write in British English", "Use formal tone"
+- The user describes a recurring workflow (category: "workflow") — e.g. "I publish every Monday", "New posts always need a featured image"
+Save memories silently — do NOT ask the user for permission or announce that you're saving. Just do it naturally as part of the conversation. Keep each memory concise (one sentence). Do not save trivial or one-off requests.`;
 }
 
 export async function POST(request: Request) {
@@ -165,26 +174,6 @@ export async function POST(request: Request) {
 
     const { selectedRows, fieldDefinitions, activeCollectionId, activeCollectionName } = dataResult.data;
 
-    // ── QUOTA CHECK (fail-open) ──
-    if (orgId) {
-      try {
-        const quota = await checkQuota(orgId);
-        if (!quota.allowed) {
-          logEvent("warn", "billing.quota.rejected", {
-            organizationId: orgId,
-            currentUsage: quota.currentUsage,
-            allowance: quota.allowance,
-          });
-          return NextResponse.json(
-            { error: "Your organization's AI allowance has been exhausted this month" },
-            { status: 429 },
-          );
-        }
-      } catch (error) {
-        logError("billing.quota.check_failed", error, { organizationId: orgId });
-      }
-    }
-
     const activeCollection = activeCollectionId && activeCollectionName
       ? { id: activeCollectionId, name: activeCollectionName }
       : undefined;
@@ -200,15 +189,41 @@ export async function POST(request: Request) {
     const runInFramerContext = <T,>(fn: () => Promise<T>) =>
       runWithFramerRuntimeContext(baseContext, fn);
 
-    // Build a context snapshot so the agent starts with project info,
-    // all collections, their fields, and enum cases already loaded.
+    // ── PARALLEL PREFETCH ──
+    // Run quota check, context snapshot, and memory load concurrently
+    // to minimize time-to-first-token. Quota is fail-open.
     const snapshotCacheKey = access.site.framerProjectId
       ? `framer-project:${access.site.framerProjectId}`
       : `org:${access.organizationId}`;
-    const snapshot = await getAIContextSnapshotWithRunner(runInFramerContext, {
-      cacheKey: snapshotCacheKey,
-    });
+
+    const [quotaResult, snapshot, memories] = await Promise.all([
+      orgId
+        ? checkQuota(orgId).catch((error) => {
+            logError("billing.quota.check_failed", error, { organizationId: orgId });
+            return { allowed: true, currentUsage: 0, allowance: 0, percentUsed: 0 } as QuotaCheckResult;
+          })
+        : Promise.resolve(null),
+      getAIContextSnapshotWithRunner(runInFramerContext, {
+        cacheKey: snapshotCacheKey,
+      }),
+      loadAgentMemories(orgId, userId),
+    ]);
+
+    // ── QUOTA GATE ──
+    if (quotaResult && !quotaResult.allowed) {
+      logEvent("warn", "billing.quota.rejected", {
+        organizationId: orgId,
+        currentUsage: quotaResult.currentUsage,
+        allowance: quotaResult.allowance,
+      });
+      return NextResponse.json(
+        { error: "Your organization's AI allowance has been exhausted this month" },
+        { status: 429 },
+      );
+    }
+
     const snapshotBlock = formatSnapshotForPrompt(snapshot);
+    const memoryBlock = formatMemoriesForPrompt(memories);
     const framerTools = createScopedFramerTools(runInFramerContext);
     const generateAndUploadImage = createScopedGenerateAndUploadImageTool(
       runInFramerContext,
@@ -224,7 +239,7 @@ export async function POST(request: Request) {
 
     const result = streamText({
       model: config.provider(config.textModel),
-      system: buildSystemPrompt(selectedRows, fieldDefinitions, activeCollection, snapshotBlock),
+      system: buildSystemPrompt(selectedRows, fieldDefinitions, activeCollection, snapshotBlock, memoryBlock),
       messages: await convertToModelMessages(sanitizedMessages as any),
       stopWhen: stepCountIs(20),
       tools: {
@@ -247,6 +262,38 @@ export async function POST(request: Request) {
         ...framerTools,
         generate_and_upload_image: generateAndUploadImage,
         web_search: webSearchTool,
+        save_preference: tool({
+          description:
+            "Save something you learned about the user to remember across conversations. " +
+            "Use proactively when the user corrects you, states a preference, or describes a recurring workflow. " +
+            "Do NOT announce that you are saving — just do it silently.",
+          inputSchema: z.object({
+            category: z
+              .enum(["preference", "correction", "workflow"])
+              .describe(
+                "preference = user likes/dislikes, correction = something they corrected you on, workflow = recurring task or habit",
+              ),
+            content: z
+              .string()
+              .max(200)
+              .describe("One concise sentence describing what you learned"),
+          }),
+          execute: async ({ category, content }) => {
+            try {
+              await fetch(new URL("/api/ai/memory", request.url).toString(), {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  cookie: request.headers.get("cookie") ?? "",
+                },
+                body: JSON.stringify({ category, content }),
+              });
+              return { saved: true };
+            } catch {
+              return { saved: false };
+            }
+          },
+        }),
       },
       onFinish: async ({ usage }) => {
         logEvent("info", "ai.bulk_edit.completed", {
