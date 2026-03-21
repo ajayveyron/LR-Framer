@@ -226,7 +226,7 @@ export async function POST(request: Request) {
       model: config.provider(config.textModel),
       system: buildSystemPrompt(selectedRows, fieldDefinitions, activeCollection, snapshotBlock),
       messages: await convertToModelMessages(sanitizedMessages as any),
-      stopWhen: stepCountIs(10),
+      stopWhen: stepCountIs(20),
       tools: {
         propose_edits: tool({
           description: "Propose field edits for selected CMS rows. Use this when the user asks to change, update, or modify fields across the selected rows.",

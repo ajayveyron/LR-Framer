@@ -475,3 +475,11 @@ Also fixed the payload parsing to match Dodo's actual webhook format with nested
 **Why:** The verbose `var(--framer-fresco-panelTitle-color)` pattern defeats the purpose of having a design system — it's unreadable, error-prone, and makes class strings absurdly long. The `@theme inline` block already had most fresco tokens mapped but they weren't being used. Dashboard-level tokens were missing entirely.
 
 **Scope:** `src/app/globals.css` (added ~20 new `--color-dash-*` and `--color-fresco-*` token mappings to `@theme inline`, added `--framer-app-background-color` definition to `.dark`), ~37 component/page/lib files updated across `src/`.
+
+## 2026-03-20 — Raised AI agent step limit and tool result truncation
+
+**What changed:** Bumped `stepCountIs` from 10 to 20 in the chat route, and increased `MAX_TOOL_RESULT` from 2,000 to 10,000 chars in `ai-guardrails.ts`.
+
+**Why:** The previous limits were too restrictive — 10 steps cut off complex multi-step CMS operations, and 2k char truncation clipped useful tool result context.
+
+**Scope:** `src/app/api/ai/chat/route.ts` (step limit), `src/lib/ai-guardrails.ts` (truncation limit).

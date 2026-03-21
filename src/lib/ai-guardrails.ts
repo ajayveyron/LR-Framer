@@ -62,7 +62,7 @@ export function sanitizeChatMessages(messages: unknown[]): unknown[] {
     }
   }
 
-  const MAX_TOOL_RESULT = 2_000;
+  const MAX_TOOL_RESULT = 10_000;
   const MAX_FILE_URL = 50_000;
 
   return rawMessages.flatMap((message, idx) => {
