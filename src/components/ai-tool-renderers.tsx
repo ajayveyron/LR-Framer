@@ -178,6 +178,11 @@ function pickDisplayColumns(
 
 function truncate(val: unknown, max = 40): string {
   if (val == null) return "—";
+  // Handle { url, alt } image objects
+  if (typeof val === "object" && "url" in (val as Record<string, unknown>)) {
+    const url = String((val as { url: string }).url);
+    return url.length > max ? url.slice(0, max) + "…" : url;
+  }
   const s = String(val);
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
@@ -239,26 +244,44 @@ function CollectionItemsTable({
                     {item.draft ? "Draft" : "Published"}
                   </Badge>
                 </td>
-                {displayCols.map((col) => (
-                  <td
-                    key={col}
-                    className="max-w-[140px] truncate px-2.5 py-1.5 text-fresco-description"
-                  >
-                    {isImageField(col) &&
-                    typeof item.fieldData?.[col] === "string" &&
-                    item.fieldData[col] ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        alt={colLabel(col)}
-                        className="block h-8 w-[76px] max-w-none overflow-hidden rounded-lg border border-fresco-divider bg-fresco-surface-muted object-cover object-center"
-                        loading="lazy"
-                        src={item.fieldData[col] as string}
-                      />
-                    ) : (
-                      truncate(item.fieldData?.[col])
-                    )}
-                  </td>
-                ))}
+                {displayCols.map((col) => {
+                  const cellVal = item.fieldData?.[col];
+                  // Image values can be a URL string or { url, alt } object
+                  const imageUrl =
+                    isImageField(col) && cellVal
+                      ? typeof cellVal === "string"
+                        ? cellVal
+                        : typeof cellVal === "object" &&
+                            "url" in (cellVal as Record<string, unknown>)
+                          ? (cellVal as { url: string }).url
+                          : null
+                      : null;
+
+                  return (
+                    <td
+                      key={col}
+                      className="max-w-[140px] truncate px-2.5 py-1.5 text-fresco-description"
+                    >
+                      {imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          alt={
+                            (typeof cellVal === "object" &&
+                              cellVal !== null &&
+                              "alt" in cellVal &&
+                              (cellVal as { alt?: string }).alt) ||
+                            colLabel(col)
+                          }
+                          className="block h-8 w-[76px] max-w-none overflow-hidden rounded-lg border border-fresco-divider bg-fresco-surface-muted object-cover object-center"
+                          loading="lazy"
+                          src={imageUrl}
+                        />
+                      ) : (
+                        truncate(cellVal)
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

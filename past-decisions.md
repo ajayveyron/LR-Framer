@@ -542,3 +542,18 @@ Also fixed the payload parsing to match Dodo's actual webhook format with nested
 **Why:** GTM plan says to remove Notion from the public product story. The Notion bridge is internal-only and should not appear in customer-facing surfaces.
 
 **Scope:** Landing page copy only. No backend Notion code was changed.
+
+## 2026-03-21 — CMS image alt text preservation + site insights pill
+
+**What changed:**
+1. `extractFieldValue` and `serializeFieldData` in `framer-core.ts` now preserve alt text on image fields. Images return `{ url, alt }` objects instead of just URL strings.
+2. `DashboardFieldValue` union in `cms-types.ts` extended to include `{ url: string; alt: string | null }`.
+3. New `scanMissingAltText()` and `scanSiteInsights()` functions in `content-nudges.ts` scan all posts for images missing alt text and produce site-level insights.
+4. New `SiteInsightsPill` component in `site-insights-overlay.tsx` — a pill button in the dashboard toolbar that shows a count of active insights. Clicking opens a dropdown overlay with insight cards. Each card has "Fix with AI" (opens chat with prefilled prompt) and "Dismiss" (persisted to localStorage).
+5. `ai-tool-renderers.tsx` updated to handle `{ url, alt }` image objects in the collection items table and truncate helper.
+6. `formatDisplayValue` in `framer-core.ts` updated to handle `{ url, alt }` objects (returns the URL string).
+7. AI chat system prompt updated with IMAGE ALT TEXT section explaining how to read/write alt text on CMS image fields.
+
+**Why:** CMS images were losing alt text during read/write cycles because `extractFieldValue` stripped it to just the URL string and `serializeFieldData` didn't pass it through. This hurt accessibility and SEO. The site insights pill surfaces this proactively so users can fix it with one click via the AI agent.
+
+**Scope:** `src/lib/framer-core.ts`, `src/lib/cms-types.ts`, `src/lib/content-nudges.ts` (new site insight functions), `src/components/site-insights-overlay.tsx` (new), `src/components/dashboard-table-view.tsx`, `src/components/blog-table.tsx`, `src/components/ai-tool-renderers.tsx`, `src/app/api/ai/chat/route.ts`.

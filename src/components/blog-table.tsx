@@ -148,6 +148,11 @@ function formatFieldValue(
     return "-";
   }
 
+  // Image field value with alt text metadata
+  if (typeof value === "object" && !Array.isArray(value) && "url" in value) {
+    return truncateValue(value.url);
+  }
+
   if (Array.isArray(value)) {
     if (field?.type === "array") {
       return `${value.length} item${value.length === 1 ? "" : "s"}`;

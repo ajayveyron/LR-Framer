@@ -163,6 +163,8 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
 
           <DashboardNav pathname={pathname} role={role} />
         </div>
+
+        <div className="mt-auto pt-4" id="sidebar-insights-slot" />
       </aside>
 
       <div className={cn("sticky top-0 z-30 flex items-center justify-between border-b border-dash-control-border bg-dash-topbar px-4 py-3 backdrop-blur-[14px]", "md:hidden")}>

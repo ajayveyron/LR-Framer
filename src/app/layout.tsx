@@ -12,26 +12,60 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Framer Bot | Framer On Steroids",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://framerbot.com"),
+  title: {
+    default: "Framer Bot | Run Framer CMS with your team",
+    template: "%s | Framer Bot",
+  },
   description:
-    "Framer Bot is Framer on steroids: an AI-native workspace for teams managing Framer CMS, approvals, and backend sync flows together.",
-  keywords: ["Framer", "CMS", "Dashboard", "Framer Bot", "AI", "Team"],
-  authors: [{ name: "Framer Bot Team" }],
+    "Empower your marketing team to manage Framer CMS content effortlessly. An AI-native, unified workspace for teams to write, review, and ship updates without needing the Framer editor.",
+  keywords: ["Framer", "Framer CMS", "Content Management System", "Framer Editor", "AI Workspace", "Team Collaboration", "Vercel", "Web Design"],
+  authors: [{ name: "Framer Bot Team", url: "https://framerbot.com" }],
+  creator: "Framer Bot Team",
+  publisher: "Framer Bot",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
   openGraph: {
-    title: "Framer Bot | Framer On Steroids",
+    title: "Framer Bot | Run Framer CMS outside the editor",
     description:
-      "Framer Bot is Framer on steroids: an AI-native workspace for teams managing Framer CMS, approvals, and backend sync flows together.",
-    type: "website",
+      "Give your team a shared workspace for Framer CMS content. Write, review, and utilize AI-assisted batch updates securely without full editor access.",
+    url: "https://framerbot.com",
     siteName: "Framer Bot",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Framer Bot - CMS Workflows Outside the Editor",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Framer Bot | Framer On Steroids",
-    description:
-      "Framer Bot is Framer on steroids: an AI-native workspace for teams managing Framer CMS, approvals, and backend sync flows together.",
+    title: "Framer Bot | Framer CMS Management",
+    description: "Manage your Framer CMS rapidly with your team, strictly outside the editor using AI.",
+    images: ["/og-image.png"],
+    creator: "@framerbot",
   },
   icons: {
     icon: process.env.NODE_ENV === "development" ? "/favicon-dev.png" : "/icon.png",
+    apple: "/apple-touch-icon.png",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
   },
 };
 

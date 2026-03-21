@@ -1,15 +1,6 @@
-import { ProductConfigRequiredState } from "@/components/product-config-required-state";
 import { UsageMeter } from "@/components/usage-meter";
-import { getDashboardAccess } from "@/lib/product-access";
 
-export const dynamic = "force-dynamic";
-
-export default async function BillingPage() {
-  const access = await getDashboardAccess();
-  if (access.kind === "config_error") {
-    return <ProductConfigRequiredState issues={access.issues} />;
-  }
-
+export default function BillingPage() {
   return (
     <main className="mx-auto w-full max-w-4xl p-4 sm:p-7">
       <section className="grid w-full gap-10">
@@ -22,7 +13,7 @@ export default async function BillingPage() {
         </div>
 
         <div className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#111111] p-6 grid gap-6">
-          <UsageMeter isAdmin={access.role === "admin"} />
+          <UsageMeter />
         </div>
       </section>
     </main>

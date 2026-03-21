@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/sheet';
 import type { BlogCollectionMetadata, BlogPostRecord } from '@/lib/cms-types';
 import { analyzeAllPosts } from '@/lib/content-nudges';
+import { SiteInsightsPill } from '@/components/site-insights-overlay';
 import { ACTIVE_COLLECTION_COOKIE } from '@/lib/product-framer-shared';
 import type { FramerCollectionOption, SiteRole } from '@/lib/product-types';
 import { toggleRow, toggleAllRows, shiftClickRange } from '@/lib/selection';
@@ -487,6 +488,14 @@ export function DashboardTableView({
 		[],
 	);
 
+	const handleInsightFix = useCallback(
+		(prompt: string) => {
+			setChatOpen(true);
+			setPendingPrompt(prompt);
+		},
+		[],
+	);
+
 	const handlePendingPromptConsumed = useCallback(() => {
 		setPendingPrompt(null);
 	}, []);
@@ -921,6 +930,12 @@ export function DashboardTableView({
 				pendingPrompt={pendingPrompt}
 				onPendingPromptConsumed={handlePendingPromptConsumed}
 				selectedPosts={selectedPosts}
+			/>
+
+			<SiteInsightsPill
+				metadata={metadata}
+				onFixInsight={handleInsightFix}
+				posts={cachedPosts}
 			/>
 		</section>
 	);

@@ -144,7 +144,13 @@ function extractFieldValue(entry: CollectionItem["fieldData"][string]) {
     return null;
   }
 
-  if (entry.type === "image" || entry.type === "file") {
+  if (entry.type === "image") {
+    const img = entry.value as { url?: string; altText?: string } | null;
+    if (!img?.url) return null;
+    return img.altText ? { url: img.url, alt: img.altText } : img.url;
+  }
+
+  if (entry.type === "file") {
     return entry.value?.url ?? null;
   }
 
@@ -182,6 +188,11 @@ function formatDisplayValue(value: DashboardFieldValue) {
 
   if (value === null || value === "") {
     return "";
+  }
+
+  // Image field value with alt text metadata — display the URL
+  if (typeof value === "object" && "url" in value) {
+    return String(value.url);
   }
 
   return String(value);
@@ -1591,7 +1602,12 @@ function serializeFieldData(fieldData: Record<string, { type: string; value: unk
   const result: Record<string, unknown> = {};
   for (const [fieldId, entry] of Object.entries(fieldData)) {
     if (!entry) continue;
-    if (entry.type === "image" || entry.type === "file") {
+    if (entry.type === "image") {
+      const img = entry.value as { url?: string; altText?: string } | null;
+      result[fieldId] = img?.url
+        ? { url: img.url, alt: img.altText ?? null }
+        : null;
+    } else if (entry.type === "file") {
       result[fieldId] = (entry.value as { url?: string } | null)?.url ?? null;
     } else if (entry.type === "multiCollectionReference") {
       result[fieldId] = [...(entry.value as string[])];

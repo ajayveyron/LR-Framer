@@ -10,6 +10,7 @@ import {
   ArrowSquareOut,
 } from "@phosphor-icons/react";
 
+import { useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { UpgradeButton } from "@/components/upgrade-button";
 import {
@@ -50,11 +51,9 @@ function ErrorFallback() {
 // Main component
 // ---------------------------------------------------------------------------
 
-interface UsageMeterProps {
-  isAdmin?: boolean;
-}
-
-export function UsageMeter({ isAdmin = false }: UsageMeterProps) {
+export function UsageMeter() {
+  const { orgRole } = useAuth();
+  const isAdmin = orgRole === "org:admin";
   const { data, loading, error } = useBillingUsage();
   const [actionLoading, setActionLoading] = useState(false);
 
