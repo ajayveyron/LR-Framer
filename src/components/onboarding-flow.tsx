@@ -7,15 +7,7 @@ import { useState, useTransition } from "react";
 import { useOrganizationList } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { ProjectUrlHelpDialog, ApiKeyHelpDialog } from "@/components/framer-help-dialogs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -40,8 +32,6 @@ const sectionClassName =
 const formClassName = "rounded-none border border-fresco-divider bg-fresco-surface-subtle grid gap-4 p-5";
 const primaryButtonClassName = "bg-fresco-primary-surface text-fresco-primary-surface-text shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:bg-fresco-primary-surface-hover";
 const kickerClassName = "inline-flex items-center rounded-none border border-fresco-divider bg-fresco-surface-muted px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-fresco-subtitle";
-const copyTextClassName =
-  "text-base leading-7 text-fresco-description";
 const helperTextClassName =
   "text-sm leading-6 text-fresco-description";
 const errorBannerClassName = "rounded-none border border-fresco-danger-callout-border bg-fresco-danger-callout-bg px-4 py-3 text-sm text-fresco-danger-callout-text";
@@ -49,16 +39,6 @@ const fieldClassName = "grid gap-2";
 const labelRowClassName = "flex items-center justify-between gap-3";
 const formControlClassName =
   "border-fresco-input-border bg-fresco-input-bg text-fresco-text shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] placeholder:text-[color-mix(in_srgb,var(--color-fresco-text)_34%,transparent)] focus-visible:border-fresco-input-active focus-visible:shadow-[0_0_0_4px_var(--color-fresco-tint-dimmed),inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] h-auto min-h-[52px] rounded-2xl border px-4 py-3.5 text-[15px] leading-[1.45]";
-const helpTriggerClassName =
-  "shrink-0 text-[11px] font-semibold  tracking-[0.08em] underline decoration-dotted";
-const helpDialogContentClassName =
-  "max-w-lg gap-5 rounded-[28px] border border-fresco-divider bg-[var(--color-fresco-app-bg)] p-6 shadow-2xl";
-const helpDialogTextClassName =
-  "text-sm leading-6 text-fresco-description";
-const helpDialogListClassName =
-  "grid gap-3 pl-5 text-sm leading-6 text-fresco-description";
-const helpCodeClassName =
-  "rounded-md bg-fresco-surface-muted px-1.5 py-0.5 text-[13px] text-fresco-title";
 
 export function OnboardingFlow({
   initialOnboardingState,
@@ -310,57 +290,7 @@ export function OnboardingFlow({
                   <Label htmlFor="project-input">
                     Framer project URL or ID
                   </Label>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <div className={helpTriggerClassName}>How to find it</div>
-                    </DialogTrigger>
-                    <DialogContent className={helpDialogContentClassName}>
-                      <DialogHeader className="pr-8">
-                        <DialogTitle className="font-heading text-2xl leading-tight text-fresco-title">
-                          Find your Framer project URL or ID
-                        </DialogTitle>
-                        <DialogDescription className={helpDialogTextClassName}>
-                          Framer Bot accepts either the full project URL or the
-                          raw project ID from the same Framer project.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <ol className={helpDialogListClassName}>
-                        <li>
-                          Open the Framer project you want this team to manage.
-                        </li>
-                        <li>
-                          Copy the project link from the browser address bar or
-                          use Framer&apos;s Copy Project Link action.
-                        </li>
-                        <li>
-                          Paste the full URL here. If you prefer the raw ID, use
-                          the final segment from that project URL.
-                        </li>
-                      </ol>
-                      <p className={helpDialogTextClassName}>
-                        Example:{" "}
-                        <code className={helpCodeClassName}>
-                          https://framer.com/projects/My-Site--abc123
-                        </code>{" "}
-                        becomes{" "}
-                        <code className={helpCodeClassName}>abc123</code>.
-                      </p>
-                      <div className="flex items-center justify-between gap-3 border-t border-fresco-divider pt-4">
-                        <Link
-                          className="text-sm font-medium text-fresco-tint underline underline-offset-3"
-                          href={FRAMER_DOCS_URL}
-                          target="_blank"
-                        >
-                          Open Framer docs
-                        </Link>
-                        <DialogClose asChild>
-                          <Button type="button" variant="outline">
-                            Close
-                          </Button>
-                        </DialogClose>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                  <ProjectUrlHelpDialog />
                 </div>
                 <Input
                   autoCapitalize="none"
@@ -383,51 +313,7 @@ export function OnboardingFlow({
               <div className={fieldClassName}>
                 <div className={labelRowClassName}>
                   <Label htmlFor="api-key">Framer Server API key</Label>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <div className={helpTriggerClassName}>How to get it</div>
-                    </DialogTrigger>
-                    <DialogContent className={helpDialogContentClassName}>
-                      <DialogHeader className="pr-8">
-                        <DialogTitle className="font-heading text-2xl leading-tight text-fresco-title">
-                          Get your Framer Server API key
-                        </DialogTitle>
-                        <DialogDescription className={helpDialogTextClassName}>
-                          Server API keys are created per project, so use the
-                          same Framer project you entered above.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <ol className={helpDialogListClassName}>
-                        <li>Open that Framer project.</li>
-                        <li>
-                          Go to Site Settings, then open the General section.
-                        </li>
-                        <li>
-                          Create a Server API key for the project and copy it to
-                          a safe place.
-                        </li>
-                        <li>Paste the key here to validate the connection.</li>
-                      </ol>
-                      <p className={helpDialogTextClassName}>
-                        Treat this key like a password. Anyone with it can
-                        access the project through Framer&apos;s Server API.
-                      </p>
-                      <div className="flex items-center justify-between gap-3 border-t border-fresco-divider pt-4">
-                        <Link
-                          className="text-sm font-medium text-fresco-tint underline underline-offset-3"
-                          href={FRAMER_DOCS_URL}
-                          target="_blank"
-                        >
-                          Open Framer docs
-                        </Link>
-                        <DialogClose asChild>
-                          <Button type="button" variant="outline">
-                            Close
-                          </Button>
-                        </DialogClose>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                  <ApiKeyHelpDialog />
                 </div>
                 <Input
                   autoCapitalize="none"

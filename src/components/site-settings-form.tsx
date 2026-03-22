@@ -15,16 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import Link from "next/link";
+import { ProjectUrlHelpDialog, ApiKeyHelpDialog } from "@/components/framer-help-dialogs";
 import type { FramerCollectionOption } from "@/lib/product-types";
 
 const fieldClassName = "grid gap-2";
@@ -33,19 +24,6 @@ const helperTextClassName =
 const formControlClassName =
   `!border-transparent !bg-[#2B2B2B] !text-fresco-text !shadow-none !rounded-lg placeholder:!text-[rgba(255,255,255,0.3)] focus-visible:!border-fresco-tint focus-visible:!shadow-none focus-visible:!outline-none h-10 rounded-lg px-3 text-sm leading-[1.4]`;
 const labelRowClassName = "flex items-center justify-between gap-3";
-const helpTriggerClassName =
-  "shrink-0 text-[11px] font-semibold tracking-[0.08em] underline decoration-dotted text-fresco-subtitle hover:text-fresco-title transition-colors cursor-pointer";
-const helpDialogContentClassName =
-  "max-w-lg gap-5 rounded-[28px] border border-fresco-divider bg-[var(--color-fresco-app-bg)] p-6 shadow-2xl";
-const helpDialogTextClassName =
-  "text-sm leading-6 text-fresco-description";
-const helpDialogListClassName =
-  "grid gap-3 pl-5 text-sm leading-6 text-fresco-description";
-const helpCodeClassName =
-  "rounded-md bg-fresco-surface-muted px-1.5 py-0.5 text-[13px] text-fresco-title";
-
-const FRAMER_DOCS_URL =
-  "https://www.framer.com/developers/server-api-quick-start";
 
 function getCollectionLabel(
   collections: FramerCollectionOption[],
@@ -253,57 +231,7 @@ export function SiteSettingsForm({
         <div className={fieldClassName}>
           <div className={labelRowClassName}>
             <Label className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title" htmlFor="settings-project-input">Framer project URL or ID</Label>
-            <Dialog>
-              <DialogTrigger asChild>
-                <div className={helpTriggerClassName}>How to find it</div>
-              </DialogTrigger>
-              <DialogContent className={helpDialogContentClassName}>
-                <DialogHeader className="pr-8">
-                  <DialogTitle className="font-heading text-2xl leading-tight text-fresco-title">
-                    Find your Framer project URL or ID
-                  </DialogTitle>
-                  <DialogDescription className={helpDialogTextClassName}>
-                    Framer Bot accepts either the full project URL or the raw
-                    project ID from the same Framer project.
-                  </DialogDescription>
-                </DialogHeader>
-                <ol className={helpDialogListClassName}>
-                  <li>
-                    Open the Framer project you want this team to manage.
-                  </li>
-                  <li>
-                    Copy the project link from the browser address bar or use
-                    Framer&apos;s Copy Project Link action.
-                  </li>
-                  <li>
-                    Paste the full URL here. If you prefer the raw ID, use the
-                    final segment from that project URL.
-                  </li>
-                </ol>
-                <p className={helpDialogTextClassName}>
-                  Example:{" "}
-                  <code className={helpCodeClassName}>
-                    https://framer.com/projects/My-Site--abc123
-                  </code>{" "}
-                  becomes{" "}
-                  <code className={helpCodeClassName}>abc123</code>.
-                </p>
-                <div className="flex items-center justify-between gap-3 border-t border-fresco-divider pt-4">
-                  <Link
-                    className="text-sm font-medium text-fresco-tint underline underline-offset-3"
-                    href={FRAMER_DOCS_URL}
-                    target="_blank"
-                  >
-                    Open Framer docs
-                  </Link>
-                  <DialogClose asChild>
-                    <Button type="button" variant="outline">
-                      Close
-                    </Button>
-                  </DialogClose>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <ProjectUrlHelpDialog />
           </div>
           <Input
             autoCapitalize="none"
@@ -326,49 +254,7 @@ export function SiteSettingsForm({
         <div className={fieldClassName}>
           <div className={labelRowClassName}>
             <Label className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title" htmlFor="settings-api-key">Framer Server API key</Label>
-            <Dialog>
-              <DialogTrigger asChild>
-                <div className={helpTriggerClassName}>How to get it</div>
-              </DialogTrigger>
-              <DialogContent className={helpDialogContentClassName}>
-                <DialogHeader className="pr-8">
-                  <DialogTitle className="font-heading text-2xl leading-tight text-fresco-title">
-                    Get your Framer Server API key
-                  </DialogTitle>
-                  <DialogDescription className={helpDialogTextClassName}>
-                    Server API keys are created per project, so use the same
-                    Framer project you entered above.
-                  </DialogDescription>
-                </DialogHeader>
-                <ol className={helpDialogListClassName}>
-                  <li>Open that Framer project.</li>
-                  <li>Go to Site Settings, then open the General section.</li>
-                  <li>
-                    Create a Server API key for the project and copy it to a
-                    safe place.
-                  </li>
-                  <li>Paste the key here to validate the connection.</li>
-                </ol>
-                <p className={helpDialogTextClassName}>
-                  Treat this key like a password. Anyone with it can access the
-                  project through Framer&apos;s Server API.
-                </p>
-                <div className="flex items-center justify-between gap-3 border-t border-fresco-divider pt-4">
-                  <Link
-                    className="text-sm font-medium text-fresco-tint underline underline-offset-3"
-                    href={FRAMER_DOCS_URL}
-                    target="_blank"
-                  >
-                    Open Framer docs
-                  </Link>
-                  <DialogClose asChild>
-                    <Button type="button" variant="outline">
-                      Close
-                    </Button>
-                  </DialogClose>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <ApiKeyHelpDialog />
           </div>
           <Input
             autoCapitalize="none"
@@ -411,30 +297,29 @@ export function SiteSettingsForm({
               ))}
             </SelectContent>
           </Select>
-          <p className={helperTextClassName}>
+          {/* <p className={helperTextClassName}>
             This only sets the default dashboard collection. Contributors can
             switch between all validated user-managed collections from the top
             bar.
-          </p>
+          </p> */}
         </div>
 
         {error ? <div className="rounded-none border border-fresco-danger-callout-border bg-fresco-danger-callout-bg px-4 py-3 text-sm text-fresco-danger-callout-text">{error}</div> : null}
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 mt-4">
           <Button
-            className="bg-fresco-primary-surface text-fresco-primary-surface-text shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:bg-fresco-primary-surface-hover h-10 px-4 text-sm font-semibold"
             disabled={isValidating}
             onClick={handleValidateConnection}
             type="button"
-            variant="secondary"
+            variant="outline"
           >
             {isValidating ? "Validating..." : "Validate connection"}
           </Button>
           <Button
-            className="h-10 gap-2 px-4 text-sm font-semibold"
             disabled={isSaving}
             onClick={handleSaveChanges}
             type="button"
+            variant="default"
           >
             <SaveIcon className="size-4" />
             {isSaving ? "Saving..." : "Save changes"}
