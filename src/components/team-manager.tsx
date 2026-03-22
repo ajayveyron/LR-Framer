@@ -48,7 +48,6 @@ export function TeamManager() {
   });
   const { data: billingData } = useBillingUsage();
 
-  const [activeTab, setActiveTab] = useState<"members" | "invitations">("members");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"org:admin" | "org:member">("org:member");
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -63,7 +62,7 @@ export function TeamManager() {
 
   // Free plan invite gating: count non-owner members + pending invitations
   const isFreePlan = !billingData || billingData.planName === "Free";
-  const nonOwnerMemberCount = (memberships?.count ?? 1) - 1; // subtract the owner
+  const nonOwnerMemberCount = (memberships?.count ?? 1) - 1;
   const pendingInviteCount = invitations?.count ?? 0;
   const totalInvited = nonOwnerMemberCount + pendingInviteCount;
   const inviteLimitReached = isFreePlan && totalInvited >= FREE_INVITE_LIMIT;
@@ -77,7 +76,6 @@ export function TeamManager() {
       setInviteEmail("");
       setIsInviteOpen(false);
       invitations?.revalidate?.();
-      setActiveTab("invitations");
     } catch (err: any) {
       alert(err.errors?.[0]?.message || "Failed to invite user");
     } finally {
@@ -116,6 +114,18 @@ export function TeamManager() {
   const formatDate = (date: Date) =>
     new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(date);
 
+  // Build unified rows: members first, then pending invitations
+  type UnifiedRow =
+    | { kind: "member"; id: string; data: any }
+    | { kind: "invitation"; id: string; data: any };
+
+  const rows: UnifiedRow[] = [
+    ...(memberships?.data?.map((m) => ({ kind: "member" as const, id: m.id, data: m })) ?? []),
+    ...(invitations?.data?.map((i) => ({ kind: "invitation" as const, id: i.id, data: i })) ?? []),
+  ];
+
+  const totalCount = (memberships?.count ?? 0) + (invitations?.count ?? 0);
+
   return (
     <div className="grid gap-6">
       {/* Org card */}
@@ -129,15 +139,15 @@ export function TeamManager() {
           </div>
         )}
         <div>
-          <h3 className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "text-fresco-title")}>{organization.name}</h3>
+          <h3 className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title")}>{organization.name}</h3>
           <p className="text-[11px] text-fresco-description">Organization</p>
         </div>
       </div>
 
       {/* Header row */}
       <div className="flex items-center justify-between">
-        <p className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "text-fresco-description")}>
-          Manage members and their roles.
+        <p className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-description")}>
+          {totalCount} {totalCount === 1 ? "person" : "people"} in this workspace.
         </p>
         {isAdmin && (
           inviteLimitReached ? (
@@ -156,170 +166,137 @@ export function TeamManager() {
         )}
       </div>
 
-      {/* Tabs */}
-      <div
-        aria-label="Team sections"
-        className="flex items-center gap-8 border-b border-[rgba(255,255,255,0.06)]"
-        role="tablist"
-      >
-        <Button
-          aria-selected={activeTab === "members"}
-          onClick={() => setActiveTab("members")}
-          role="tab"
-          size="sm"
-          tabIndex={activeTab === "members" ? 0 : -1}
-          type="button"
-          variant="ghost"
-          className={cn(
-            "h-auto rounded-none border-x-0 border-t-0 border-b-2 bg-transparent px-0 pb-3 pt-0 font-sans text-[12px] font-medium leading-[1.6] text-fresco-title shadow-none transition-colors hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 active:translate-y-0",
-            activeTab === "members"
-              ? "border-fresco-tint text-fresco-title focus-visible:border-fresco-tint"
-              : "border-transparent text-fresco-subtitle hover:text-fresco-title focus-visible:border-transparent",
-          )}
-        >
-          Members
-          <Badge variant="secondary" className="ml-2 text-[10px] h-4 min-w-4 px-1 rounded-full">
-            {memberships?.count ?? 0}
-          </Badge>
-        </Button>
-        <Button
-          aria-selected={activeTab === "invitations"}
-          onClick={() => setActiveTab("invitations")}
-          role="tab"
-          size="sm"
-          tabIndex={activeTab === "invitations" ? 0 : -1}
-          type="button"
-          variant="ghost"
-          className={cn(
-            "h-auto rounded-none border-x-0 border-t-0 border-b-2 bg-transparent px-0 pb-3 pt-0 font-sans text-[12px] font-medium leading-[1.6] text-fresco-title shadow-none transition-colors hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 active:translate-y-0",
-            activeTab === "invitations"
-              ? "border-fresco-tint text-fresco-title focus-visible:border-fresco-tint"
-              : "border-transparent text-fresco-subtitle hover:text-fresco-title focus-visible:border-transparent",
-          )}
-        >
-          Invitations
-          <Badge variant="secondary" className="ml-2 text-[10px] h-4 min-w-4 px-1 rounded-full">
-            {invitations?.count ?? 0}
-          </Badge>
-        </Button>
-      </div>
-
-      {/* Table */}
+      {/* Unified table */}
       <div className="overflow-x-auto -mx-6">
-        <table className="w-full min-w-[500px] text-left">
+        <table className="w-full min-w-[560px] text-left">
           <thead>
             <tr className="border-b border-[rgba(255,255,255,0.06)]">
-              <th className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "py-3 px-6 uppercase tracking-wider text-fresco-subtitle")}>User</th>
-              <th className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "py-3 px-6 uppercase tracking-wider text-fresco-subtitle")}>{activeTab === "members" ? "Joined" : "Invited"}</th>
-              <th className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "py-3 px-6 uppercase tracking-wider text-fresco-subtitle")}>Role</th>
-              <th className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "py-3 px-6 uppercase tracking-wider text-fresco-subtitle text-right")}>Actions</th>
+              <th className="py-3 px-6 font-sans text-[12px] font-medium leading-[1.6] uppercase tracking-wider text-fresco-subtitle">User</th>
+              <th className="py-3 px-6 font-sans text-[12px] font-medium leading-[1.6] uppercase tracking-wider text-fresco-subtitle">Status</th>
+              <th className="py-3 px-6 font-sans text-[12px] font-medium leading-[1.6] uppercase tracking-wider text-fresco-subtitle">Date</th>
+              <th className="py-3 px-6 font-sans text-[12px] font-medium leading-[1.6] uppercase tracking-wider text-fresco-subtitle">Role</th>
+              <th className="py-3 px-6 font-sans text-[12px] font-medium leading-[1.6] uppercase tracking-wider text-fresco-subtitle text-right">Actions</th>
             </tr>
           </thead>
-          <motion.tbody 
+          <motion.tbody
             className="divide-y divide-[rgba(255,255,255,0.06)]"
             initial="hidden"
             animate="visible"
-            variants={{
-              visible: {
-                transition: {
-                  staggerChildren: 0.05,
-                },
-              },
-            }}
+            variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
           >
             <AnimatePresence mode="popLayout">
-            {activeTab === "members" && memberships?.data?.map((membership) => {
-              const isSelf = membership.publicUserData?.userId === user?.id;
-              return (
-                <motion.tr 
-                  key={membership.id} 
-                  className="hover:bg-[rgba(255,255,255,0.02)] transition-colors"
-                  variants={{
-                    hidden: { opacity: 0, filter: "blur(4px)", y: 10 },
-                    visible: { opacity: 1, filter: "blur(0px)", y: 0 },
-                  }}
-                  initial="hidden"
-                  animate="visible"
-                  exit={{ opacity: 0, filter: "blur(4px)" }}
-                >
-                  <td className="py-4 px-6 flex items-center gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={membership.publicUserData?.imageUrl || ""} alt="Avatar" className="h-8 w-8 rounded-full bg-[#2B2B2B] object-cover" />
-                    <div className="flex flex-col">
-                      <span className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "text-fresco-title flex items-center gap-2")}>
-                        {membership.publicUserData?.firstName} {membership.publicUserData?.lastName}
-                        {isSelf && <Badge variant="secondary" className="text-[10px] h-4.5 px-1.5 font-normal">You</Badge>}
-                      </span>
-                      <span className="text-[11px] text-fresco-description">{membership.publicUserData?.identifier}</span>
-                    </div>
-                  </td>
-                  <td className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "py-4 px-6 text-fresco-description")}>{formatDate(membership.createdAt)}</td>
-                  <td className="py-4 px-6">
-                    {isAdmin && !isSelf ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm" className="h-8 text-xs gap-1 px-3">
-                            {membership.role === "org:admin" ? "Admin" : "Member"}
-                            <CaretDown className="h-3 w-3 opacity-50" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          <DropdownMenuItem onClick={() => handleUpdateRole(membership, "org:admin")}>Admin</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleUpdateRole(membership, "org:member")}>Member</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : (
-                      <span className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "text-fresco-description")}>{membership.role === "org:admin" ? "Admin" : "Member"}</span>
-                    )}
-                  </td>
-                  <td className="py-4 px-6 text-right">
-                    {isAdmin && !isSelf && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm"><DotsThree className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleRemove(membership)}>Remove User</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </td>
-                </motion.tr>
-              );
-            })}
+              {rows.map((row) => {
+                if (row.kind === "member") {
+                  const membership = row.data;
+                  const isSelf = membership.publicUserData?.userId === user?.id;
+                  return (
+                    <motion.tr
+                      key={`member-${row.id}`}
+                      className="hover:bg-[rgba(255,255,255,0.02)] transition-colors"
+                      variants={{
+                        hidden: { opacity: 0, filter: "blur(4px)", y: 10 },
+                        visible: { opacity: 1, filter: "blur(0px)", y: 0 },
+                      }}
+                      initial="hidden"
+                      animate="visible"
+                      exit={{ opacity: 0, filter: "blur(4px)" }}
+                    >
+                      <td className="py-4 px-6 flex items-center gap-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={membership.publicUserData?.imageUrl || ""} alt="Avatar" className="h-8 w-8 rounded-full bg-[#2B2B2B] object-cover" />
+                        <div className="flex flex-col">
+                          <span className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title flex items-center gap-2">
+                            {membership.publicUserData?.firstName} {membership.publicUserData?.lastName}
+                            {isSelf && <Badge variant="secondary" className="text-[10px] h-4.5 px-1.5 font-normal">You</Badge>}
+                          </span>
+                          <span className="text-[11px] text-fresco-description">{membership.publicUserData?.identifier}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <Badge variant="secondary" className="text-[10px] h-5 px-2 font-normal bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                          Active
+                        </Badge>
+                      </td>
+                      <td className="py-4 px-6 font-sans text-[12px] font-medium leading-[1.6] text-fresco-description">{formatDate(membership.createdAt)}</td>
+                      <td className="py-4 px-6">
+                        {isAdmin && !isSelf ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-8 text-xs gap-1 px-3">
+                                {membership.role === "org:admin" ? "Admin" : "Member"}
+                                <CaretDown className="h-3 w-3 opacity-50" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                              <DropdownMenuItem onClick={() => handleUpdateRole(membership, "org:admin")}>Admin</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleUpdateRole(membership, "org:member")}>Member</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : (
+                          <span className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-description">{membership.role === "org:admin" ? "Admin" : "Member"}</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        {isAdmin && !isSelf && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm"><DotsThree className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleRemove(membership)}>Remove User</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </td>
+                    </motion.tr>
+                  );
+                }
+
+                // Invitation row
+                const invitation = row.data;
+                return (
+                  <motion.tr
+                    key={`invite-${row.id}`}
+                    className="hover:bg-[rgba(255,255,255,0.02)] transition-colors"
+                    variants={{
+                      hidden: { opacity: 0, filter: "blur(4px)" },
+                      visible: { opacity: 1, filter: "blur(0px)" },
+                    }}
+                    initial="hidden"
+                    animate="visible"
+                    exit={{ opacity: 0, filter: "blur(4px)" }}
+                  >
+                    <td className="py-4 px-6 flex items-center gap-3">
+                      <div className="h-8 w-8 shrink-0 flex items-center justify-center rounded-full bg-[#2B2B2B] text-fresco-subtitle text-xs font-medium uppercase">
+                        {invitation.emailAddress.charAt(0)}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title">{invitation.emailAddress}</span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <Badge variant="secondary" className="text-[10px] h-5 px-2 font-normal bg-amber-500/10 text-amber-400 border-amber-500/20">
+                        Invited
+                      </Badge>
+                    </td>
+                    <td className="py-4 px-6 font-sans text-[12px] font-medium leading-[1.6] text-fresco-description">{formatDate(invitation.createdAt)}</td>
+                    <td className="py-4 px-6">
+                      <span className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-description">{invitation.role === "org:admin" ? "Admin" : "Member"}</span>
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      {isAdmin && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm"><DotsThree className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleRevoke(invitation)}>Revoke Invitation</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </td>
+                  </motion.tr>
+                );
+              })}
             </AnimatePresence>
-            {activeTab === "members" && memberships?.data?.length === 0 && (
-              <tr><td colSpan={4} className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "py-8 text-center text-fresco-description")}>No members found.</td></tr>
-            )}
-            <AnimatePresence mode="popLayout">
-            {activeTab === "invitations" && invitations?.data?.map((invitation) => (
-              <motion.tr key={invitation.id} className="hover:bg-[rgba(255,255,255,0.02)] transition-colors"
-                variants={{
-                  hidden: { opacity: 0, filter: "blur(4px)" },
-                  visible: { opacity: 1, filter: "blur(0px)" },
-                }}
-                initial="hidden"
-                animate="visible"
-                exit={{ opacity: 0, filter: "blur(4px)" }}
-              >
-                <td className="py-4 px-6"><span className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "text-fresco-title")}>{invitation.emailAddress}</span></td>
-                <td className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "py-4 px-6 text-fresco-description")}>{formatDate(invitation.createdAt)}</td>
-                <td className="py-4 px-6"><span className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "text-fresco-description")}>{invitation.role === "org:admin" ? "Admin" : "Member"}</span></td>
-                <td className="py-4 px-6 text-right">
-                  {isAdmin && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm"><DotsThree className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleRevoke(invitation)}>Revoke Invitation</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </td>
-              </motion.tr>
-            ))}
-            </AnimatePresence>
-            {activeTab === "invitations" && invitations?.data?.length === 0 && (
-              <motion.tr variants={{ hidden: { opacity: 0 }, visible: { opacity: 1 } }}>
-                <td colSpan={4} className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "py-8 text-center text-fresco-description")}>No pending invitations.</td>
-              </motion.tr>
+            {rows.length === 0 && (
+              <tr><td colSpan={5} className="py-8 text-center font-sans text-[12px] font-medium leading-[1.6] text-fresco-description">No members found.</td></tr>
             )}
           </motion.tbody>
         </table>
@@ -335,11 +312,11 @@ export function TeamManager() {
           <form onSubmit={handleInvite}>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
-                <label htmlFor="email" className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "text-fresco-title")}>Email address</label>
+                <label htmlFor="email" className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title">Email address</label>
                 <Input id="email" type="email" required placeholder="name@example.com" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="!border-transparent !bg-[#2B2B2B] !text-fresco-text !shadow-none !rounded-lg placeholder:!text-[rgba(255,255,255,0.3)] focus-visible:!border-fresco-tint focus-visible:!shadow-none focus-visible:!outline-none" />
               </div>
               <div className="space-y-2">
-                <label className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "text-fresco-title")}>Role</label>
+                <label className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title">Role</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Button
                     aria-pressed={inviteRole === "org:admin"}
@@ -354,7 +331,7 @@ export function TeamManager() {
                     )}
                   >
                     <Shield weight={inviteRole === "org:admin" ? "fill" : "regular"} className={cn("h-5 w-5", inviteRole === "org:admin" ? "text-fresco-tint" : "text-fresco-subtitle")} />
-                    <div className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "text-fresco-title")}>Admin</div>
+                    <div className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title">Admin</div>
                   </Button>
                   <Button
                     aria-pressed={inviteRole === "org:member"}
@@ -369,7 +346,7 @@ export function TeamManager() {
                     )}
                   >
                     <User weight={inviteRole === "org:member" ? "fill" : "regular"} className={cn("h-5 w-5", inviteRole === "org:member" ? "text-fresco-tint" : "text-fresco-subtitle")} />
-                    <div className={cn("font-sans text-[12px] font-medium leading-[1.6] text-fresco-title", "text-fresco-title")}>Member</div>
+                    <div className="font-sans text-[12px] font-medium leading-[1.6] text-fresco-title">Member</div>
                   </Button>
                 </div>
               </div>
