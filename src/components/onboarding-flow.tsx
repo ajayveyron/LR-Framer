@@ -202,7 +202,15 @@ export function OnboardingFlow({
           throw new Error(data.error ?? "Framer Bot could not finish onboarding.");
         }
 
-        router.push("/dashboard");
+        // Check if user came from the landing page "Start Standard" CTA
+        let destination = "/dashboard";
+        try {
+          if (localStorage.getItem("upgrade_intent") === "standard") {
+            destination = "/dashboard/billing?intent=upgrade";
+          }
+        } catch {}
+
+        router.push(destination);
         router.refresh();
       } catch (error) {
         setValidationError(

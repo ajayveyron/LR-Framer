@@ -631,3 +631,11 @@ Also fixed the payload parsing to match Dodo's actual webhook format with nested
 **Root cause from logs:** Post `ZpIjoTPfM` was being looked up in "Case Studies" (collection `wL5B2TE8R`, 2 items) when it actually lived in a different collection. The cookie was stale or the fallback resolution picked the wrong collection.
 
 **Scope:** `src/lib/product-framer-shared.ts` (new `getCollectionHeader` helper), `src/components/dashboard-table-view.tsx`, `src/components/post-editor.tsx`, `src/components/ai-chat-panel.tsx`, `src/components/edit-proposal-view.tsx`, `src/lib/ai-bulk-apply.ts` (all fetch calls updated).
+
+## 2026-03-22 — Upgrade intent flow from landing page pricing CTA
+
+**What changed:** The "Start Standard" button on the landing page pricing section now sets `localStorage.setItem("upgrade_intent", "standard")` and links to `/sign-up?intent=upgrade` (or `/dashboard/billing?intent=upgrade` for signed-in users). After onboarding completes, the flow checks localStorage for the upgrade intent and redirects to `/dashboard/billing?intent=upgrade` instead of `/dashboard`. The billing page has an `AutoCheckoutTrigger` component that detects the `?intent=upgrade` query param, auto-fires the Dodo checkout redirect for org admins, and cleans up both the localStorage flag and the URL.
+
+**Why:** Previously the "Start Standard" CTA just redirected to `/dashboard/billing` or `/sign-up`, which meant the user had to manually find and click the subscribe button after completing sign-up + onboarding. The Dodo checkout API requires an authenticated org context (orgId, userId, email), so it can't be triggered from the public landing page directly. The localStorage + query param approach bridges the gap — the intent survives the sign-up → onboarding → dashboard flow and auto-triggers checkout as soon as the user lands on the billing page with full auth context.
+
+**Scope:** `src/app/page.tsx` (pricing CTA uses `UpgradeIntentLink`), `src/components/upgrade-intent-link.tsx` (new client component), `src/components/onboarding-flow.tsx` (checks localStorage for redirect target), `src/components/auto-checkout-trigger.tsx` (new client component), `src/app/dashboard/billing/page.tsx` (renders `AutoCheckoutTrigger` in Suspense).

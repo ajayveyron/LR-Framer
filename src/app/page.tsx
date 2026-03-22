@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { LoadingLink } from "@/components/loading-link";
 import { Button } from "@/components/ui/button";
 import { FadeIn } from "@/components/fade-in";
+import { UpgradeIntentLink } from "@/components/upgrade-intent-link";
 
 export const dynamic = "force-dynamic";
 
@@ -354,12 +355,9 @@ export default async function MarketingHomePage() {
                 <li className="flex gap-3"><span className="text-[#3B82F6]">✓</span> AI rewrite, review, batch</li>
                 <li className="flex gap-3"><span className="text-[#3B82F6]">✓</span> Moderate AI allowance</li>
               </ul>
-              <LoadingLink 
-                href={isSignedIn ? "/dashboard/billing" : "/sign-up"}
-                className="mt-8 block w-full rounded-full bg-[#FAFAFA] px-4 py-2.5 text-center text-[14px] font-medium text-[#0A0A0A] transition-transform hover:scale-105"
-              >
-                Start Standard
-              </LoadingLink>
+              <UpgradeIntentLink 
+                href={isSignedIn ? "/dashboard/billing?intent=upgrade" : "/sign-up?intent=upgrade"}
+              />
             </div>
 
             {/* Agency */}
