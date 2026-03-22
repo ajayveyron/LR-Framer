@@ -13,6 +13,7 @@ import {
 } from "@phosphor-icons/react";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 
+import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -145,8 +146,6 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
   const pathname = usePathname();
   const items = getNavItems(role);
   const activeItem = getActiveItem(pathname, items);
-  const brandClassName =
-    "select-none text-[24px] font-semibold tracking-[-0.02em] text-fresco-title";
 
   return (
     <>
@@ -154,11 +153,12 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
         <div className="grid gap-2">
           <Link
             aria-label="Go to Content"
-            className={brandClassName}
+            className="mb-1 flex items-center gap-1"
             draggable={false}
             href="/dashboard"
           >
-            FramerBot
+            <BrandLogo height={38} />
+            <span className="select-none text-[17px] font-semibold tracking-[-0.02em] text-fresco-title">FramerBot</span>
           </Link>
 
           <DashboardNav pathname={pathname} role={role} />
@@ -171,11 +171,12 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
         <div>
           <Link
             aria-label="Go to Content"
-            className={brandClassName}
+            className="flex items-center gap-2"
             draggable={false}
             href="/dashboard"
           >
-            FramerBot
+            <BrandLogo height={32} />
+            <span className="select-none text-[15px] font-semibold tracking-[-0.02em] text-fresco-title">FramerBot</span>
           </Link>
           <div className="text-[12px] text-dash-nav-text">
             {activeItem.label}
@@ -204,11 +205,12 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
                 <SheetTitle asChild>
                   <Link
                     aria-label="Go to Content"
-                    className="truncate text-left select-none text-[15px] font-semibold text-fresco-title"
+                    className="flex items-center gap-2"
                     draggable={false}
                     href="/dashboard"
                   >
-                    FramerBot
+                    <BrandLogo height={28} />
+                    <span className="select-none text-[14px] font-semibold tracking-[-0.02em] text-fresco-title">FramerBot</span>
                   </Link>
                 </SheetTitle>
                 <div className="text-[12px] text-dash-nav-text">

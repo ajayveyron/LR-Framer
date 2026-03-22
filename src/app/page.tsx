@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { SignOutButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { LoadingLink } from "@/components/loading-link";
@@ -34,10 +35,19 @@ export default async function MarketingHomePage() {
         {/* ---- Nav ---- */}
         <nav className="flex items-center justify-between py-6 sticky top-0 z-50 bg-[#0A0A0A]/80 backdrop-blur-md">
           <Link
-            className="text-[14px] font-medium tracking-tight text-[#FAFAFA] hover:text-[#A1A1AA] transition-colors"
+            className="flex items-center gap-2"
             href="/"
           >
-            Framer Bot
+            <Image
+              alt="Framer Bot"
+              draggable={false}
+              height={32}
+              priority
+              src={process.env.NODE_ENV === "development" ? "/logo-dev.png" : "/logo.png"}
+              style={{ width: "auto", height: 32 }}
+              width={128}
+            />
+            <span className="select-none text-[15px] font-semibold tracking-[-0.02em] text-[#FAFAFA]">FramerBot</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
             <Link href="#features" className="text-[14px] text-[#A1A1AA] hover:text-[#FAFAFA] transition-colors">Features</Link>

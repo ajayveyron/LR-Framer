@@ -54,7 +54,7 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: process.env.NODE_ENV === "development" ? "/favicon-dev.png" : "/icon.png",
-    apple: "/apple-touch-icon.png",
+    apple: "/apple-icon.png",
   },
   robots: {
     index: true,
