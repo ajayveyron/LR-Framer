@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 
 import "@/app/globals.css";
 import { NotificationProvider } from "@/components/notification-provider";
@@ -80,6 +81,7 @@ export default function RootLayout({
     <html lang="en" className={`dark ${inter.variable}`}>
       <body className="overscroll-none font-sans">
         {content}
+        <Analytics />
       </body>
     </html>
   );
