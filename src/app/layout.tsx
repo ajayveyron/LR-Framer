@@ -34,14 +34,6 @@ export const metadata: Metadata = {
       "Give your team a shared workspace for Framer CMS content. Write, review, and utilize AI-assisted batch updates securely without full editor access.",
     url: "https://framerbot.com",
     siteName: "Framer Bot",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Framer Bot - CMS Workflows Outside the Editor",
-      },
-    ],
     locale: "en_US",
     type: "website",
   },
@@ -49,12 +41,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Framer Bot | Framer CMS Management",
     description: "Manage your Framer CMS rapidly with your team, strictly outside the editor using AI.",
-    images: ["/og-image.png"],
     creator: "@framerbot",
-  },
-  icons: {
-    icon: process.env.NODE_ENV === "development" ? "/favicon-dev.png" : "/icon.png",
-    apple: "/apple-icon.png",
   },
   robots: {
     index: true,
