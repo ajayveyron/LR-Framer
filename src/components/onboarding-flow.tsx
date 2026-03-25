@@ -1,13 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { useOrganizationList } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/button";
-import { ProjectUrlHelpDialog, ApiKeyHelpDialog } from "@/components/framer-help-dialogs";
+import { BrandLogo } from "@/components/brand-logo";
+import {
+  ProjectUrlHelpDialog,
+  ApiKeyHelpDialog,
+} from "@/components/framer-help-dialogs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -22,23 +25,54 @@ import type {
   ProductOnboardingState,
   ProductSite,
 } from "@/lib/product-types";
+import { cn } from "@/lib/utils";
 
-const FRAMER_DOCS_URL =
-  "https://www.framer.com/developers/server-api-quick-start";
-const shellClassName = "min-h-screen min-h-dvh overflow-y-auto overscroll-none bg-[var(--background)] p-4 sm:p-7";
-const cardClassName = "rounded-none border border-fresco-divider bg-[linear-gradient(180deg,var(--color-fresco-frame-overlay),transparent),var(--color-fresco-panel)] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.45)] mx-auto w-full max-w-7xl";
-const sectionClassName =
-  "mt-7 grid gap-6 border-t border-fresco-divider pt-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]";
-const formClassName = "rounded-none border border-fresco-divider bg-fresco-surface-subtle grid gap-4 p-5";
-const primaryButtonClassName = "bg-fresco-primary-surface text-fresco-primary-surface-text shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:bg-fresco-primary-surface-hover";
-const kickerClassName = "inline-flex items-center rounded-none border border-fresco-divider bg-fresco-surface-muted px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-fresco-subtitle";
-const helperTextClassName =
-  "text-sm leading-6 text-fresco-description";
-const errorBannerClassName = "rounded-none border border-fresco-danger-callout-border bg-fresco-danger-callout-bg px-4 py-3 text-sm text-fresco-danger-callout-text";
-const fieldClassName = "grid gap-2";
-const labelRowClassName = "flex items-center justify-between gap-3";
-const formControlClassName =
-  "border-fresco-input-border bg-fresco-input-bg text-fresco-text shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] placeholder:text-[color-mix(in_srgb,var(--color-fresco-text)_34%,transparent)] focus-visible:border-fresco-input-active focus-visible:shadow-[0_0_0_4px_var(--color-fresco-tint-dimmed),inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] h-auto min-h-[52px] rounded-2xl border px-4 py-3.5 text-[15px] leading-[1.45]";
+/* ------------------------------------------------------------------ */
+/*  Shared styles                                                      */
+/* ------------------------------------------------------------------ */
+
+const shellClassName =
+  "min-h-screen min-h-dvh overflow-y-auto overscroll-none bg-[var(--background)] grid place-items-center p-4 sm:p-7";
+const cardClassName =
+  "w-full max-w-md rounded-xl border border-fresco-divider bg-fresco-panel p-8 shadow-[0_30px_120px_rgba(0,0,0,0.45)]";
+const inputClassName =
+  "border-fresco-input-border bg-fresco-input-bg text-fresco-text placeholder:text-fresco-description/40 focus-visible:border-fresco-input-active focus-visible:ring-2 focus-visible:ring-fresco-tint-dimmed h-11 rounded-lg border px-3.5 text-sm";
+const errorClassName =
+  "rounded-lg border border-fresco-danger-callout-border bg-fresco-danger-callout-bg px-4 py-2.5 text-sm text-fresco-danger-callout-text";
+const primaryBtnClassName =
+  "w-full bg-fresco-primary-surface text-fresco-primary-surface-text hover:bg-fresco-primary-surface-hover h-11 rounded-lg text-sm font-medium";
+
+/* ------------------------------------------------------------------ */
+/*  Step indicator                                                     */
+/* ------------------------------------------------------------------ */
+
+function StepDots({
+  current,
+  total,
+}: {
+  current: number;
+  total: number;
+}) {
+  return (
+    <div className="flex items-center justify-center gap-1.5">
+      {Array.from({ length: total }, (_, i) => (
+        <div
+          key={i}
+          className={cn(
+            "h-1.5 rounded-full transition-all",
+            i === current
+              ? "w-5 bg-fresco-tint"
+              : "w-1.5 bg-fresco-divider",
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main component                                                     */
+/* ------------------------------------------------------------------ */
 
 export function OnboardingFlow({
   initialOnboardingState,
@@ -53,6 +87,8 @@ export function OnboardingFlow({
 }) {
   const router = useRouter();
   const { createOrganization, isLoaded, setActive } = useOrganizationList();
+
+  /* ---- state ---- */
   const [organizationName, setOrganizationName] = useState(
     initialSite?.name ?? suggestedSiteName,
   );
@@ -84,17 +120,21 @@ export function OnboardingFlow({
     selectedCollectionId.length > 0 &&
     collections.length > 0;
 
+  // Step: 0 = create team, 1 = connect framer
+  const step = organizationId ? 1 : 0;
+  const totalSteps = 2;
+
+  /* ---- handlers ---- */
+
   function handleCreateOrganization() {
     if (!organizationName.trim()) {
-      setOrganizationError("Give your team a name before continuing.");
+      setOrganizationError("Give your team a name.");
       return;
     }
-
     if (!isLoaded || !createOrganization || !setActive) {
       setOrganizationError("Clerk is still loading. Try again in a second.");
       return;
     }
-
     setOrganizationError(null);
     startOrganizationCreation(async () => {
       try {
@@ -107,42 +147,32 @@ export function OnboardingFlow({
         setOrganizationError(
           error instanceof Error
             ? error.message
-            : "Framer Bot could not create the team yet.",
+            : "Could not create the team.",
         );
       }
     });
   }
 
   function handleValidateConnection() {
-    if (!canValidate) {
-      return;
-    }
-
+    if (!canValidate) return;
     setValidationError(null);
     startValidation(async () => {
       try {
         const response = await fetch("/api/onboarding/validate-framer", {
-          body: JSON.stringify({
-            apiKey,
-            projectInput,
-          }),
-          headers: {
-            "Content-Type": "application/json",
-          },
+          body: JSON.stringify({ apiKey, projectInput }),
+          headers: { "Content-Type": "application/json" },
           method: "POST",
         });
         const data = (await response.json()) as {
           collections?: FramerCollectionOption[];
           error?: string;
         };
-
         if (!response.ok || !data.collections) {
           throw new Error(data.error ?? "Framer validation failed.");
         }
-
         setCollections(data.collections);
         if (
-          !data.collections.some((entry) => entry.id === selectedCollectionId)
+          !data.collections.some((c) => c.id === selectedCollectionId)
         ) {
           setSelectedCollectionId(data.collections[0]?.id ?? "");
         }
@@ -150,17 +180,14 @@ export function OnboardingFlow({
         setCollections([]);
         setSelectedCollectionId("");
         setValidationError(
-          error instanceof Error ? error.message : "Framer validation failed.",
+          error instanceof Error ? error.message : "Validation failed.",
         );
       }
     });
   }
 
   function handleCompleteOnboarding() {
-    if (!canComplete) {
-      return;
-    }
-
+    if (!canComplete) return;
     setValidationError(null);
     startSaving(async () => {
       try {
@@ -171,162 +198,135 @@ export function OnboardingFlow({
             projectInput,
             siteName: organizationName.trim() || suggestedSiteName,
           }),
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           method: "POST",
         });
         const data = (await response.json()) as { error?: string };
-
         if (!response.ok) {
-          throw new Error(data.error ?? "Framer Bot could not finish onboarding.");
+          throw new Error(
+            data.error ?? "Could not finish onboarding.",
+          );
         }
-
-        // Check if user came from the landing page "Start Standard" CTA
         let destination = "/dashboard";
         try {
           if (localStorage.getItem("upgrade_intent") === "standard") {
             destination = "/dashboard/billing?intent=upgrade";
           }
         } catch {}
-
         router.push(destination);
         router.refresh();
       } catch (error) {
         setValidationError(
           error instanceof Error
             ? error.message
-            : "Framer Bot could not finish onboarding.",
+            : "Could not finish onboarding.",
         );
       }
     });
   }
 
+  /* ---- render ---- */
+
   return (
     <section className={shellClassName}>
-      <div className={cardClassName}>
-        <div className="max-w-3xl">
-          <span className={kickerClassName}>Framer Bot Setup</span>
-          <h1 className="mt-3 font-heading text-[clamp(40px,7vw,76px)] leading-[0.98] tracking-[-0.04em] text-fresco-title">
-            Connect Framer once, then let your team run it like an AI-native operation.
-          </h1>
-          <p className="mt-4 max-w-3xl text-base leading-7 text-fresco-description">
-            Framer Bot needs your Framer Server API key, the project URL or ID,
-            plus a default CMS collection to turn your site into a faster,
-            team-ready workspace.
-          </p>
-        </div>
+      <div className="flex flex-col items-center gap-8 w-full max-w-md">
+        <BrandLogo height={32} />
 
-        {!organizationId ? (
-          <section className={sectionClassName}>
-            <div>
-              <span className={kickerClassName}>Step 1</span>
-              <h2 className="mt-3 font-heading text-3xl leading-tight text-fresco-title">
-                Create your team
-              </h2>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-fresco-description">
-                This is the shared Framer Bot workspace where admins and team
-                members manage the Framer CMS collections connected to this
-                project together.
-              </p>
-            </div>
+        <div className={cardClassName}>
+          {/* Step 0: Create team */}
+          {step === 0 && (
+            <div className="grid gap-5">
+              <div className="text-center">
+                <h1 className="text-lg font-semibold text-fresco-text">
+                  Create a workspace
+                </h1>
+                <p className="mt-1 text-sm text-fresco-description">
+                  Your team will collaborate here.
+                </p>
+              </div>
 
-            <div className={formClassName}>
-              <div className={fieldClassName}>
-                <Label htmlFor="organization-name">Team name</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="organization-name">Workspace name</Label>
                 <Input
-                  className={formControlClassName}
+                  className={inputClassName}
                   id="organization-name"
-                  onChange={(event) => setOrganizationName(event.target.value)}
-                  placeholder="Acme Content Team"
+                  onChange={(e) => setOrganizationName(e.target.value)}
+                  placeholder="Acme Team"
                   value={organizationName}
                 />
               </div>
-              {organizationError ? (
-                <div className={errorBannerClassName}>{organizationError}</div>
-              ) : null}
+
+              {organizationError && (
+                <div className={errorClassName}>{organizationError}</div>
+              )}
+
               <Button
-                className={primaryButtonClassName}
+                className={primaryBtnClassName}
                 disabled={isCreatingOrganization}
                 onClick={handleCreateOrganization}
                 type="button"
               >
-                {isCreatingOrganization ? "Creating team..." : "Create team"}
+                {isCreatingOrganization ? "Creating…" : "Continue"}
               </Button>
             </div>
-          </section>
-        ) : null}
+          )}
 
-        {organizationId ? (
-          <section className={sectionClassName}>
-            <div>
-              <span className={kickerClassName}>Step 2</span>
-              <h2 className="mt-3 font-heading text-3xl leading-tight text-fresco-title">
-                Validate your Framer connection
-              </h2>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-fresco-description">
-                Grab the Server API key from Framer Site Settings and paste the
-                project URL or project ID from the same project.
-              </p>
-              <p className="mt-3 text-sm leading-6 text-fresco-description">
-                Need help? Follow the Framer docs:{" "}
-                <Link
-                  className="text-fresco-tint underline underline-offset-3"
-                  href={FRAMER_DOCS_URL}
-                  target="_blank"
-                >
-                  Open the Server API guide
-                </Link>
-              </p>
-            </div>
-
+          {/* Step 1: Connect Framer */}
+          {step === 1 && (
             <form
               autoComplete="off"
-              className={formClassName}
-              onSubmit={(event) => event.preventDefault()}
+              className="grid gap-5"
+              onSubmit={(e) => e.preventDefault()}
             >
-              <div className={fieldClassName}>
-                <div className={labelRowClassName}>
-                  <Label htmlFor="project-input">
-                    Framer project URL or ID
-                  </Label>
+              <div className="text-center">
+                <h1 className="text-lg font-semibold text-fresco-text">
+                  Connect your Framer project
+                </h1>
+                <p className="mt-1 text-sm text-fresco-description">
+                  Paste your API key and project URL.
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="project-input">Project URL or ID</Label>
                   <ProjectUrlHelpDialog />
                 </div>
                 <Input
                   autoCapitalize="none"
                   autoComplete="off"
                   autoCorrect="off"
-                  className={formControlClassName}
+                  className={inputClassName}
                   data-1p-ignore="true"
                   data-form-type="other"
                   data-lpignore="true"
                   id="project-input"
                   inputMode="url"
                   name="framer-project-input"
-                  onChange={(event) => setProjectInput(event.target.value)}
-                  placeholder="https://framer.com/projects/... or project ID"
+                  onChange={(e) => setProjectInput(e.target.value)}
+                  placeholder="https://framer.com/projects/…"
                   spellCheck={false}
                   value={projectInput}
                 />
               </div>
 
-              <div className={fieldClassName}>
-                <div className={labelRowClassName}>
-                  <Label htmlFor="api-key">Framer Server API key</Label>
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="api-key">Server API key</Label>
                   <ApiKeyHelpDialog />
                 </div>
                 <Input
                   autoCapitalize="none"
                   autoComplete="off"
                   autoCorrect="off"
-                  className={formControlClassName}
+                  className={inputClassName}
                   data-1p-ignore="true"
                   data-form-type="other"
                   data-lpignore="true"
                   id="api-key"
                   name="framer-server-api-key"
-                  onChange={(event) => setApiKey(event.target.value)}
-                  placeholder="ap_..."
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="ap_…"
                   spellCheck={false}
                   type="password"
                   value={apiKey}
@@ -334,59 +334,67 @@ export function OnboardingFlow({
               </div>
 
               <Button
-                className={primaryButtonClassName}
+                className={cn(
+                  primaryBtnClassName,
+                  collections.length > 0 &&
+                    "bg-fresco-surface-muted text-fresco-text hover:bg-fresco-surface-subtle",
+                )}
                 disabled={!canValidate || isValidating}
                 onClick={handleValidateConnection}
                 type="button"
               >
-                {isValidating ? "Validating..." : "Validate connection"}
+                {isValidating
+                  ? "Validating…"
+                  : collections.length > 0
+                    ? "Re-validate"
+                    : "Validate connection"}
               </Button>
 
-              {collections.length > 0 ? (
-                <div className={fieldClassName}>
-                  <Label htmlFor="collection-select">
-                    Default collection
-                  </Label>
-                  <Select
-                    onValueChange={setSelectedCollectionId}
-                    value={selectedCollectionId}
-                  >
-                    <SelectTrigger
-                      className={formControlClassName}
-                      id="collection-select"
+              {collections.length > 0 && (
+                <>
+                  <div className="grid gap-2">
+                    <Label htmlFor="collection-select">
+                      Default collection
+                    </Label>
+                    <Select
+                      onValueChange={setSelectedCollectionId}
+                      value={selectedCollectionId}
                     >
-                      <SelectValue placeholder="Choose a collection" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {collections.map((collection) => (
-                        <SelectItem key={collection.id} value={collection.id}>
-                          {collection.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className={helperTextClassName}>
-                    You can switch between all validated user-managed
-                    collections from the dashboard after setup.
-                  </p>
-                </div>
-              ) : null}
+                      <SelectTrigger
+                        className={inputClassName}
+                        id="collection-select"
+                      >
+                        <SelectValue placeholder="Choose a collection" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {collections.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              {validationError ? (
-                <div className={errorBannerClassName}>{validationError}</div>
-              ) : null}
+                  <Button
+                    className={primaryBtnClassName}
+                    disabled={!canComplete || isSaving}
+                    onClick={handleCompleteOnboarding}
+                    type="button"
+                  >
+                    {isSaving ? "Finishing…" : "Open dashboard"}
+                  </Button>
+                </>
+              )}
 
-              <Button
-                className={primaryButtonClassName}
-                disabled={!canComplete || isSaving}
-                onClick={handleCompleteOnboarding}
-                type="button"
-              >
-                {isSaving ? "Finishing setup..." : "Open dashboard"}
-              </Button>
+              {validationError && (
+                <div className={errorClassName}>{validationError}</div>
+              )}
             </form>
-          </section>
-        ) : null}
+          )}
+        </div>
+
+        <StepDots current={step} total={totalSteps} />
       </div>
     </section>
   );

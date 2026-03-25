@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 const shellClassName =
   "w-full max-w-md mx-auto flex flex-col items-center gap-8";
 const cardClassName =
-  "rounded-none border border-fresco-divider bg-[linear-gradient(180deg,var(--color-fresco-frame-overlay),transparent),var(--color-fresco-panel)] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.45)] w-full";
+  "w-full max-w-md rounded-xl border border-fresco-divider bg-fresco-panel p-8 shadow-[0_30px_120px_rgba(0,0,0,0.45)]";
 
 export function WorkspaceSelector() {
   const router = useRouter();

@@ -19,7 +19,7 @@ export default async function SelectWorkspacePage() {
   }
 
   return (
-    <main className="min-h-screen min-h-dvh overflow-y-auto overscroll-none bg-[var(--background)] p-4 sm:p-7 grid place-items-center">
+    <main className="min-h-screen min-h-dvh overflow-y-auto overscroll-none bg-[var(--background)] grid place-items-center p-4 sm:p-7">
       <WorkspaceSelector />
     </main>
   );
