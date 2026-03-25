@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { useOrganizationList } from "@clerk/nextjs";
+import { ArrowLeft } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/brand-logo";
@@ -86,7 +87,9 @@ export function OnboardingFlow({
   suggestedSiteName: string;
 }) {
   const router = useRouter();
-  const { createOrganization, isLoaded, setActive } = useOrganizationList();
+  const { createOrganization, isLoaded, setActive, userMemberships } =
+    useOrganizationList({ userMemberships: { infinite: true } });
+  const hasMultipleWorkspaces = (userMemberships?.data?.length ?? 0) > 1;
 
   /* ---- state ---- */
   const [organizationName, setOrganizationName] = useState(
@@ -278,6 +281,17 @@ export function OnboardingFlow({
               className="grid gap-5"
               onSubmit={(e) => e.preventDefault()}
             >
+              {hasMultipleWorkspaces && (
+                <button
+                  className="flex items-center gap-1.5 text-sm text-fresco-description hover:text-fresco-text transition-colors -mb-2"
+                  onClick={() => router.push("/select-workspace")}
+                  type="button"
+                >
+                  <ArrowLeft className="size-3.5" weight="bold" />
+                  <span>Switch workspace</span>
+                </button>
+              )}
+
               <div className="text-center">
                 <h1 className="text-lg font-semibold text-fresco-text">
                   Connect your Framer project

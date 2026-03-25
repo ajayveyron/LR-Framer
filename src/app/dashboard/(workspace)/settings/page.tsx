@@ -1,5 +1,6 @@
 import { SettingsPanel } from "@/components/settings-panel";
 import { SettingsSessionPanel } from "@/components/settings-session-panel";
+import { SettingsWorkspacePanel } from "@/components/settings-workspace-panel";
 
 export default function SettingsPage() {
   return (
@@ -13,6 +14,7 @@ export default function SettingsPage() {
         </div>
 
         <SettingsPanel />
+        <SettingsWorkspacePanel />
         <SettingsSessionPanel />
       </section>
     </main>

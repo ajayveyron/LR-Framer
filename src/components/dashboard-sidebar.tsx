@@ -9,9 +9,12 @@ import {
   Rows,
   UsersThree,
   Sliders,
+  ArrowsLeftRight,
   X,
 } from "@phosphor-icons/react";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
+
+import { useOrganization, useOrganizationList } from "@clerk/nextjs";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
@@ -142,6 +145,25 @@ function DashboardNav({
   );
 }
 
+function WorkspaceSwitcher() {
+  const { organization } = useOrganization();
+  const { userMemberships } = useOrganizationList({
+    userMemberships: { infinite: true },
+  });
+
+  if ((userMemberships?.data?.length ?? 0) < 2) return null;
+
+  return (
+    <Link
+      className="flex items-center gap-2.5 rounded-xl border border-transparent px-3 py-2 text-[12px] font-medium tracking-[-0.01em] text-dash-nav-text transition-colors hover:bg-dash-nav-hover hover:text-fresco-title"
+      href="/select-workspace"
+    >
+      <ArrowsLeftRight weight="bold" />
+      <span className="truncate">{organization?.name ?? "Switch workspace"}</span>
+    </Link>
+  );
+}
+
 export function DashboardSidebar({ role }: DashboardSidebarProps) {
   const pathname = usePathname();
   const items = getNavItems(role);
@@ -164,7 +186,9 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
           <DashboardNav pathname={pathname} role={role} />
         </div>
 
-        <div className="mt-auto pt-4" id="sidebar-insights-slot" />
+        <div className="mt-auto pt-4 grid gap-1" id="sidebar-insights-slot">
+          <WorkspaceSwitcher />
+        </div>
       </aside>
 
       <div className={cn("sticky top-0 z-30 flex items-center justify-between border-b border-dash-control-border bg-dash-topbar px-4 py-3 backdrop-blur-[14px]", "md:hidden")}>

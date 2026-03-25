@@ -649,3 +649,14 @@ Also fixed the payload parsing to match Dodo's actual webhook format with nested
 **How it works:** An in-memory job store (`src/lib/ai-image-jobs.ts`) tracks pending/running/completed/failed jobs. The tool creates a job, fires off `runImageGeneration()` with `void` (fire-and-forget), and returns `{ async: true, jobId }` to the stream. The frontend's `AsyncImageCard` component uses a `useImageJob` polling hook to watch the job status. Token tracking and billing still happen inside the background closure. The system prompt was updated to tell the agent it can continue immediately and should NOT try to chain image gen with `propose_cms_action` in the same turn.
 
 **Scope:** `src/lib/ai-image-tool.ts` (tool now dispatches async), `src/lib/ai-image-jobs.ts` (new in-memory job store), `src/lib/use-image-job.ts` (new polling hook), `src/app/api/ai/image/generate-async/[jobId]/route.ts` (new poll endpoint), `src/components/async-image-card.tsx` (new live progress component), `src/components/ai-chat-panel.tsx` (renders AsyncImageCard for async results, keeps legacy sync fallback), `src/app/api/ai/chat/route.ts` (system prompt updated for async behavior).
+
+## 2026-03-26 — Add workspace switching for multi-org users
+
+**What changed:** Multi-org users can now switch workspaces from three places:
+1. Onboarding step 1 (Connect Framer) shows a "Switch workspace" back link to `/select-workspace`
+2. Dashboard sidebar shows the current workspace name with a switch link at the bottom (only for multi-org users)
+3. Settings page has a new "Workspace" section with a "Switch workspace" button (only for multi-org users)
+
+All three use Clerk's `useOrganizationList` to detect multi-org membership and hide themselves for single-org users.
+
+**Why:** Users belonging to multiple Clerk organizations were getting stuck on the Framer project setup page during onboarding with no way to navigate back to workspace selection. The redirect loop between `/onboarding` → `/dashboard` made it impossible to switch to a different org.
