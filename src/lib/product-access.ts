@@ -189,7 +189,7 @@ export const getDashboardAccess = cache(
     }
 
     if (!orgId) {
-      redirect("/onboarding");
+      redirect("/select-workspace");
     }
 
     const role = mapOrganizationRole(orgRole);
