@@ -335,3 +335,73 @@ export function getDodoApiBase(): string {
     ? "https://test.dodopayments.com"
     : "https://live.dodopayments.com";
 }
+
+// ---------------------------------------------------------------------------
+// Resend email environment (optional — emails degrade gracefully)
+// ---------------------------------------------------------------------------
+
+export interface ResendEnv {
+  RESEND_API_KEY: string;
+  RESEND_FROM_EMAIL: string;
+}
+
+let cachedResendEnv: ResendEnv | undefined | null = null; // null = not yet resolved
+
+/**
+ * Returns diagnostics for Resend env vars.
+ * Empty array means either Resend is fully configured or not attempted at all.
+ * Issues are only reported when at least one RESEND_ var is provided but the
+ * set is incomplete.
+ */
+export function getResendEnvIssues(): Array<{ path: string; message: string }> {
+  const apiKey = normalizeOptionalValue(process.env.RESEND_API_KEY);
+  const fromEmail = normalizeOptionalValue(process.env.RESEND_FROM_EMAIL);
+
+  if (!apiKey && !fromEmail) {
+    return [];
+  }
+
+  const issues: Array<{ path: string; message: string }> = [];
+
+  if (!apiKey) {
+    issues.push({
+      path: "RESEND_API_KEY",
+      message: "RESEND_API_KEY is required when RESEND_FROM_EMAIL is set.",
+    });
+  }
+
+  if (!fromEmail) {
+    issues.push({
+      path: "RESEND_FROM_EMAIL",
+      message: "RESEND_FROM_EMAIL is required when RESEND_API_KEY is set.",
+    });
+  }
+
+  return issues;
+}
+
+/**
+ * Returns the validated Resend env vars, or `undefined` if email is not
+ * configured. The dashboard continues to work normally when this returns
+ * `undefined` — email features degrade gracefully.
+ */
+export function getResendEnv(): ResendEnv | undefined {
+  if (cachedResendEnv !== null) {
+    return cachedResendEnv;
+  }
+
+  const apiKey = normalizeOptionalValue(process.env.RESEND_API_KEY);
+  const fromEmail = normalizeOptionalValue(process.env.RESEND_FROM_EMAIL);
+
+  if (!apiKey || !fromEmail) {
+    cachedResendEnv = undefined;
+    return undefined;
+  }
+
+  cachedResendEnv = {
+    RESEND_API_KEY: apiKey,
+    RESEND_FROM_EMAIL: fromEmail,
+  };
+
+  return cachedResendEnv;
+}

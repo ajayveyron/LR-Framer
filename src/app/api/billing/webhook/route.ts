@@ -8,8 +8,10 @@ import {
   verifyDodoWebhookSignature,
 } from "@/lib/billing";
 import { fetchProductMutation } from "@/lib/convex";
+import { sendEmail } from "@/lib/email";
 import { getDodoBillingEnv } from "@/lib/env";
 import { logError, logEvent } from "@/lib/logger";
+import { ProUpgradeEmail } from "@/emails/pro-upgrade";
 
 export const runtime = "nodejs";
 const WEBHOOK_TOLERANCE_MS = 5 * 60_000;
@@ -251,6 +253,32 @@ export async function POST(request: Request) {
           periodStart: new Date(activePeriod.periodStart).toISOString(),
           periodEnd: new Date(activePeriod.periodEnd).toISOString(),
         });
+
+        // Send pro upgrade congratulatory email
+        if (plan.id !== "free" && customerId) {
+          const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL
+            ? `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`
+            : "https://framerbot.com/dashboard";
+
+          // Dodo metadata may include the user's email from checkout
+          const customerEmail =
+            (data.customer?.customer_id as string) ||
+            (data.metadata?.email as string | undefined);
+
+          if (customerEmail?.includes("@")) {
+            await sendEmail({
+              to: customerEmail,
+              subject: `You are now on the ${plan.name} plan — congrats`,
+              react: ProUpgradeEmail({
+                firstName: (data.metadata?.firstName as string | undefined) ?? undefined,
+                planName: plan.name,
+                dashboardUrl,
+              }),
+              eventName: "email.pro_upgrade_sent",
+              metadata: { organizationId, planId: plan.id, subscriptionId },
+            });
+          }
+        }
         break;
       }
 

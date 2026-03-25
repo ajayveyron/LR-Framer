@@ -660,3 +660,13 @@ Also fixed the payload parsing to match Dodo's actual webhook format with nested
 All three use Clerk's `useOrganizationList` to detect multi-org membership and hide themselves for single-org users.
 
 **Why:** Users belonging to multiple Clerk organizations were getting stuck on the Framer project setup page during onboarding with no way to navigate back to workspace selection. The redirect loop between `/onboarding` → `/dashboard` made it impossible to switch to a different org.
+
+## 2026-03-26 — Resend for transactional emails instead of Clerk built-in emails
+
+**What changed:** Added Resend integration for sending custom transactional emails triggered by Clerk webhooks and billing events. Three email templates created: welcome (user.created), team invitation (organizationInvitation.created), and pro upgrade congratulatory (subscription.active). Clerk webhook route at `/api/webhooks/clerk/route.ts` verifies signatures via svix and dispatches emails. Pro upgrade email fires from the existing billing webhook after subscription activation.
+
+**Why:** Clerk's built-in email templates are limited (full customization requires Pro plan) and don't cover billing events. Resend gives us full control over email design, branding, and triggers — all managed in our codebase as React components via `@react-email/components`. Email is optional — if `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are not set, everything degrades gracefully.
+
+**Env vars needed:** `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (e.g. `FramerLink <hello@yourdomain.com>`), `CLERK_WEBHOOK_SECRET` (from Clerk Dashboard webhook config).
+
+**Scope:** `src/lib/env.ts` (Resend env validation), `src/lib/email.ts` (Resend client + sendEmail helper), `src/emails/` (3 React email templates), `src/app/api/webhooks/clerk/route.ts` (new Clerk webhook handler), `src/app/api/billing/webhook/route.ts` (pro upgrade email trigger added).
