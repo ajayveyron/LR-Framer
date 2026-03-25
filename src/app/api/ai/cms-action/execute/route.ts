@@ -25,6 +25,84 @@ import { runWithFramerRuntimeContext } from "@/lib/framer-runtime";
 
 export const runtime = "nodejs";
 
+/**
+ * Normalize AI-generated fieldData values so they match what the Framer API
+ * expects via typia validation. The AI sometimes sends wrong value types
+ * (e.g. a number for a string field, or a slug for a reference field).
+ */
+function normalizeFieldData(
+  fieldData: Record<string, { type: string; value: unknown }>,
+): Record<string, { type: string; value: unknown }> {
+  const result: Record<string, { type: string; value: unknown }> = {};
+  for (const [fieldId, entry] of Object.entries(fieldData)) {
+    if (!entry || typeof entry !== "object" || !("type" in entry)) continue;
+    const { type, value } = entry;
+    switch (type) {
+      case "string":
+      case "link":
+      case "color":
+        // Coerce to string or null
+        result[fieldId] = { type, value: value != null ? String(value) : null };
+        break;
+      case "formattedText":
+        result[fieldId] = {
+          type,
+          value: value != null ? String(value) : null,
+          ...("contentType" in entry ? { contentType: (entry as Record<string, unknown>).contentType } : {}),
+        } as { type: string; value: unknown };
+        break;
+      case "number":
+        result[fieldId] = {
+          type,
+          value: value != null ? Number(value) : null,
+        };
+        break;
+      case "boolean":
+        result[fieldId] = {
+          type,
+          value: value != null ? Boolean(value) : null,
+        };
+        break;
+      case "image": {
+        // Accept string URL or { url, alt } object
+        if (value && typeof value === "object" && "url" in (value as Record<string, unknown>)) {
+          result[fieldId] = { type, value: (value as Record<string, unknown>).url ?? null };
+        } else {
+          result[fieldId] = { type, value: value != null ? String(value) : null };
+        }
+        break;
+      }
+      case "file":
+        result[fieldId] = { type, value: value != null ? String(value) : null };
+        break;
+      case "date":
+        // Pass through — Framer handles date string parsing
+        result[fieldId] = { type, value: value != null ? String(value) : null };
+        break;
+      case "enum":
+        // Pass through — must be a valid case ID
+        result[fieldId] = { type, value: value != null ? String(value) : null };
+        break;
+      case "collectionReference":
+        // Must be a valid item ID (not a slug or name). Pass through but coerce to string.
+        result[fieldId] = { type, value: value != null ? String(value) : null };
+        break;
+      case "multiCollectionReference":
+        // Must be an array of item IDs
+        result[fieldId] = {
+          type,
+          value: Array.isArray(value) ? value.map(String) : [],
+        };
+        break;
+      default:
+        // Unknown type — pass through as-is
+        result[fieldId] = entry;
+        break;
+    }
+  }
+  return result;
+}
+
 const payloadSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("add_items"),
@@ -116,6 +194,7 @@ export async function POST(request: Request) {
 
     logEvent("info", "ai.cms_action.execute", {
       action: payload.action,
+      fieldDataNormalized: "fieldData" in payload && !!payload.fieldData,
     });
 
     let result: unknown;
@@ -123,7 +202,13 @@ export async function POST(request: Request) {
     switch (payload.action) {
       case "add_items":
         result = await runInFramerContext(() =>
-          addCollectionItems(payload.collectionId, payload.items),
+          addCollectionItems(
+            payload.collectionId,
+            payload.items.map((item) => ({
+              ...item,
+              fieldData: item.fieldData ? normalizeFieldData(item.fieldData) : undefined,
+            })),
+          ),
         );
         break;
       case "remove_items":
@@ -140,7 +225,7 @@ export async function POST(request: Request) {
         const attrs: Record<string, unknown> = {};
         if (payload.slug !== undefined) attrs.slug = payload.slug;
         if (payload.draft !== undefined) attrs.draft = payload.draft;
-        if (payload.fieldData) attrs.fieldData = payload.fieldData;
+        if (payload.fieldData) attrs.fieldData = normalizeFieldData(payload.fieldData);
         result = await runInFramerContext(() =>
           setCollectionItemAttributes(
             payload.collectionId,

@@ -39,6 +39,7 @@ import {
 import { EditProposalView } from "@/components/edit-proposal-view";
 import { ToolCallRow } from "@/components/ai-elements/tool";
 import { CmsActionConfirmation } from "@/components/cms-action-confirmation";
+import { AsyncImageCard } from "@/components/async-image-card";
 import type { CmsActionProposal } from "@/lib/cms-action-types";
 import {
   renderFramerToolOutput,
@@ -644,7 +645,13 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                             {showSourcesSpinner && <CircleNotch className="size-3.5 shrink-0 animate-spin text-fresco-subtitle" />}
                           </div>
                         )}
-                        {message.parts.map((part, i) => {
+                        {/* Find the last propose_cms_action index so earlier duplicates are collapsed */}
+                        {(() => {
+                          const lastCmsActionIdx = message.parts.reduce(
+                            (last, p, idx) => (p.type === "tool-propose_cms_action" ? idx : last),
+                            -1,
+                          );
+                          return message.parts.map((part, i) => {
                           if (part.type === "file") {
                             const isImage = part.mediaType?.startsWith("image/");
                             if (isImage) {
@@ -671,6 +678,8 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                             return <EditProposalView key={i} edits={edits} posts={selectedPosts} fieldDefinitions={metadata.fields.filter((f) => f.supported)} onApplied={handleApplied} />;
                           }
                           if (part.type === "tool-propose_cms_action") {
+                            // Only render the last proposal as interactive; earlier ones were superseded by retries
+                            if (i !== lastCmsActionIdx) return null;
                             const toolData = ("output" in part && part.output) ? part.output : part.input;
                             if (!toolData || typeof toolData !== "object") return null;
                             const proposal = toolData as CmsActionProposal;
@@ -694,8 +703,20 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                           }
                           if (part.type === "tool-generate_and_upload_image") {
                             const hasOutput = "output" in part && part.output != null;
-                            const output = hasOutput ? (part.output as { success?: boolean; url?: string; error?: string; prompt?: string }) : null;
-                            const isSuccess = output?.success && output?.url;
+                            const output = hasOutput ? (part.output as { success?: boolean; async?: boolean; jobId?: string; url?: string; error?: string; prompt?: string }) : null;
+
+                            // New async path — tool returned immediately with a jobId
+                            if (output?.async && output?.jobId) {
+                              return (
+                                <AsyncImageCard
+                                  key={i}
+                                  jobId={output.jobId}
+                                  prompt={output.prompt ?? "AI generated image"}
+                                />
+                              );
+                            }
+
+                            // Legacy sync path — tool returned a direct URL (backwards compat)
                             if (!hasOutput) {
                               return (
                                 <ToolCallRow
@@ -709,7 +730,7 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                                 />
                               );
                             }
-                            if (isSuccess) {
+                            if (output?.success && output?.url) {
                               return (
                                 <ToolCallRow
                                   key={i}
@@ -846,7 +867,8 @@ function AIChatPanelContent({ open, onOpenChange, selectedPosts, metadata, onPos
                             );
                           }
                           return null;
-                        })}
+                        });
+                        })()}
                       </MessageContent>
                     </Message>
                   );
