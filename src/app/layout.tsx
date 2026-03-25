@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import "@/app/globals.css";
 import { NotificationProvider } from "@/components/notification-provider";
@@ -82,6 +83,7 @@ export default function RootLayout({
       <body className="overscroll-none font-sans">
         {content}
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
