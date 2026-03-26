@@ -718,3 +718,25 @@ All three use Clerk's `useOrganizationList` to detect multi-org membership and h
 **Why:** Thinking mode improves reasoning quality for complex CMS tasks. The ChainOfThought UI makes the thinking process visible and transparent. The blog preview card solves the problem of long blog content being buried in tool result tables — users can now read and review the full article inline before approving the CMS write.
 
 **Scope:** `src/app/api/ai/chat/route.ts` (providerOptions, new tool, system prompt), `src/components/ai-elements/chain-of-thought.tsx` (new), `src/components/blog-preview-card.tsx` (new), `src/components/ai-chat-panel.tsx` (reasoning + blog preview renderers).
+
+## 2026-03-26 — Redesign CMS action confirmation UI with expandable rows and draft fix
+
+**What changed:**
+1. Rewrote `src/components/cms-action-confirmation.tsx` — replaced flat truncated tables with expandable collapsible rows. Each item in an `add_items` proposal is now a clickable row that expands to show all field values with proper rich content rendering (HTML via `framer-editor-prose`, images, booleans, long text).
+2. Fixed the draft status display bug — the old `draft !== false` check showed "Draft" when `draft` was `undefined`, which was misleading since Framer defaults to published. Now uses `draft === true` explicitly, and shows a green "Published" badge when items will be published.
+3. Added per-action-type icons (Plus for add, Pencil for edit, Trash for remove) on each expandable row for visual clarity.
+4. Batch approve button now shows "Approve all N" when multiple items are in the proposal.
+5. Added "CMS MUTATION RULES" to the system prompt instructing the AI to always set `draft: true` on new items via `propose_cms_action`, since the product rule is that new posts land as drafts.
+
+**Why:** The old flat table was terrible — content was truncated to 36 chars, rich HTML showed as raw `<p dir="auto">...`, there was no way to inspect individual items, and the status was wrong (showing Published for items that should be drafts). The new design lets users expand each item to see full field values with proper rendering before approving.
+
+**Scope:** `src/components/cms-action-confirmation.tsx` (full rewrite), `src/app/api/ai/chat/route.ts` (system prompt addition).
+
+## 2026-03-26 — Add item preview drawer to CMS action confirmation
+
+**What changed:**
+Replaced the custom field-value preview with the real `PostEditor` component. When you click an add_items or set_item_attributes row in the confirmation card, a drawer opens to the left of the AI chat panel (portaled into `#dashboard-shell`, positioned at `right: min(48vw, 640px)`) containing the full PostEditor with all fields, rich text toolbar, image uploads, enum selects — the exact same editor used in the main dashboard. A synthetic `BlogPostRecord` is constructed from the proposal's field data and passed to PostEditor. The AI chat sheet's `onInteractOutside` handler checks for `[data-cms-preview-drawer]` to prevent the chat from closing when interacting with the preview. Escape closes the preview drawer first (captured in the capture phase before Radix's handler).
+
+**Why:** User wanted the actual post editor form — not a simplified field list — so they can see exactly how the content will look with all the real form controls, rich text rendering, and field layout before approving.
+
+**Scope:** `src/components/cms-action-confirmation.tsx` (PostPreviewDrawer with real PostEditor, synthetic post construction), `src/components/ai-chat-panel.tsx` (pass `metadata` prop, `onInteractOutside` guard).

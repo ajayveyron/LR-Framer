@@ -765,6 +765,13 @@ function AIChatPanelContent({
         portalContainer={portalContainer}
         showCloseButton={false}
         side="right"
+        onInteractOutside={(e) => {
+          // Prevent closing the AI chat when interacting with the preview drawer
+          const target = e.target as HTMLElement | null;
+          if (target?.closest("[data-cms-preview-drawer]")) {
+            e.preventDefault();
+          }
+        }}
       >
         <SheetTitle className="sr-only">AI Assistant</SheetTitle>
         <SheetDescription className="sr-only">
@@ -1022,6 +1029,7 @@ function AIChatPanelContent({
                                   state={state}
                                   output={"output" in part ? part.output : undefined}
                                   fieldNames={allFieldNames}
+                                  metadata={metadata}
                                   onApprove={() => {
                                     if ("approval" in part && (part as any).approval?.id) {
                                       addToolApprovalResponse({

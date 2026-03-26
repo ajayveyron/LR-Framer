@@ -123,7 +123,7 @@ const aiEnvSchema = z.object({
 /** Gemini 3.1 Flash Lite — fast, cost-efficient text generation */
 export const GEMINI_TEXT_MODEL = "gemini-3.1-pro-preview";
 /** Nano Banana 2 (Gemini 3.1 Flash Image) — image generation */
-export const GEMINI_IMAGE_MODEL = "gemini-3-pro-image-preview";
+export const GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image-preview";
 
 export interface AIEnv {
   GOOGLE_CLOUD_PROJECT: string;
