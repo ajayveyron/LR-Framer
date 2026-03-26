@@ -8,6 +8,10 @@
  * This is intentionally in-memory — jobs are ephemeral and scoped to the
  * current server process. A server restart clears pending jobs, which is
  * fine because the chat session would also be interrupted.
+ *
+ * IMPORTANT: We attach the Map to globalThis so it survives module
+ * re-evaluations in Next.js dev mode (HMR / Turbopack) and is shared
+ * across all route handlers within the same Node.js process.
  */
 
 import { logEvent, logError } from "@/lib/logger";
@@ -25,18 +29,33 @@ export interface ImageJob {
   completedAt?: number;
 }
 
-const jobs = new Map<string, ImageJob>();
+const GLOBAL_KEY = "__framerlink_image_jobs" as const;
 
-// Clean up old jobs every 10 minutes (keep last 30 min)
+// Attach to globalThis so the store is shared across all route handlers
+// and survives HMR re-evaluations in dev mode.
+const jobs: Map<string, ImageJob> =
+  (globalThis as Record<string, unknown>)[GLOBAL_KEY] as Map<string, ImageJob> ??
+  (() => {
+    const map = new Map<string, ImageJob>();
+    (globalThis as Record<string, unknown>)[GLOBAL_KEY] = map;
+    return map;
+  })();
+
+// Clean up old jobs every 10 minutes (keep last 30 min).
+// Guard against duplicate intervals from HMR re-evaluations.
 const CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
 const MAX_JOB_AGE_MS = 30 * 60 * 1000;
+const CLEANUP_KEY = "__framerlink_image_jobs_cleanup" as const;
 
-setInterval(() => {
-  const cutoff = Date.now() - MAX_JOB_AGE_MS;
-  for (const [id, job] of jobs) {
-    if (job.createdAt < cutoff) jobs.delete(id);
-  }
-}, CLEANUP_INTERVAL_MS);
+if (!(globalThis as Record<string, unknown>)[CLEANUP_KEY]) {
+  (globalThis as Record<string, unknown>)[CLEANUP_KEY] = true;
+  setInterval(() => {
+    const cutoff = Date.now() - MAX_JOB_AGE_MS;
+    for (const [id, job] of jobs) {
+      if (job.createdAt < cutoff) jobs.delete(id);
+    }
+  }, CLEANUP_INTERVAL_MS);
+}
 
 export function createImageJob(id: string, prompt: string): ImageJob {
   const job: ImageJob = { id, status: "pending", prompt, createdAt: Date.now() };

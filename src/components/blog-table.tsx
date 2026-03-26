@@ -345,11 +345,13 @@ export function BlogTable({
     0,
   );
 
-  const drafts = posts.filter((post) => post.draft);
-  const published = posts.filter((post) => !post.draft);
-  const hasBothGroups = drafts.length > 0 && published.length > 0;
+  const drafts = posts.filter((post) => post.draft && !post.staged);
+  const published = posts.filter((post) => !post.draft && !post.staged);
+  const staged = posts.filter((post) => post.staged);
+  const hasMultipleGroups = [staged.length > 0, drafts.length > 0, published.length > 0].filter(Boolean).length > 1;
 
   const groupedPosts = [
+    { key: "staged", label: "Staged", posts: staged },
     { key: "drafts", label: "Drafts", posts: drafts },
     { key: "published", label: "Published", posts: published },
   ].filter((group) => group.posts.length > 0);
@@ -412,7 +414,7 @@ export function BlogTable({
         >
           {groupedPosts.map((group) => (
             <Fragment key={group.key}>
-              {hasBothGroups && (
+              {hasMultipleGroups && (
                 <tr
                   className="bg-dash-group-bg"
                 >
@@ -482,15 +484,17 @@ export function BlogTable({
                                   <Badge
                                     className={cn(
                                       "h-5 rounded-full px-2 text-sm font-normal data-[loading=true]:bg-transparent data-[loading=true]:opacity-80 transition-opacity",
-                                      post.draft
-                                        ? "border border-fresco-warning-callout-border bg-fresco-warning-callout-bg text-fresco-warning-callout-text"
-                                        : "border border-[color-mix(in_srgb,var(--color-fresco-tint)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-fresco-tint)_14%,transparent)] text-[color-mix(in_srgb,var(--color-fresco-title)_92%,white)]",
+                                      post.staged
+                                        ? "border border-[color-mix(in_srgb,var(--color-fresco-success)_22%,transparent)] bg-[color-mix(in_srgb,var(--color-fresco-success)_12%,transparent)] text-fresco-success-callout-text"
+                                        : post.draft
+                                          ? "border border-fresco-warning-callout-border bg-fresco-warning-callout-bg text-fresco-warning-callout-text"
+                                          : "border border-[color-mix(in_srgb,var(--color-fresco-tint)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-fresco-tint)_14%,transparent)] text-[color-mix(in_srgb,var(--color-fresco-title)_92%,white)]",
                                     )}
                                     data-loading={isLoading}
                                     variant="outline"
                                   >
                                     {isLoading && <Spinner className="mr-1.5 size-3.5 animate-spin" />}
-                                    {post.draft ? "Draft" : "Live"}
+                                    {post.staged ? "Staged" : post.draft ? "Draft" : "Live"}
                                   </Badge>
                                 </motion.div>
                               </AnimatePresence>
@@ -589,28 +593,53 @@ export function BlogTable({
                     </motion.tr>
                   </ContextMenuTrigger>
                   <ContextMenuContent>
-                    <ContextMenuItem
-                      disabled={actionsDisabled}
-                      onSelect={() => {
-                        onDraftToggle?.(post);
-                      }}
-                    >
-                      {post.draft ? "Publish" : "Move to Drafts"}
-                    </ContextMenuItem>
-                    {role === "admin" && (
+                    {post.staged ? (
                       <>
+                        <ContextMenuItem
+                          disabled={actionsDisabled}
+                          onSelect={() => {
+                            onDraftToggle?.(post);
+                          }}
+                        >
+                          Push to Framer
+                        </ContextMenuItem>
                         <ContextMenuSeparator />
                         <ContextMenuItem
                           disabled={actionsDisabled}
                           variant="destructive"
                           onSelect={() => {
-                            if (window.confirm("Are you sure you want to delete this post?")) {
-                              onDelete?.(post.id);
-                            }
+                            onDelete?.(post.id);
                           }}
                         >
-                          Delete
+                          Discard
                         </ContextMenuItem>
+                      </>
+                    ) : (
+                      <>
+                        <ContextMenuItem
+                          disabled={actionsDisabled}
+                          onSelect={() => {
+                            onDraftToggle?.(post);
+                          }}
+                        >
+                          {post.draft ? "Publish" : "Move to Drafts"}
+                        </ContextMenuItem>
+                        {role === "admin" && (
+                          <>
+                            <ContextMenuSeparator />
+                            <ContextMenuItem
+                              disabled={actionsDisabled}
+                              variant="destructive"
+                              onSelect={() => {
+                                if (window.confirm("Are you sure you want to delete this post?")) {
+                                  onDelete?.(post.id);
+                                }
+                              }}
+                            >
+                              Delete
+                            </ContextMenuItem>
+                          </>
+                        )}
                       </>
                     )}
                   </ContextMenuContent>

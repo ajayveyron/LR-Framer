@@ -23,6 +23,8 @@ import {
 } from "@/lib/framer";
 import { logEvent, logError } from "@/lib/logger";
 import { normalizeFieldData } from "@/lib/normalize-field-data";
+import { fetchProductMutation } from "@/lib/convex";
+import { anyApi } from "convex/server";
 
 const MAX_TOOL_RESULT_BYTES = 500_000;
 
@@ -131,7 +133,7 @@ const cmsActionPayloadSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("publish") }),
 ]);
 
-function buildFramerTools(runInFramerContext?: RunInFramerContext) {
+function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContext?: { organizationId: string; userId: string }) {
   const framerGetProjectInfo = tool({
     description: "Get the Framer project name and hashed project ID.",
     inputSchema: z.object({}),
@@ -454,6 +456,53 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext) {
 
         switch (payload.action) {
           case "add_items": {
+            // Stage items in Convex instead of pushing directly to Framer
+            if (stagingContext) {
+              const stagedIds: string[] = [];
+              for (const item of payload.items) {
+                const fieldValues: Record<string, unknown> = {};
+                if (item.fieldData) {
+                  for (const [key, entry] of Object.entries(item.fieldData)) {
+                    fieldValues[key] = entry.value;
+                  }
+                }
+                try {
+                  const id = await fetchProductMutation(
+                    anyApi.stagedItems.create,
+                    {
+                      clerkOrganizationId: stagingContext.organizationId,
+                      collectionId: payload.collectionId,
+                      slug: item.slug,
+                      draft: item.draft ?? true,
+                      fieldDataJson: JSON.stringify(fieldValues),
+                      createdByUserId: stagingContext.userId,
+                      source: "ai" as const,
+                    },
+                  );
+                  stagedIds.push(String(id));
+                } catch (err) {
+                  logError("ai.cms_action.stage_item_failed", err, { slug: item.slug });
+                }
+              }
+              const slugs = payload.items.map((item) => item.slug);
+              logEvent("info", "ai.cms_action.staged", {
+                action: payload.action,
+                durationMs: Date.now() - startMs,
+                slugs,
+                stagedCount: stagedIds.length,
+              });
+              return {
+                success: true,
+                action: payload.action,
+                staged: true,
+                items: payload.items.map((item) => ({
+                  slug: item.slug,
+                  draft: item.draft ?? true,
+                })),
+              };
+            }
+
+            // Fallback: push directly to Framer (legacy/non-product mode)
             const normalized = payload.items.map((item) => ({
               ...item,
               fieldData: item.fieldData ? normalizeFieldData(item.fieldData) : undefined,
@@ -584,8 +633,9 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext) {
 
 export function createScopedFramerTools(
   runInFramerContext: RunInFramerContext,
+  stagingContext?: { organizationId: string; userId: string },
 ) {
-  return buildFramerTools(runInFramerContext);
+  return buildFramerTools(runInFramerContext, stagingContext);
 }
 
 export const framerTools = buildFramerTools();

@@ -36,10 +36,32 @@ export function useImageJob(jobId: string | null): ImageJobResult | null {
 
     startRef.current = Date.now();
 
+    let notFoundCount = 0;
+    const MAX_NOT_FOUND = 5;
+
     async function poll() {
       try {
         const res = await fetch(`/api/ai/image/generate-async/${jobId}`);
+
+        // If the job is gone (server restart / HMR cleared the store),
+        // stop after a few consecutive 404s instead of polling forever.
+        if (res.status === 404) {
+          notFoundCount++;
+          if (notFoundCount >= MAX_NOT_FOUND) {
+            setResult({
+              jobId: jobId!,
+              status: "failed",
+              error: "Image generation job was lost (server may have restarted). Please try again.",
+            });
+            cleanup();
+          }
+          return;
+        }
+
         if (!res.ok) return;
+
+        // Reset on any successful response
+        notFoundCount = 0;
         const data: ImageJobResult = await res.json();
         setResult(data);
 

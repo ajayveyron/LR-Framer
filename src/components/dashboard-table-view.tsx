@@ -710,6 +710,46 @@ export function DashboardTableView({
 							onToggleAll={handleToggleAll}
 							onShiftClick={handleShiftClick}
 							onDraftToggle={async (post) => {
+								// Handle staged item → push to Framer
+								if (post.staged && post.stagedId) {
+									if (framerUnavailable) return;
+									setLoadingPosts((prev) => new Set(prev).add(post.id));
+									try {
+										// Create in Framer via the posts API
+										const response = await fetch('/api/posts', {
+											method: 'POST',
+											headers: {
+												'Content-Type': 'application/json',
+												...getCollectionHeader(activeCollectionId),
+											},
+											body: JSON.stringify({
+												slug: post.slug,
+												fieldValues: post.fieldValues,
+											}),
+										});
+										if (response.ok) {
+											const { post: newPost } = await response.json();
+											// Remove staged item from Convex
+											await fetch(`/api/staged-items/${post.stagedId}`, { method: 'DELETE' });
+											// Replace staged item with real Framer item in the list
+											setCachedPosts((current) =>
+												current
+													.filter((p) => p.id !== post.id)
+													.concat(newPost),
+											);
+										}
+									} catch (error) {
+										console.error('Failed to push staged item to Framer', error);
+									} finally {
+										setLoadingPosts((prev) => {
+											const next = new Set(prev);
+											next.delete(post.id);
+											return next;
+										});
+									}
+									return;
+								}
+
 								if (framerUnavailable) {
 									return;
 								}
@@ -754,6 +794,25 @@ export function DashboardTableView({
 								}
 							}}
 							onDelete={async (postId) => {
+								// Handle staged item deletion
+								const post = cachedPosts.find((p) => p.id === postId);
+								if (post?.staged && post.stagedId) {
+									setLoadingPosts((prev) => new Set(prev).add(postId));
+									try {
+										await fetch(`/api/staged-items/${post.stagedId}`, { method: 'DELETE' });
+										setCachedPosts((current) => current.filter((p) => p.id !== postId));
+									} catch (error) {
+										console.error('Failed to discard staged item', error);
+									} finally {
+										setLoadingPosts((prev) => {
+											const next = new Set(prev);
+											next.delete(postId);
+											return next;
+										});
+									}
+									return;
+								}
+
 								if (framerUnavailable) {
 									return;
 								}

@@ -72,7 +72,7 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { EditProposalView } from "@/components/edit-proposal-view";
 import { ToolCallRow } from "@/components/ai-elements/tool";
-import { CmsActionConfirmation } from "@/components/cms-action-confirmation";
+import { CmsActionConfirmation, buildSyntheticPost, buildSyntheticPostFromUpdate } from "@/components/cms-action-confirmation";
 import { AsyncImageCard } from "@/components/async-image-card";
 import type { CmsActionProposal } from "@/lib/cms-action-types";
 import {
@@ -98,6 +98,7 @@ import {
   ChainOfThoughtHeader,
   ChainOfThoughtContent,
 } from "@/components/ai-elements/chain-of-thought";
+import { PostEditor } from "@/components/post-editor";
 import { BlogPreviewCard } from "@/components/blog-preview-card";
 
 interface AIChatPanelProps {
@@ -390,6 +391,7 @@ function AIChatPanelContent({
   const [showHistory, setShowHistory] = useState(
     () => initialSessionRef.current?.showHistory ?? false,
   );
+  const [previewPost, setPreviewPost] = useState<BlogPostRecord | null>(null);
 
   const bodyData = useMemo(
     () => ({
@@ -760,15 +762,19 @@ function AIChatPanelContent({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        className="absolute z-[80] flex flex-col gap-0 overflow-hidden border-fresco-divider bg-fresco-panel p-0 text-fresco-title shadow-[-40px_0_120px_rgba(0,0,0,0.55)] data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-full data-[side=right]:sm:max-w-none md:data-[side=right]:w-[min(48vw,640px)]"
+        className="absolute z-[80] flex flex-col gap-0 overflow-visible border-fresco-divider bg-fresco-panel p-0 text-fresco-title shadow-[-40px_0_120px_rgba(0,0,0,0.55)] data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-full data-[side=right]:sm:max-w-none md:data-[side=right]:w-[min(48vw,640px)]"
         overlayClassName="absolute inset-0 z-[70] bg-black/50 duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0"
         portalContainer={portalContainer}
         showCloseButton={false}
         side="right"
+        onPointerDownOutside={(e) => {
+          // Prevent closing the AI chat when the preview drawer is open
+          if (document.querySelector("[data-cms-preview-drawer]")) {
+            e.preventDefault();
+          }
+        }}
         onInteractOutside={(e) => {
-          // Prevent closing the AI chat when interacting with the preview drawer
-          const target = e.target as HTMLElement | null;
-          if (target?.closest("[data-cms-preview-drawer]")) {
+          if (document.querySelector("[data-cms-preview-drawer]")) {
             e.preventDefault();
           }
         }}
@@ -777,6 +783,9 @@ function AIChatPanelContent({
         <SheetDescription className="sr-only">
           Chat with AI to manage your CMS, edit posts, and more.
         </SheetDescription>
+
+        {/* Chat content — clipped so the preview drawer can overflow to the left */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-fresco-divider px-4 py-3">
@@ -1030,6 +1039,7 @@ function AIChatPanelContent({
                                   output={"output" in part ? part.output : undefined}
                                   fieldNames={allFieldNames}
                                   metadata={metadata}
+                                  onPreviewItem={setPreviewPost}
                                   onApprove={() => {
                                     if ("approval" in part && (part as any).approval?.id) {
                                       addToolApprovalResponse({
@@ -1463,6 +1473,26 @@ function AIChatPanelContent({
               />
             </div>
           </>
+        )}
+
+        </div>{/* end chat content wrapper */}
+
+        {/* Post preview drawer — rendered inside SheetContent to avoid Radix scroll lock */}
+        {previewPost && (
+          <div
+            data-cms-preview-drawer
+            className="absolute inset-y-0 right-full z-10 flex w-[min(48vw,640px)] flex-col overflow-hidden border-r border-fresco-divider bg-fresco-panel text-fresco-title shadow-[-20px_0_60px_rgba(0,0,0,0.35)] animate-in slide-in-from-right-4 fade-in-0 duration-300"
+          >
+            <div className="min-h-0 flex-1 overflow-hidden [&>*]:h-full [&>*]:min-w-0">
+              <PostEditor
+                metadata={metadata}
+                mode="create"
+                onClose={() => setPreviewPost(null)}
+                onPostSaved={() => {}}
+                post={previewPost}
+              />
+            </div>
+          </div>
         )}
       </SheetContent>
     </Sheet>

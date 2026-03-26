@@ -4,6 +4,7 @@ import { DashboardTableView } from "@/components/dashboard-table-view";
 import { DashboardTableSkeleton } from "@/components/dashboard-table-skeleton";
 import { FramerTemporaryUnavailableState } from "@/components/framer-temporary-unavailable-state";
 import { loadDashboardScreen } from "@/lib/dashboard-data";
+import { loadStagedItems } from "@/lib/staged-items";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,11 @@ async function EditPostContent({ id }: { id: string }) {
     return <FramerTemporaryUnavailableState />;
   }
 
+  const stagedItems = await loadStagedItems(
+    screen.access.organizationId,
+    screen.activeCollection.id,
+  );
+
   return (
     <DashboardTableView
       activeCollectionId={screen.activeCollection.id}
@@ -20,7 +26,7 @@ async function EditPostContent({ id }: { id: string }) {
       framerStatus={screen.framerStatus}
       initialDrawerState={{ mode: "edit", postId: id }}
       metadata={screen.metadata}
-      posts={screen.posts}
+      posts={[...stagedItems, ...screen.posts]}
       role={screen.access.role}
     />
   );

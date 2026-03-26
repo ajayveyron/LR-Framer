@@ -12,6 +12,7 @@ import type * as agentMemory from "../agentMemory.js";
 import type * as billing from "../billing.js";
 import type * as chat from "../chat.js";
 import type * as product from "../product.js";
+import type * as stagedItems from "../stagedItems.js";
 
 import type {
   ApiFromModules,
@@ -24,6 +25,7 @@ declare const fullApi: ApiFromModules<{
   billing: typeof billing;
   chat: typeof chat;
   product: typeof product;
+  stagedItems: typeof stagedItems;
 }>;
 
 /**

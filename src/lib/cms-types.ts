@@ -70,6 +70,10 @@ export interface BlogPostSummary {
 
 export interface BlogPostRecord extends BlogPostSummary {
   fieldValues: Record<string, DashboardFieldValue>;
+  /** When true, this item exists only in the local platform — not yet pushed to Framer CMS */
+  staged?: boolean;
+  /** Convex document ID for staged items (used for persistence operations) */
+  stagedId?: string;
 }
 
 export interface PublishResponse {

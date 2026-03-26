@@ -11,7 +11,6 @@ import {
   Pencil,
   Trash,
   Rows,
-  X,
 } from "@phosphor-icons/react";
 
 import { Badge } from "@/components/ui/badge";
@@ -31,10 +30,7 @@ import type {
   BlogPostRecord,
   DashboardFieldValue,
 } from "@/lib/cms-types";
-import { PostEditor } from "@/components/post-editor";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
 
 interface CmsActionConfirmationProps {
   proposal: CmsActionProposal;
@@ -44,6 +40,7 @@ interface CmsActionConfirmationProps {
   metadata?: BlogCollectionMetadata;
   onApprove?: () => void;
   onReject?: () => void;
+  onPreviewItem?: (post: BlogPostRecord) => void;
 }
 
 function severityStyles(severity: ActionSeverity) {
@@ -74,22 +71,19 @@ function severityStyles(severity: ActionSeverity) {
 // ---------------------------------------------------------------------------
 
 function StatusBadge({ draft }: { draft?: boolean }) {
-  const isDraft = draft === true;
+  // AI-created items are always staged first
   return (
     <Badge
-      variant={isDraft ? "outline" : "secondary"}
-      className={cn(
-        "h-5 rounded px-1.5 text-[10px] font-medium",
-        !isDraft && "bg-fresco-success/15 text-fresco-success border-fresco-success/25",
-      )}
+      variant="secondary"
+      className="h-5 rounded px-1.5 text-[10px] font-medium bg-fresco-success/15 text-fresco-success border-fresco-success/25"
     >
-      {isDraft ? "Draft" : "Published"}
+      Staged
     </Badge>
   );
 }
 
 /** Build a synthetic BlogPostRecord from an add_items proposal item */
-function buildSyntheticPost(
+export function buildSyntheticPost(
   item: { id?: string; slug: string; draft?: boolean; fieldData?: Record<string, { type: string; value: unknown }> },
   fieldNames?: Record<string, string>,
 ): BlogPostRecord {
@@ -119,7 +113,7 @@ function buildSyntheticPost(
 }
 
 /** Build a synthetic BlogPostRecord from a set_item_attributes action */
-function buildSyntheticPostFromUpdate(
+export function buildSyntheticPostFromUpdate(
   action: CmsAction & { action: "set_item_attributes" },
   fieldNames?: Record<string, string>,
 ): BlogPostRecord {
@@ -146,83 +140,6 @@ function buildSyntheticPostFromUpdate(
     lastUpdatedBy: null,
     fieldValues,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Preview drawer — portals PostEditor into #dashboard-shell, left of AI panel
-// ---------------------------------------------------------------------------
-
-function PostPreviewDrawer({
-  post,
-  metadata,
-  onClose,
-}: {
-  post: BlogPostRecord;
-  metadata: BlogCollectionMetadata;
-  onClose: () => void;
-}) {
-  // Resolve portal container lazily — avoids setState-in-effect lint warning
-  const containerRef = useRef<HTMLElement | null>(null);
-  if (containerRef.current === null && typeof document !== "undefined") {
-    containerRef.current = document.getElementById("dashboard-shell");
-  }
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    // Use capture so we intercept before the AI sheet's Escape handler
-    document.addEventListener("keydown", handler, true);
-    return () => document.removeEventListener("keydown", handler, true);
-  }, [onClose]);
-
-  const drawer = (
-    <div
-      data-cms-preview-drawer
-      className={cn(
-        "absolute inset-y-0 z-[75] flex flex-col",
-        "w-full sm:w-[min(48vw,640px)]",
-        // Position: right edge = AI panel width from the right edge
-        "right-[min(48vw,640px)]",
-        "border-r border-fresco-divider bg-fresco-panel text-fresco-title",
-        "shadow-[-20px_0_60px_rgba(0,0,0,0.35)]",
-        "animate-in slide-in-from-right-4 fade-in-0 duration-300",
-      )}
-    >
-      {/* Close button overlay — top-right of the preview drawer */}
-      <div className="absolute top-3 right-3 z-10">
-        <Button
-          aria-label="Close preview"
-          className="size-8"
-          onClick={onClose}
-          size="icon-sm"
-          type="button"
-          variant="ghost"
-        >
-          <X className="size-4" />
-        </Button>
-      </div>
-
-      {/* PostEditor fills the drawer */}
-      <div className="flex min-h-0 flex-1 [&>*]:min-w-0 [&>*]:flex-1">
-        <PostEditor
-          metadata={metadata}
-          mode="create"
-          onClose={onClose}
-          onPostSaved={() => {
-            // Preview-only — no save action
-          }}
-          post={post}
-        />
-      </div>
-    </div>
-  );
-
-  if (!containerRef.current) return null;
-  return createPortal(drawer, containerRef.current);
 }
 
 // ---------------------------------------------------------------------------
@@ -498,9 +415,8 @@ export function CmsActionConfirmation({
   metadata,
   onApprove,
   onReject,
+  onPreviewItem,
 }: CmsActionConfirmationProps) {
-  const [previewPost, setPreviewPost] = useState<BlogPostRecord | null>(null);
-
   const state = deriveVisualState(sdkState, output);
   const severity = getActionSeverity(proposal.payload);
   const styles = severityStyles(severity);
@@ -554,75 +470,65 @@ export function CmsActionConfirmation({
         : 1;
 
   const supportsPreview =
-    metadata &&
+    onPreviewItem &&
     (proposal.payload.action === "add_items" ||
       proposal.payload.action === "set_item_attributes");
 
   return (
-    <>
-      <ToolCallRow
-        elevated
-        icon={headerIcon}
-        label={label}
-        shimmer={state === "executing"}
-        status={statusLabel}
-        summary={summaryText}
-        tone={stateTone}
-      >
-        <div className="flex flex-col gap-3">
-          {supportsPreview && (
-            <div className="flex items-center gap-1.5 text-[10px] text-fresco-subtitle">
-              <Eye className="size-3" weight="bold" />
-              <span>Click an item to preview in the editor</span>
-            </div>
-          )}
-
-          <div className="overflow-hidden rounded-lg border border-fresco-divider/60">
-            <ActionDetails
-              action={proposal.payload}
-              fieldNames={fieldNames}
-              onPreview={metadata ? setPreviewPost : () => {}}
-            />
+    <ToolCallRow
+      elevated
+      icon={headerIcon}
+      label={label}
+      shimmer={state === "executing"}
+      status={statusLabel}
+      summary={summaryText}
+      tone={stateTone}
+    >
+      <div className="flex flex-col gap-3">
+        {supportsPreview && (
+          <div className="flex items-center gap-1.5 text-[10px] text-fresco-subtitle">
+            <Eye className="size-3" weight="bold" />
+            <span>Click an item to preview in the editor</span>
           </div>
+        )}
 
-          {state === "pending" && (
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant={styles.buttonVariant}
-                className="flex-1 gap-1.5"
-                onClick={onApprove}
-              >
-                <CheckCircle className="size-3.5" weight="bold" />
-                {severity === "destructive"
-                  ? "Approve removal"
-                  : severity === "warning"
-                    ? "Approve publish"
-                    : itemCount > 1
-                      ? `Approve all ${itemCount}`
-                      : "Approve"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1 gap-1.5"
-                onClick={onReject}
-              >
-                <XCircle className="size-3.5" weight="bold" />
-                Reject
-              </Button>
-            </div>
-          )}
+        <div className="overflow-hidden rounded-lg border border-fresco-divider/60">
+          <ActionDetails
+            action={proposal.payload}
+            fieldNames={fieldNames}
+            onPreview={onPreviewItem ?? (() => {})}
+          />
         </div>
-      </ToolCallRow>
 
-      {previewPost && metadata && (
-        <PostPreviewDrawer
-          post={previewPost}
-          metadata={metadata}
-          onClose={() => setPreviewPost(null)}
-        />
-      )}
-    </>
+        {state === "pending" && (
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={styles.buttonVariant}
+              className="flex-1 gap-1.5"
+              onClick={onApprove}
+            >
+              <CheckCircle className="size-3.5" weight="bold" />
+              {severity === "destructive"
+                ? "Approve removal"
+                : severity === "warning"
+                  ? "Approve publish"
+                  : itemCount > 1
+                    ? `Approve all ${itemCount}`
+                    : "Approve"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 gap-1.5"
+              onClick={onReject}
+            >
+              <XCircle className="size-3.5" weight="bold" />
+              Reject
+            </Button>
+          </div>
+        )}
+      </div>
+    </ToolCallRow>
   );
 }

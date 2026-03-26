@@ -11,7 +11,7 @@ import {
   serializeDashboardSnapshot,
 } from "@/lib/dashboard-snapshot";
 import { isTransientFramerError } from "@/lib/framer-errors";
-import { fetchProductMutation } from "@/lib/convex";
+import { fetchProductMutation, fetchProductQuery } from "@/lib/convex";
 import { logError } from "@/lib/logger";
 import {
   getDashboardAccess,

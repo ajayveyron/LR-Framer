@@ -137,4 +137,18 @@ export default defineSchema({
     ),
     updatedAt: v.number(),
   }).index("by_org", ["clerkOrganizationId"]),
+
+  stagedItems: defineTable({
+    clerkOrganizationId: v.string(),
+    collectionId: v.string(),
+    slug: v.string(),
+    draft: v.boolean(),
+    fieldDataJson: v.string(),
+    createdByUserId: v.string(),
+    source: v.union(v.literal("ai"), v.literal("manual")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org_collection", ["clerkOrganizationId", "collectionId"])
+    .index("by_org", ["clerkOrganizationId"]),
 });

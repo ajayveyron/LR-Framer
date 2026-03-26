@@ -740,3 +740,23 @@ Replaced the custom field-value preview with the real `PostEditor` component. Wh
 **Why:** User wanted the actual post editor form — not a simplified field list — so they can see exactly how the content will look with all the real form controls, rich text rendering, and field layout before approving.
 
 **Scope:** `src/components/cms-action-confirmation.tsx` (PostPreviewDrawer with real PostEditor, synthetic post construction), `src/components/ai-chat-panel.tsx` (pass `metadata` prop, `onInteractOutside` guard).
+
+## 2026-03-26 — Staged items: AI-created items land locally before Framer
+
+**What changed:**
+1. Added `stagedItems` table to Convex schema — stores items per org/collection with full field data JSON, source (ai/manual), and timestamps. Indexed by org+collection.
+2. Created `convex/stagedItems.ts` with CRUD mutations: `create`, `update`, `remove`, `removeBatch`, `listByCollection`.
+3. Created API routes: `GET/POST /api/staged-items` and `DELETE/PATCH /api/staged-items/[id]` for client-side operations.
+4. Created `src/lib/staged-items.ts` — server-side loader that converts Convex staged items into `BlogPostRecord` objects with `staged: true` and `stagedId` set.
+5. Extended `BlogPostRecord` type with optional `staged` and `stagedId` fields.
+6. Updated all three dashboard pages (`page.tsx`, `posts/[id]/page.tsx`, `posts/new/page.tsx`) to load staged items and prepend them to the posts array.
+7. Updated `BlogTable` to render a third "Staged" group at the top with a green "Staged" badge. Context menu shows "Push to Framer" and "Discard" for staged items instead of "Publish"/"Delete".
+8. Updated `DashboardTableView` — `onDraftToggle` for staged items pushes to Framer via POST /api/posts then removes from Convex. `onDelete` for staged items calls DELETE on the staged items API.
+9. Updated `propose_cms_action` tool in `framer-tools.ts` — when `stagingContext` is provided (product mode), `add_items` creates staged items in Convex instead of pushing directly to Framer. Returns `staged: true` in the result.
+10. Updated `createScopedFramerTools` to accept optional `stagingContext` with `organizationId` and `userId`.
+11. Updated chat route to pass staging context to `createScopedFramerTools`.
+12. Fixed AI field completeness — added instruction to the system prompt telling the AI to populate ALL available fields when creating or editing items.
+
+**Why:** Items created by AI should not go directly to Framer CMS. They need a staging area where users can review, edit, and explicitly push when ready. "Staged" is the git metaphor — ready to commit but not yet pushed. This gives users full control over what lands in their live CMS.
+
+**Scope:** `convex/schema.ts`, `convex/stagedItems.ts` (new), `src/lib/staged-items.ts` (new), `src/lib/cms-types.ts`, `src/lib/framer-tools.ts`, `src/app/api/ai/chat/route.ts`, `src/app/api/staged-items/route.ts` (new), `src/app/api/staged-items/[id]/route.ts` (new), `src/app/dashboard/page.tsx`, `src/app/dashboard/posts/[id]/page.tsx`, `src/app/dashboard/posts/new/page.tsx`, `src/components/blog-table.tsx`, `src/components/dashboard-table-view.tsx`, `src/components/cms-action-confirmation.tsx`.
