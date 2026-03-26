@@ -93,6 +93,12 @@ import type { BlogCollectionMetadata, BlogPostRecord } from "@/lib/cms-types";
 import { parseEditProposals } from "@/lib/ai-edit-parser";
 import type { BulkApplyResult } from "@/lib/ai-bulk-apply";
 import { getCollectionHeader } from "@/lib/product-framer-shared";
+import {
+  ChainOfThought,
+  ChainOfThoughtHeader,
+  ChainOfThoughtContent,
+} from "@/components/ai-elements/chain-of-thought";
+import { BlogPreviewCard } from "@/components/blog-preview-card";
 
 interface AIChatPanelProps {
   open: boolean;
@@ -944,9 +950,25 @@ function AIChatPanelContent({
                             }
                             if (part.type === "text" && part.text.length > 0) {
                               return (
-                                <MessageResponse key={i}>
+                                <MessageResponse key={i} isAnimating={isLastMessage && isStreaming}>
                                   {part.text}
                                 </MessageResponse>
+                              );
+                            }
+                            if (part.type === "reasoning") {
+                              const reasoningPart = part as { type: "reasoning"; text?: string; state?: string };
+                              const text = reasoningPart.text ?? "";
+                              const isThinking = reasoningPart.state !== "complete" && isLastMessage && isStreaming;
+                              if (!text && !isThinking) return null;
+                              return (
+                                <ChainOfThought key={i} streaming={isThinking}>
+                                  <ChainOfThoughtHeader>
+                                    {isThinking ? undefined : "Thought process"}
+                                  </ChainOfThoughtHeader>
+                                  <ChainOfThoughtContent>
+                                    {text || "Thinking…"}
+                                  </ChainOfThoughtContent>
+                                </ChainOfThought>
                               );
                             }
                             if (part.type === "tool-propose_edits") {
@@ -966,6 +988,23 @@ function AIChatPanelContent({
                                     (f) => f.supported,
                                   )}
                                   onApplied={handleApplied}
+                                />
+                              );
+                            }
+                            if (part.type === "tool-render_blog_preview") {
+                              const data = "output" in part && part.output
+                                ? (part.output as { title?: string; content?: string; slug?: string; status?: "draft" | "published" })
+                                : "input" in part
+                                  ? (part.input as { title?: string; content?: string; slug?: string; status?: "draft" | "published" })
+                                  : null;
+                              if (!data?.title || !data?.content) return null;
+                              return (
+                                <BlogPreviewCard
+                                  key={i}
+                                  title={data.title}
+                                  content={data.content}
+                                  slug={data.slug}
+                                  status={data.status}
                                 />
                               );
                             }

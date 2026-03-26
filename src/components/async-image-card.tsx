@@ -103,7 +103,7 @@ export function AsyncImageCard({ jobId, prompt }: AsyncImageCardProps) {
       status={status === "running" ? "Generating" : "Queued"}
       summary={
         status === "running"
-          ? "Creating and uploading your image. You can keep chatting."
+          ? "Creating image using Nano Banana Pro, it can take some time."
           : "Image generation queued. Starting shortly."
       }
       tone="accent"

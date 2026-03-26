@@ -17,6 +17,7 @@ import {
 	PlusIcon,
 	MagnifyingGlassIcon,
 	ChatCircleIcon,
+	ArrowsClockwiseIcon,
 } from '@phosphor-icons/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -577,6 +578,28 @@ export function DashboardTableView({
 								</SelectContent>
 							</Select>
 						:	null}
+						<Button
+							aria-label='Refresh collection'
+							className={cn(
+								'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
+								'!size-10 rounded-xl',
+							)}
+							disabled={isCollectionLoading || framerUnavailable}
+							onClick={() => {
+								startCollectionTransition(() => {
+									router.refresh();
+								});
+							}}
+							size='icon'
+							title='Refresh collection items'
+							type='button'
+							variant='outline'
+						>
+							<ArrowsClockwiseIcon
+								className={cn('size-4', isCollectionLoading && 'animate-spin')}
+								weight='bold'
+							/>
+						</Button>
 						<Button
 							className={cn(
 								'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',

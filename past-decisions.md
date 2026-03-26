@@ -706,3 +706,15 @@ All three use Clerk's `useOrganizationList` to detect multi-org membership and h
 **Why:** The AI was generating very short blog posts (~100 words) when asked to create new items. Two causes: (1) the previous model (`gemini-3.1-flash-lite-preview`) was a lite variant optimized for speed/cost, not long-form generation — user has since upgraded the model. (2) No explicit instruction in the system prompt told the model to write comprehensive content. The `maxOutputTokens` cap ensures the model has headroom even if the default is conservative.
 
 **Scope:** `src/app/api/ai/chat/route.ts` (system prompt + streamText config).
+
+## 2026-03-26 — Enable thinking mode + ChainOfThought UI + blog preview card
+
+**What changed:**
+1. Enabled Gemini thinking via `providerOptions.vertex.thinkingConfig.thinkingLevel: "low"` on the `streamText` call. The AI SDK already streams reasoning parts by default (`sendReasoning: true`).
+2. Created `src/components/ai-elements/chain-of-thought.tsx` — a collapsible component using Radix Collapsible that renders reasoning parts from the AI. Shows a "Thinking…" shimmer while streaming, collapses to "Thought process" when done.
+3. Added a `render_blog_preview` no-op tool that the AI calls to display full blog post content in a rich preview card before proposing a CMS write. The card (`src/components/blog-preview-card.tsx`) renders HTML content in a scrollable prose container with a copy button.
+4. Added "BLOG PREVIEW RULE" to the system prompt instructing the AI to always call `render_blog_preview` before `propose_cms_action` when creating or rewriting blog posts.
+
+**Why:** Thinking mode improves reasoning quality for complex CMS tasks. The ChainOfThought UI makes the thinking process visible and transparent. The blog preview card solves the problem of long blog content being buried in tool result tables — users can now read and review the full article inline before approving the CMS write.
+
+**Scope:** `src/app/api/ai/chat/route.ts` (providerOptions, new tool, system prompt), `src/components/ai-elements/chain-of-thought.tsx` (new), `src/components/blog-preview-card.tsx` (new), `src/components/ai-chat-panel.tsx` (reasoning + blog preview renderers).

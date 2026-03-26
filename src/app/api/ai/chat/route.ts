@@ -155,6 +155,11 @@ NEW ITEM CREATION RULES — match the collection's existing patterns before draf
 - If the reference items show that images are not normally used, do not add one unless the user explicitly asks for it.
 - For formattedText / body fields, generate comprehensive, publication-ready content. Blog posts should be with proper HTML structure (headings, paragraphs, lists where appropriate). Match the depth and length of existing items in the collection. Never produce a stub or placeholder body — if the user asks for a blog post, deliver a complete article.
 
+BLOG PREVIEW RULE — show the full article before proposing:
+- When you draft, generate, or rewrite a full blog post body, ALWAYS call render_blog_preview FIRST to show the user the complete article in a readable preview card.
+- Call render_blog_preview with the title, full HTML content, slug, and intended status BEFORE calling propose_cms_action to create or update the item.
+- This lets the user read and review the content before approving the CMS write. Never skip the preview for long-form content.
+
 You have access to Framer CMS tools that let you directly interact with the Framer project:
 - framer_get_project_info: Get project name and ID
 - framer_get_publish_info: Get current deployment info for staging/production
@@ -309,6 +314,9 @@ export async function POST(request: Request) {
       system: systemPrompt,
       messages: await convertToModelMessages(sanitizedMessages as any),
       maxOutputTokens: 32768,
+      providerOptions: {
+        vertex: { thinkingConfig: { thinkingLevel: "low" } },
+      },
       stopWhen: stepCountIs(20),
       tools: {
         propose_edits: tool({
@@ -325,6 +333,20 @@ export async function POST(request: Request) {
             ).describe("Array of row edits to propose"),
           }),
           // No-op execute — the tool is rendered client-side.
+          execute: async (input) => input,
+        }),
+        render_blog_preview: tool({
+          description:
+            "Render a rich blog post preview card in the chat. Use this whenever you draft, generate, or show the user a full blog post body. " +
+            "The content should be the complete HTML body of the post — the same formattedText value you would use in a propose_cms_action. " +
+            "This lets the user read and review the full article before you propose creating it.",
+          inputSchema: z.object({
+            title: z.string().describe("The blog post title"),
+            content: z.string().describe("The full HTML body content of the blog post"),
+            slug: z.string().optional().describe("The post slug"),
+            status: z.enum(["draft", "published"]).optional().describe("The intended publish status"),
+          }),
+          // No-op — rendered client-side as a preview card.
           execute: async (input) => input,
         }),
         ...framerTools,
