@@ -982,6 +982,7 @@ function AIChatPanelContent({
                                   proposal={input}
                                   state={state}
                                   output={"output" in part ? part.output : undefined}
+                                  fieldNames={allFieldNames}
                                   onApprove={() => {
                                     if ("approval" in part && (part as any).approval?.id) {
                                       addToolApprovalResponse({

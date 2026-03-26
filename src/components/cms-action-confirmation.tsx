@@ -5,14 +5,11 @@ import {
   XCircle,
   SpinnerGap,
   Warning,
-  Trash,
-  PencilSimple,
-  Plus,
-  Rocket,
-  ArrowsDownUp,
   ShieldCheck,
+  Rows,
 } from "@phosphor-icons/react";
 
+import { Badge } from "@/components/ui/badge";
 import { ToolCallRow, type ToolTone } from "@/components/ai-elements/tool";
 import { Button } from "@/components/ui/button";
 import type {
@@ -31,6 +28,8 @@ interface CmsActionConfirmationProps {
   state?: string;
   /** Tool execute result (available after approval + execution) */
   output?: unknown;
+  /** Map of field ID → human-readable name for table column headers */
+  fieldNames?: Record<string, string>;
   onApprove?: () => void;
   onReject?: () => void;
 }
@@ -58,67 +57,176 @@ function severityStyles(severity: ActionSeverity) {
   }
 }
 
-function ActionIcon({ action, className }: { action: CmsAction; className?: string }) {
-  switch (action.action) {
-    case "add_items":
-    case "add_enum_case":
-      return <Plus className={className} weight="bold" />;
-    case "remove_item":
-    case "remove_items":
-    case "remove_enum_case":
-      return <Trash className={className} weight="fill" />;
-    case "set_item_attributes":
-    case "update_enum_case":
-      return <PencilSimple className={className} weight="fill" />;
-    case "set_enum_case_order":
-      return <ArrowsDownUp className={className} weight="bold" />;
-    case "publish":
-      return <Rocket className={className} weight="fill" />;
+function truncateValue(val: unknown, max = 36): string {
+  if (val == null) return "—";
+  const s = String(val);
+  return s.length > max ? s.slice(0, max) + "…" : s;
+}
+
+/** Table for add_items — shows slug, status, and a few field values. */
+function AddItemsTable({ items, fieldNames }: { items: Array<{ id?: string; slug: string; draft?: boolean; fieldData?: Record<string, { type: string; value: unknown }> }>; fieldNames?: Record<string, string> }) {
+  const MAX_ROWS = 6;
+  const visible = items.slice(0, MAX_ROWS);
+  const overflow = items.length - MAX_ROWS;
+
+  // Collect field columns from all items
+  const colSet = new Set<string>();
+  for (const item of visible) {
+    if (item.fieldData) {
+      for (const key of Object.keys(item.fieldData)) {
+        colSet.add(key);
+        if (colSet.size >= 3) break;
+      }
+    }
+    if (colSet.size >= 3) break;
   }
+  const fieldCols = [...colSet];
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-fresco-divider">
+      <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-fresco-divider bg-fresco-surface-muted">
+              <th className="px-3 py-2 text-left font-medium text-fresco-subtitle">Slug</th>
+              <th className="px-3 py-2 text-left font-medium text-fresco-subtitle">Status</th>
+              {fieldCols.map((col) => (
+                <th key={col} className="px-3 py-2 text-left font-medium text-fresco-subtitle">
+                  {fieldNames?.[col] ?? col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((item, i) => (
+              <tr key={i} className="border-b border-fresco-divider last:border-b-0">
+                <td className="max-w-[140px] truncate px-3 py-2 font-mono text-fresco-title">
+                  {item.slug}
+                </td>
+                <td className="px-3 py-2">
+                  <Badge
+                    variant={item.draft !== false ? "outline" : "secondary"}
+                    className="h-5 rounded px-1.5 text-[10px] font-medium"
+                  >
+                    {item.draft !== false ? "Draft" : "Published"}
+                  </Badge>
+                </td>
+                {fieldCols.map((col) => (
+                  <td key={col} className="max-w-[140px] truncate px-3 py-2 text-fresco-description">
+                    {truncateValue(item.fieldData?.[col]?.value)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {overflow > 0 && (
+        <div className="border-t border-fresco-divider bg-fresco-surface-muted px-3 py-2 text-center text-[11px] text-fresco-subtitle">
+          +{overflow} more item{overflow !== 1 ? "s" : ""}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Table for remove_items — shows item IDs in a compact table. */
+function RemoveItemsTable({ itemIds }: { itemIds: string[] }) {
+  const MAX_ROWS = 6;
+  const visible = itemIds.slice(0, MAX_ROWS);
+  const overflow = itemIds.length - MAX_ROWS;
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-fresco-divider">
+      <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-fresco-divider bg-fresco-surface-muted">
+              <th className="px-3 py-2 text-left font-medium text-fresco-subtitle">Item ID</th>
+              <th className="px-3 py-2 text-left font-medium text-fresco-subtitle">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((id) => (
+              <tr key={id} className="border-b border-fresco-divider last:border-b-0">
+                <td className="max-w-[200px] truncate px-3 py-2 font-mono text-fresco-title">{id}</td>
+                <td className="px-3 py-2">
+                  <Badge variant="outline" className="h-5 rounded px-1.5 text-[10px] font-medium text-red-400 border-red-400/30">
+                    Remove
+                  </Badge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {overflow > 0 && (
+        <div className="border-t border-fresco-divider bg-fresco-surface-muted px-3 py-2 text-center text-[11px] text-fresco-subtitle">
+          +{overflow} more item{overflow !== 1 ? "s" : ""}
+        </div>
+      )}
+      <div className="flex items-center gap-1.5 border-t border-fresco-divider bg-fresco-surface-muted px-3 py-2 text-[11px] text-fresco-subtitle">
+        <Rows className="size-3.5" weight="bold" />
+        <span>{itemIds.length} item{itemIds.length !== 1 ? "s" : ""} to remove</span>
+      </div>
+    </div>
+  );
+}
+
+/** Table for set_item_attributes — shows field-by-field changes. */
+function UpdateItemTable({ action, fieldNames }: { action: CmsAction & { action: "set_item_attributes" }; fieldNames?: Record<string, string> }) {
+  const rows: Array<{ field: string; value: string }> = [];
+  if (action.slug !== undefined) rows.push({ field: "Slug", value: action.slug });
+  if (action.draft !== undefined) rows.push({ field: "Status", value: action.draft ? "Draft" : "Published" });
+  if (action.fieldData) {
+    for (const [key, entry] of Object.entries(action.fieldData)) {
+      rows.push({ field: fieldNames?.[key] ?? key, value: truncateValue(entry.value) });
+    }
+  }
+
+  if (rows.length === 0) {
+    return <span className="text-[11px] text-fresco-description">No changes specified</span>;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-fresco-divider">
+      <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-fresco-divider bg-fresco-surface-muted">
+              <th className="px-3 py-2 text-left font-medium text-fresco-subtitle">Field</th>
+              <th className="px-3 py-2 text-left font-medium text-fresco-subtitle">New value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.field} className="border-b border-fresco-divider last:border-b-0">
+                <td className="px-3 py-2 font-medium text-fresco-title">{row.field}</td>
+                <td className="max-w-[200px] truncate px-3 py-2 text-fresco-description">{row.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center gap-1.5 border-t border-fresco-divider bg-fresco-surface-muted px-3 py-2 text-[11px] text-fresco-subtitle">
+        <Rows className="size-3.5" weight="bold" />
+        <span>{rows.length} change{rows.length !== 1 ? "s" : ""}</span>
+      </div>
+    </div>
+  );
 }
 
 /** Render a compact summary of what the action will do */
-function ActionDetails({ action }: { action: CmsAction }) {
+function ActionDetails({ action, fieldNames }: { action: CmsAction; fieldNames?: Record<string, string> }) {
   switch (action.action) {
     case "add_items":
-      return (
-        <div className="flex flex-col gap-1 text-[11px] text-fresco-description">
-          {action.items.slice(0, 5).map((item, i) => (
-            <div key={i} className="flex items-center gap-1.5">
-              <span className="font-mono text-fresco-title">{item.slug}</span>
-              {item.draft !== false && (
-                <span className="rounded bg-fresco-divider px-1 py-0.5 text-[9px]">Draft</span>
-              )}
-            </div>
-          ))}
-          {action.items.length > 5 && (
-            <span className="text-[10px]">+{action.items.length - 5} more</span>
-          )}
-        </div>
-      );
+      return <AddItemsTable items={action.items} fieldNames={fieldNames} />;
     case "remove_items":
-      return (
-        <span className="text-[11px] text-fresco-description">
-          {action.itemIds.length} item{action.itemIds.length !== 1 ? "s" : ""} will be permanently removed
-        </span>
-      );
+      return <RemoveItemsTable itemIds={action.itemIds} />;
     case "remove_item":
-      return (
-        <span className="text-[11px] text-fresco-description">
-          This item will be permanently removed
-        </span>
-      );
-    case "set_item_attributes": {
-      const changes: string[] = [];
-      if (action.slug) changes.push(`slug → ${action.slug}`);
-      if (action.draft !== undefined) changes.push(action.draft ? "Set as draft" : "Publish");
-      if (action.fieldData) changes.push(`${Object.keys(action.fieldData).length} field${Object.keys(action.fieldData).length !== 1 ? "s" : ""}`);
-      return (
-        <span className="text-[11px] text-fresco-description">
-          {changes.join(" · ") || "No changes specified"}
-        </span>
-      );
-    }
+      return <RemoveItemsTable itemIds={[action.itemId]} />;
+    case "set_item_attributes":
+      return <UpdateItemTable action={action} fieldNames={fieldNames} />;
     case "add_enum_case":
       return (
         <span className="text-[11px] text-fresco-description">
@@ -179,6 +287,7 @@ export function CmsActionConfirmation({
   proposal,
   state: sdkState,
   output,
+  fieldNames,
   onApprove,
   onReject,
 }: CmsActionConfirmationProps) {
@@ -212,18 +321,8 @@ export function CmsActionConfirmation({
     state === "failed"
       ? errorMsg ?? "Execution failed"
       : state === "rejected"
-        ? "The proposed action was not executed."
-        : proposal.description;
-  const metaText =
-    state === "pending"
-      ? "Approval is required before Framer is changed."
-      : state === "executing"
-        ? "Applying this change in Framer…"
-        : state === "approved"
-          ? "Framer was updated successfully."
-          : state === "rejected"
-            ? "No CMS changes were made."
-            : "The action could not be completed.";
+        ? "Not executed."
+        : undefined;
   const headerIcon =
     state === "approved" ? (
       <CheckCircle className="size-3.5" weight="fill" />
@@ -242,24 +341,13 @@ export function CmsActionConfirmation({
       elevated
       icon={headerIcon}
       label={label}
-      meta={metaText}
       shimmer={state === "executing"}
       status={statusLabel}
       summary={summaryText}
       tone={stateTone}
     >
       <div className="flex flex-col gap-3">
-        <div className="rounded-2xl border border-fresco-divider/80 bg-fresco-panel/70 px-3 py-2.5">
-          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-fresco-subtitle">
-            Review change
-          </div>
-          <div className="flex items-start gap-2.5">
-            <ActionIcon action={proposal.payload} className={`mt-0.5 size-4 shrink-0 ${styles.iconColor}`} />
-            <div className="min-w-0 flex-1 text-[11px] leading-relaxed text-fresco-description">
-              <ActionDetails action={proposal.payload} />
-            </div>
-          </div>
-        </div>
+        <ActionDetails action={proposal.payload} fieldNames={fieldNames} />
 
         {state === "pending" && (
           <div className="flex items-center gap-2">

@@ -678,3 +678,21 @@ All three use Clerk's `useOrganizationList` to detect multi-org membership and h
 **Why:** The AI was generating `"Bad reference"` errors when creating blog posts because it didn't know the valid item IDs for reference fields like Person. The system prompt said "value must be the ITEM ID" but the snapshot only included field type info — not the actual available options. The AI guessed slugs like `"lakshith-dinesh"` instead of the real Framer item ID. Now the snapshot gives the AI a complete lookup table of valid reference options, just like it already did for enum cases.
 
 **Scope:** `src/lib/ai-context-snapshot.ts` — added `ReferenceSnapshot` type, `collectionId` to `FieldSnapshot`, reference collection fetching in `getAIContextSnapshotWithRunner`, and reference options formatting in `formatSnapshotForPrompt`.
+
+## 2026-03-26 — CMS action execution is now part of the agent's turn via needsApproval
+
+**What changed:** The `propose_cms_action` tool now uses the AI SDK's built-in `needsApproval: true` pattern instead of a no-op execute + separate client-side fetch to `/api/ai/cms-action/execute`. When the user approves, the tool's `execute` function runs server-side within the `streamText` context, and the result flows back to the agent as a tool output. The agent then responds based on the outcome.
+
+**How it works:**
+1. Agent calls `propose_cms_action` → SDK pauses execution, sends `approval-requested` state to client
+2. Client renders Approve/Reject buttons via `CmsActionConfirmation` (now driven by SDK state, not internal useState)
+3. User clicks Approve → `addToolApprovalResponse({ id, approved: true })` → SDK auto-sends via `sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses`
+4. Server-side `execute` runs the actual Framer mutation → result returns to agent
+5. Agent sees the result and responds:
+   - Success: tells user it went through, mentions slug/item
+   - Rejected: graceful "no worries" response, does NOT retry
+   - Failed: reads error, explains what went wrong, attempts fix and retry
+
+**Why:** Previously the agent was blind to outcomes — it proposed an action and never learned if it succeeded, failed, or was rejected. The user had to manually report errors. Now the agent owns the full lifecycle: propose → wait for approval → see result → react. This enables automatic retry on failure (e.g. bad reference ID → look up correct one → re-propose).
+
+**Scope:** `src/lib/framer-tools.ts` (needsApproval + real execute), `src/lib/normalize-field-data.ts` (extracted shared helper), `src/components/cms-action-confirmation.tsx` (rewritten for SDK states), `src/components/ai-chat-panel.tsx` (addToolApprovalResponse + sendAutomaticallyWhen), `src/app/api/ai/chat/route.ts` (system prompt updated with result handling rules), `src/app/api/ai/cms-action/execute/route.ts` (kept as fallback, uses shared normalizeFieldData).
