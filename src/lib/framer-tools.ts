@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 
+import { invalidateAIContextSnapshot } from "@/lib/ai-context-snapshot";
 import {
   addCollectionItems,
   addEnumCase,
@@ -21,6 +22,7 @@ import {
   updateEnumCase,
 } from "@/lib/framer";
 import { logEvent, logError } from "@/lib/logger";
+import { normalizeFieldData } from "@/lib/normalize-field-data";
 
 const MAX_TOOL_RESULT_BYTES = 500_000;
 
@@ -414,7 +416,8 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext) {
     description:
       "Propose a CMS write operation that requires user confirmation before executing. " +
       "Use this for ALL mutations: adding/removing/updating items, enum cases, and publishing. " +
-      "The user will see a confirmation card and must approve before the action runs.",
+      "The user will see a confirmation card and must approve before the action runs. " +
+      "After approval, the action executes and you receive the result — use it to inform the user.",
     inputSchema: z.object({
       description: z
         .string()
@@ -423,7 +426,138 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext) {
         "The action payload to execute if approved",
       ),
     }),
-    execute: async (input) => input,
+    needsApproval: true,
+    execute: async ({ description, payload }) => {
+      const startMs = Date.now();
+      logEvent("info", "ai.cms_action.execute", {
+        action: payload.action,
+        description,
+      });
+
+      try {
+        // Validate collection access
+        if ("collectionId" in payload) {
+          const collections = await (runInFramerContext
+            ? runInFramerContext(() => getAllCollections())
+            : getAllCollections());
+          const allowed = new Set(
+            collections
+              .filter((c) => c.managedBy === "user")
+              .map((c) => c.id),
+          );
+          if (!allowed.has(payload.collectionId)) {
+            return { success: false, error: "Invalid collection for the current site." };
+          }
+        }
+
+        let result: unknown;
+
+        switch (payload.action) {
+          case "add_items": {
+            const normalized = payload.items.map((item) => ({
+              ...item,
+              fieldData: item.fieldData ? normalizeFieldData(item.fieldData) : undefined,
+            }));
+            result = await (runInFramerContext
+              ? runInFramerContext(() => addCollectionItems(payload.collectionId, normalized))
+              : addCollectionItems(payload.collectionId, normalized));
+            const slugs = payload.items.map((item) => item.slug);
+            logEvent("info", "ai.cms_action.success", {
+              action: payload.action,
+              durationMs: Date.now() - startMs,
+              slugs,
+            });
+            return {
+              success: true,
+              action: payload.action,
+              items: payload.items.map((item) => ({
+                slug: item.slug,
+                draft: item.draft ?? false,
+              })),
+            };
+          }
+          case "set_item_attributes": {
+            const attrs: Record<string, unknown> = {};
+            if (payload.slug !== undefined) attrs.slug = payload.slug;
+            if (payload.draft !== undefined) attrs.draft = payload.draft;
+            if (payload.fieldData) attrs.fieldData = normalizeFieldData(payload.fieldData);
+            result = await (runInFramerContext
+              ? runInFramerContext(() =>
+                  setCollectionItemAttributes(
+                    payload.collectionId,
+                    payload.itemId,
+                    attrs as Parameters<typeof setCollectionItemAttributes>[2],
+                  ))
+              : setCollectionItemAttributes(
+                  payload.collectionId,
+                  payload.itemId,
+                  attrs as Parameters<typeof setCollectionItemAttributes>[2],
+                ));
+            logEvent("info", "ai.cms_action.success", {
+              action: payload.action,
+              durationMs: Date.now() - startMs,
+              itemId: payload.itemId,
+            });
+            return { success: true, action: payload.action, itemId: payload.itemId };
+          }
+          case "remove_items":
+            result = await (runInFramerContext
+              ? runInFramerContext(() => removeCollectionItems(payload.collectionId, payload.itemIds))
+              : removeCollectionItems(payload.collectionId, payload.itemIds));
+            break;
+          case "remove_item":
+            result = await (runInFramerContext
+              ? runInFramerContext(() => removeCollectionItem(payload.collectionId, payload.itemId))
+              : removeCollectionItem(payload.collectionId, payload.itemId));
+            break;
+          case "add_enum_case":
+            result = await (runInFramerContext
+              ? runInFramerContext(() => addEnumCase(payload.collectionId, payload.fieldId, payload.name))
+              : addEnumCase(payload.collectionId, payload.fieldId, payload.name));
+            break;
+          case "update_enum_case":
+            result = await (runInFramerContext
+              ? runInFramerContext(() => updateEnumCase(payload.collectionId, payload.fieldId, payload.caseId, payload.newName))
+              : updateEnumCase(payload.collectionId, payload.fieldId, payload.caseId, payload.newName));
+            break;
+          case "remove_enum_case":
+            result = await (runInFramerContext
+              ? runInFramerContext(() => removeEnumCase(payload.collectionId, payload.fieldId, payload.caseId))
+              : removeEnumCase(payload.collectionId, payload.fieldId, payload.caseId));
+            break;
+          case "set_enum_case_order":
+            result = await (runInFramerContext
+              ? runInFramerContext(() => setEnumCaseOrder(payload.collectionId, payload.fieldId, payload.caseIds))
+              : setEnumCaseOrder(payload.collectionId, payload.fieldId, payload.caseIds));
+            break;
+          case "publish":
+            result = await (runInFramerContext
+              ? runInFramerContext(() => publishSite())
+              : publishSite());
+            break;
+        }
+
+        // Invalidate snapshot cache for enum mutations
+        if (
+          payload.action === "add_enum_case" ||
+          payload.action === "update_enum_case" ||
+          payload.action === "remove_enum_case" ||
+          payload.action === "set_enum_case_order"
+        ) {
+          invalidateAIContextSnapshot();
+        }
+
+        logEvent("info", "ai.cms_action.success", {
+          action: payload.action,
+          durationMs: Date.now() - startMs,
+        });
+        return { success: true, action: payload.action };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        logError("ai.cms_action.failed", err, { action: payload.action });
+        return { success: false, action: payload.action, error: message };
+      }
+    },
   });
 
   return {

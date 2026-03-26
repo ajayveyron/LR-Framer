@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
 import {
   Sparkle,
   X,
@@ -538,8 +538,10 @@ function AIChatPanelContent({
     error,
     regenerate,
     clearError,
+    addToolApprovalResponse,
   } = useChat<AIChatMessage>({
     transport: chatTransport,
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     onError: (err) => {
       console.log(
         JSON.stringify({
@@ -970,19 +972,32 @@ function AIChatPanelContent({
                             if (part.type === "tool-propose_cms_action") {
                               // Only render the last proposal as interactive; earlier ones were superseded by retries
                               if (i !== lastCmsActionIdx) return null;
-                              const toolData =
-                                "output" in part && part.output
-                                  ? part.output
-                                  : part.input;
-                              if (!toolData || typeof toolData !== "object")
-                                return null;
-                              const proposal = toolData as CmsActionProposal;
-                              if (!proposal.payload || !proposal.description)
-                                return null;
+                              const input = "input" in part ? part.input as CmsActionProposal : null;
+                              if (!input?.payload || !input?.description) return null;
+                              const state = "state" in part ? (part as any).state as string : undefined;
+
                               return (
                                 <CmsActionConfirmation
                                   key={i}
-                                  proposal={proposal}
+                                  proposal={input}
+                                  state={state}
+                                  output={"output" in part ? part.output : undefined}
+                                  onApprove={() => {
+                                    if ("approval" in part && (part as any).approval?.id) {
+                                      addToolApprovalResponse({
+                                        id: (part as any).approval.id,
+                                        approved: true,
+                                      });
+                                    }
+                                  }}
+                                  onReject={() => {
+                                    if ("approval" in part && (part as any).approval?.id) {
+                                      addToolApprovalResponse({
+                                        id: (part as any).approval.id,
+                                        approved: false,
+                                      });
+                                    }
+                                  }}
                                 />
                               );
                             }

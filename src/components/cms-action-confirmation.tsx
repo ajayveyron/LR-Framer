@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   CheckCircle,
   XCircle,
@@ -28,7 +27,12 @@ import {
 
 interface CmsActionConfirmationProps {
   proposal: CmsActionProposal;
-  onExecuted?: (success: boolean) => void;
+  /** SDK tool invocation state */
+  state?: string;
+  /** Tool execute result (available after approval + execution) */
+  output?: unknown;
+  onApprove?: () => void;
+  onReject?: () => void;
 }
 
 function severityStyles(severity: ActionSeverity) {
@@ -148,13 +152,44 @@ function ActionDetails({ action }: { action: CmsAction }) {
   }
 }
 
-export function CmsActionConfirmation({ proposal, onExecuted }: CmsActionConfirmationProps) {
-  const [state, setState] = useState<"pending" | "executing" | "approved" | "rejected" | "failed">("pending");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+type VisualState = "pending" | "executing" | "approved" | "rejected" | "failed";
 
+function deriveVisualState(sdkState?: string, output?: unknown): VisualState {
+  switch (sdkState) {
+    case "approval-requested":
+    case "approval-pending":
+      return "pending";
+    case "approval-denied":
+    case "output-denied":
+      return "rejected";
+    case "output-available": {
+      const out = output as { success?: boolean } | undefined;
+      return out?.success === false ? "failed" : "approved";
+    }
+    case "output-error":
+      return "failed";
+    default:
+      // Tool is executing (approved, waiting for server execute to finish)
+      if (sdkState === "call" || sdkState === "partial-call") return "executing";
+      return "executing";
+  }
+}
+
+export function CmsActionConfirmation({
+  proposal,
+  state: sdkState,
+  output,
+  onApprove,
+  onReject,
+}: CmsActionConfirmationProps) {
+  const state = deriveVisualState(sdkState, output);
   const severity = getActionSeverity(proposal.payload);
   const styles = severityStyles(severity);
   const label = getActionLabel(proposal.payload);
+
+  const outputData = output as { success?: boolean; error?: string; items?: Array<{ slug: string; draft: boolean }> } | undefined;
+  const errorMsg = outputData?.success === false ? outputData.error : null;
+
   const stateTone: ToolTone =
     state === "approved"
       ? "success"
@@ -183,7 +218,7 @@ export function CmsActionConfirmation({ proposal, onExecuted }: CmsActionConfirm
     state === "pending"
       ? "Approval is required before Framer is changed."
       : state === "executing"
-        ? "Applying this change in Framer."
+        ? "Applying this change in Framer…"
         : state === "approved"
           ? "Framer was updated successfully."
           : state === "rejected"
@@ -201,32 +236,6 @@ export function CmsActionConfirmation({ proposal, onExecuted }: CmsActionConfirm
     ) : (
       <ShieldCheck className="size-3.5" weight="fill" />
     );
-
-  async function handleApprove() {
-    setState("executing");
-    try {
-      const res = await fetch("/api/ai/cms-action/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(proposal.payload),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error ?? `HTTP ${res.status}`);
-      }
-      setState("approved");
-      onExecuted?.(true);
-    } catch (err) {
-      setState("failed");
-      setErrorMsg(err instanceof Error ? err.message : "Execution failed");
-      onExecuted?.(false);
-    }
-  }
-
-  function handleReject() {
-    setState("rejected");
-    onExecuted?.(false);
-  }
 
   return (
     <ToolCallRow
@@ -258,7 +267,7 @@ export function CmsActionConfirmation({ proposal, onExecuted }: CmsActionConfirm
               size="sm"
               variant={styles.buttonVariant}
               className="flex-1 gap-1.5"
-              onClick={handleApprove}
+              onClick={onApprove}
             >
               <CheckCircle className="size-3.5" weight="bold" />
               {severity === "destructive" ? "Approve removal" : severity === "warning" ? "Approve publish" : "Approve"}
@@ -267,18 +276,12 @@ export function CmsActionConfirmation({ proposal, onExecuted }: CmsActionConfirm
               size="sm"
               variant="outline"
               className="flex-1 gap-1.5"
-              onClick={handleReject}
+              onClick={onReject}
             >
               <XCircle className="size-3.5" weight="bold" />
               Reject
             </Button>
           </div>
-        )}
-
-        {state === "failed" && (
-          <Button size="sm" variant="outline" className="w-full gap-1.5" onClick={handleApprove}>
-            Retry
-          </Button>
         )}
       </div>
     </ToolCallRow>
