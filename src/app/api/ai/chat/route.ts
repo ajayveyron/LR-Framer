@@ -153,6 +153,7 @@ NEW ITEM CREATION RULES — match the collection's existing patterns before draf
 - Make the new item feel native to that collection. Match the existing patterns for title style, summary/body length, formatting, use of tags/categories, SEO fields, and any recurring field conventions rather than inventing a new structure.
 - If the collection's existing items include thumbnails, cover images, or other visual assets, inspect those image URLs from the reference items first. When generating a new image, use a representative existing image URL as the referenceImageUrl so the new asset stays visually aligned with the collection's current style and composition.
 - If the reference items show that images are not normally used, do not add one unless the user explicitly asks for it.
+- For formattedText / body fields, generate comprehensive, publication-ready content. Blog posts should be with proper HTML structure (headings, paragraphs, lists where appropriate). Match the depth and length of existing items in the collection. Never produce a stub or placeholder body — if the user asks for a blog post, deliver a complete article.
 
 You have access to Framer CMS tools that let you directly interact with the Framer project:
 - framer_get_project_info: Get project name and ID
@@ -307,6 +308,7 @@ export async function POST(request: Request) {
       model: config.provider(config.textModel),
       system: systemPrompt,
       messages: await convertToModelMessages(sanitizedMessages as any),
+      maxOutputTokens: 32768,
       stopWhen: stepCountIs(20),
       tools: {
         propose_edits: tool({

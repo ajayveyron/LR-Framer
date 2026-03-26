@@ -696,3 +696,13 @@ All three use Clerk's `useOrganizationList` to detect multi-org membership and h
 **Why:** Previously the agent was blind to outcomes — it proposed an action and never learned if it succeeded, failed, or was rejected. The user had to manually report errors. Now the agent owns the full lifecycle: propose → wait for approval → see result → react. This enables automatic retry on failure (e.g. bad reference ID → look up correct one → re-propose).
 
 **Scope:** `src/lib/framer-tools.ts` (needsApproval + real execute), `src/lib/normalize-field-data.ts` (extracted shared helper), `src/components/cms-action-confirmation.tsx` (rewritten for SDK states), `src/components/ai-chat-panel.tsx` (addToolApprovalResponse + sendAutomaticallyWhen), `src/app/api/ai/chat/route.ts` (system prompt updated with result handling rules), `src/app/api/ai/cms-action/execute/route.ts` (kept as fallback, uses shared normalizeFieldData).
+
+## 2026-03-26 — Add maxOutputTokens and content length guidance to AI chat
+
+**What changed:** 
+1. Added `maxOutputTokens: 8192` to the `streamText` call in the AI chat route as a safety net to give the model room for long-form content.
+2. Added a content length instruction to the "NEW ITEM CREATION RULES" section of the system prompt: formattedText/body fields should be 800–1500 words minimum with proper HTML structure, matching existing collection depth. No stubs or placeholders.
+
+**Why:** The AI was generating very short blog posts (~100 words) when asked to create new items. Two causes: (1) the previous model (`gemini-3.1-flash-lite-preview`) was a lite variant optimized for speed/cost, not long-form generation — user has since upgraded the model. (2) No explicit instruction in the system prompt told the model to write comprehensive content. The `maxOutputTokens` cap ensures the model has headroom even if the default is conservative.
+
+**Scope:** `src/app/api/ai/chat/route.ts` (system prompt + streamText config).
