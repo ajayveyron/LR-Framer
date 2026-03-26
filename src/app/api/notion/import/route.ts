@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getErrorResponse } from "@/lib/api";
+import { createErrorJsonResponse } from "@/lib/api";
+import { logError } from "@/lib/logger";
 import {
   assertBridgeRequestAuthorized,
   importFramerPostsToNotion,
@@ -24,8 +25,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("[notion-import]", error);
-    const mapped = getErrorResponse(error);
-    return NextResponse.json({ error: mapped.message }, { status: mapped.status });
+    logError("api.notion.import.failed", error);
+    return createErrorJsonResponse(error);
   }
 }

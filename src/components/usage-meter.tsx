@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { UpgradeButton } from "@/components/upgrade-button";
 import {
   useBillingUsage,
-  deriveMeterState,
+  getMeterState,
   METER_COLORS,
   METER_BG_COLORS,
 } from "@/lib/use-billing-usage";
@@ -60,7 +60,7 @@ export function UsageMeter() {
   if (loading) return <LoadingSkeleton />;
   if (error || !data) return <ErrorFallback />;
 
-  const state = deriveMeterState(data.percentUsed);
+  const state = getMeterState(data.percentUsed);
   const barColor = METER_COLORS[state];
   const barBg = METER_BG_COLORS[state];
   const hasSubscription = data.planName !== "Free";

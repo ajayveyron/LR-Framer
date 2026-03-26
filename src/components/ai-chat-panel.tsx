@@ -37,7 +37,7 @@ import { ChipInput, type ChipInputHandle } from "@/components/chip-input";
 
 import {
   useBillingUsage,
-  deriveMeterState,
+  getMeterState,
   METER_COLORS,
   METER_BG_COLORS,
   invalidateBillingUsage,
@@ -1791,7 +1791,7 @@ function ChatUsageBar() {
   const { data, loading } = useBillingUsage();
   if (loading || !data || data.planName !== "Free") return null;
 
-  const state = deriveMeterState(data.percentUsed);
+  const state = getMeterState(data.percentUsed);
   const color = METER_COLORS[state];
   const bg = METER_BG_COLORS[state];
 

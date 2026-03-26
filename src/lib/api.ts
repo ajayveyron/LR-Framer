@@ -47,7 +47,7 @@ function getFieldErrors(error: ZodError): AppErrorField[] {
   }));
 }
 
-export function getErrorResponse(error: unknown) {
+function getErrorResponse(error: unknown) {
   if (error instanceof AppError) {
     return {
       message: error.message,

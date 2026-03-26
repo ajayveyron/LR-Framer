@@ -122,21 +122,6 @@ export function calculateUsagePercent(
   return Math.min(100, Math.round((currentUsage / allowance) * 100));
 }
 
-export type MeterState = "normal" | "warning" | "exhausted";
-
-/**
- * Derive the visual meter state from a usage percentage.
- *
- * - `"normal"`    — below 80 %
- * - `"warning"`   — 80 % up to (but not including) 100 %
- * - `"exhausted"` — 100 % or above
- */
-export function getMeterState(percent: number): MeterState {
-  if (percent >= 100) return "exhausted";
-  if (percent >= 80) return "warning";
-  return "normal";
-}
-
 // ---------------------------------------------------------------------------
 // Token usage tracking
 // ---------------------------------------------------------------------------

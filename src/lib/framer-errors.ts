@@ -1,8 +1,5 @@
 import { ErrorCode, FramerAPIError, isRetryableError } from "framer-api";
 
-import { AppError } from "@/lib/errors";
-import { TRANSIENT_FRAMER_SHORT_MESSAGE } from "@/lib/framer-copy";
-
 type FramerErrorLike = {
   code?: string;
   message?: string;
@@ -46,7 +43,12 @@ const TRANSIENT_FRAMER_CODES = new Set<string>([
   ErrorCode.TIMEOUT,
 ]);
 
-const TRANSIENT_FRAMER_MESSAGE_PATTERNS = [
+/**
+ * Lowercase message substrings that indicate a transient Framer connection
+ * issue. Shared between server-side error detection (`framer-errors.ts`) and
+ * client-side message matching (`framer-copy.ts`).
+ */
+export const TRANSIENT_FRAMER_MESSAGE_PATTERNS = [
   "no connection to the server",
   "connection to the server was closed",
   "framer is temporarily unavailable",
@@ -71,16 +73,5 @@ export function isTransientFramerError(error: unknown) {
     TRANSIENT_FRAMER_MESSAGE_PATTERNS.some((pattern) =>
       message.includes(pattern),
     )
-  );
-}
-
-export function toTransientFramerAppError(error: unknown) {
-  if (!isTransientFramerError(error)) {
-    return error;
-  }
-
-  return new AppError(
-    TRANSIENT_FRAMER_SHORT_MESSAGE,
-    503,
   );
 }

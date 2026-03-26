@@ -760,3 +760,17 @@ Replaced the custom field-value preview with the real `PostEditor` component. Wh
 **Why:** Items created by AI should not go directly to Framer CMS. They need a staging area where users can review, edit, and explicitly push when ready. "Staged" is the git metaphor — ready to commit but not yet pushed. This gives users full control over what lands in their live CMS.
 
 **Scope:** `convex/schema.ts`, `convex/stagedItems.ts` (new), `src/lib/staged-items.ts` (new), `src/lib/cms-types.ts`, `src/lib/framer-tools.ts`, `src/app/api/ai/chat/route.ts`, `src/app/api/staged-items/route.ts` (new), `src/app/api/staged-items/[id]/route.ts` (new), `src/app/dashboard/page.tsx`, `src/app/dashboard/posts/[id]/page.tsx`, `src/app/dashboard/posts/new/page.tsx`, `src/components/blog-table.tsx`, `src/components/dashboard-table-view.tsx`, `src/components/cms-action-confirmation.tsx`.
+
+## 2026-03-26 — Platform-wide code refactor (zero behavior changes)
+
+**What changed:**
+1. Consolidated duplicated meter state logic — removed dead `getMeterState` + `MeterState` type from `billing.ts` (never imported), renamed `deriveMeterState` → `getMeterState` in `use-billing-usage.ts` as the canonical client-side version.
+2. Standardized error response handling — two routes (`meta/fields`, `notion/import`) were using `getErrorResponse()` directly instead of `createErrorJsonResponse()`. Switched them to the standard helper and made `getErrorResponse` private.
+3. Consolidated duplicated transient Framer error patterns — `framer-copy.ts` and `framer-errors.ts` had identical pattern lists. Exported the list from `framer-errors.ts` as the single source of truth, imported in `framer-copy.ts`.
+4. Removed dead code — `toTransientFramerAppError` (exported, never imported), `getFramerStatusDetail` (exported, never imported), unused `AppError` import in `framer-errors.ts`.
+5. Replaced `console.error` with structured `logError` in `notion/import` route for logging consistency.
+6. Removed empty API directories (`auth/login`, `auth/logout`, `config`, `publish`, `uploads/temp`, `uploads/temp/[id]`).
+
+**Why:** Reduce cognitive complexity, eliminate duplication (DRY), standardize patterns across the codebase, and remove dead code — all without changing any business logic, APIs, or user-facing behavior.
+
+**Scope:** `src/lib/billing.ts`, `src/lib/use-billing-usage.ts`, `src/lib/api.ts`, `src/lib/framer-errors.ts`, `src/lib/framer-copy.ts`, `src/components/ai-chat-panel.tsx`, `src/components/usage-meter.tsx`, `src/app/api/meta/fields/route.ts`, `src/app/api/notion/import/route.ts`.

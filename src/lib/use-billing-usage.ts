@@ -13,9 +13,9 @@ export interface BillingUsageData {
   cycleEnd: string;
 }
 
-type MeterState = "normal" | "warning" | "exhausted";
+export type MeterState = "normal" | "warning" | "exhausted";
 
-export function deriveMeterState(percent: number): MeterState {
+export function getMeterState(percent: number): MeterState {
   if (percent >= 100) return "exhausted";
   if (percent >= 80) return "warning";
   return "normal";
