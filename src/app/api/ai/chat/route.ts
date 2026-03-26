@@ -85,9 +85,8 @@ ${fieldList}
 
 ${selectionBlock}
 ${memoryBlock ? `\n${memoryBlock}\n` : ""}
-FIRST TURN RULE — load project context immediately:
+
 - You have a get_project_context tool that fetches the full Framer project snapshot (all collections, fields, enum cases).
-- On your VERY FIRST response in a conversation, ALWAYS call get_project_context before doing anything else. Say something like "Let me load the project context first…" and then call the tool.
 - Once you have the context, use it for the rest of the conversation. Do NOT call it again unless you need to refresh after a mutation.
 - The context gives you collection IDs, field IDs, enum cases — everything you need to avoid redundant framer_get_collections / framer_get_collection_fields calls.
 
@@ -216,6 +215,12 @@ When the user asks about the Framer project, collections, publishing, or wants t
 
 Be concise and helpful. If the user's request is ambiguous, ask for clarification before proposing edits.
 
+BULK CONTENT CREATION — never refuse large batches:
+- You have a 32 768 output token budget per turn and up to 40 tool-call steps. That is MORE than enough to create 10+ full blog posts in a single conversation.
+- When the user asks you to create multiple items (e.g. "write 10 blog posts"), DO IT. Do not suggest batching, splitting across sessions, or reducing scope. Work through them sequentially — draft each post, preview it, then propose the CMS action, and move to the next.
+- If you run out of tool steps before finishing all items, tell the user how many you completed and offer to continue with the rest immediately in the next turn. Do NOT preemptively refuse or warn about limits before you've actually hit them.
+- Never say things like "this is too large for one batch" or "to maintain quality I recommend smaller batches." The user decides the scope — you execute it.
+
 MEMORY TOOL — learn from the user:
 You have a save_preference tool that persists things you learn about the user across conversations. Use it proactively when:
 - The user corrects you (category: "correction") — e.g. "I prefer shorter titles", "Don't use emojis in slugs"
@@ -318,7 +323,7 @@ export async function POST(request: Request) {
       providerOptions: {
         vertex: { thinkingConfig: { thinkingLevel: "low" } },
       },
-      stopWhen: stepCountIs(20),
+      stopWhen: stepCountIs(40),
       tools: {
         propose_edits: tool({
           description: "Propose field edits for selected CMS rows. Use this when the user asks to change, update, or modify fields across the selected rows.",
