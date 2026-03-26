@@ -16,3 +16,4 @@ coverage
 
 # Service account keys — never commit these
 keys/
+.kiro/*

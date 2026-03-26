@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
+import { dark } from "@clerk/themes";
 import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -38,12 +39,21 @@ export const metadata: Metadata = {
     siteName: "Framer Bot",
     locale: "en_US",
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Framer Bot — Run Framer CMS with your team",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Framer Bot | Framer CMS Management",
     description: "Manage your Framer CMS rapidly with your team, strictly outside the editor using AI.",
     creator: "@framerbot",
+    images: ["/og-image.png"],
   },
   robots: {
     index: true,
@@ -73,7 +83,7 @@ export default function RootLayout({
   const app = <NotificationProvider>{children}</NotificationProvider>;
 
   const content = isClerkConfigured() ? (
-    <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up">
+    <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up" appearance={{ baseTheme: dark }}>
       {app}
     </ClerkProvider>
   ) : app;
