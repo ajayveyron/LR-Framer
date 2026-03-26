@@ -670,3 +670,11 @@ All three use Clerk's `useOrganizationList` to detect multi-org membership and h
 **Env vars needed:** `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (e.g. `FramerLink <hello@yourdomain.com>`), `CLERK_WEBHOOK_SECRET` (from Clerk Dashboard webhook config).
 
 **Scope:** `src/lib/env.ts` (Resend env validation), `src/lib/email.ts` (Resend client + sendEmail helper), `src/emails/` (3 React email templates), `src/app/api/webhooks/clerk/route.ts` (new Clerk webhook handler), `src/app/api/billing/webhook/route.ts` (pro upgrade email trigger added).
+
+## 2026-03-26 — Include reference collection options in AI context snapshot
+
+**What changed:** The `get_project_context` tool now fetches items from all referenced collections (Person, Authors, etc.) and includes them in the snapshot as `REFERENCE COLLECTION OPTIONS`. Each option shows the item's label, ID, and slug. Field definitions for `collectionReference` / `multiCollectionReference` fields now also show which collection they reference (e.g. `→ references "Person"`).
+
+**Why:** The AI was generating `"Bad reference"` errors when creating blog posts because it didn't know the valid item IDs for reference fields like Person. The system prompt said "value must be the ITEM ID" but the snapshot only included field type info — not the actual available options. The AI guessed slugs like `"lakshith-dinesh"` instead of the real Framer item ID. Now the snapshot gives the AI a complete lookup table of valid reference options, just like it already did for enum cases.
+
+**Scope:** `src/lib/ai-context-snapshot.ts` — added `ReferenceSnapshot` type, `collectionId` to `FieldSnapshot`, reference collection fetching in `getAIContextSnapshotWithRunner`, and reference options formatting in `formatSnapshotForPrompt`.

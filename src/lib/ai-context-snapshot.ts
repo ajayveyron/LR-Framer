@@ -3,6 +3,7 @@ import "server-only";
 import {
   getAllCollections,
   getCollectionFields,
+  getCollectionItems,
   getEnumFieldCases,
   getProjectInfo,
 } from "@/lib/framer";
@@ -28,12 +29,26 @@ interface FieldSnapshot {
   name: string;
   type: string;
   required?: boolean;
+  /** For collectionReference / multiCollectionReference fields */
+  collectionId?: string;
 }
 
 interface EnumSnapshot {
   fieldId: string;
   fieldName: string;
   cases: Array<{ id: string; name: string }>;
+}
+
+interface ReferenceOption {
+  id: string;
+  label: string;
+  slug: string;
+}
+
+interface ReferenceSnapshot {
+  collectionId: string;
+  collectionName: string;
+  options: ReferenceOption[];
 }
 
 interface CollectionContext {
@@ -51,6 +66,8 @@ interface AIContextSnapshotOptions {
 export interface AIContextSnapshot {
   project: { id: string; name: string } | null;
   collections: CollectionContext[];
+  /** Deduplicated reference collection options, keyed by collection ID */
+  references: Map<string, ReferenceSnapshot>;
 }
 
 // In-memory cache with TTL — snapshot data changes rarely
@@ -156,6 +173,7 @@ export async function getAIContextSnapshotWithRunner(
           name: f.name,
           type: f.type,
           required: f.required,
+          ...(f.collectionId ? { collectionId: f.collectionId } : {}),
         }));
 
         // Fetch enum cases for all enum fields in this collection
@@ -191,7 +209,71 @@ export async function getAIContextSnapshotWithRunner(
     },
   );
 
-  const snapshot: AIContextSnapshot = { project, collections };
+  const snapshot: AIContextSnapshot = { project, collections, references: new Map() };
+
+  // Collect unique referenced collection IDs across all fields
+  const refCollectionIds = new Set<string>();
+  for (const ctx of collections) {
+    for (const field of ctx.fields) {
+      if (
+        (field.type === "collectionReference" || field.type === "multiCollectionReference") &&
+        field.collectionId
+      ) {
+        refCollectionIds.add(field.collectionId);
+      }
+    }
+  }
+
+  // Fetch items from each referenced collection to build options
+  if (refCollectionIds.size > 0) {
+    const SNAPSHOT_REF_CONCURRENCY = 10;
+    const refEntries = await mapWithConcurrency(
+      [...refCollectionIds],
+      SNAPSHOT_REF_CONCURRENCY,
+      async (refColId): Promise<[string, ReferenceSnapshot] | null> => {
+        try {
+          const data = await (runInFramerContext
+            ? runInFramerContext(() => getCollectionItems(refColId))
+            : getCollectionItems(refColId));
+
+          // Find a title-like field for the label
+          const titleFieldId = Object.entries(data._fieldTypes ?? {}).find(
+            ([, type]) => type === "string" || type === "formattedText",
+          )?.[0];
+
+          const collectionName =
+            collections.find((c) => c.collection.id === refColId)?.collection.name ??
+            refColId;
+
+          return [
+            refColId,
+            {
+              collectionId: refColId,
+              collectionName,
+              options: data.items.map((item: any) => ({
+                id: item.id,
+                label: titleFieldId
+                  ? String(item.fieldData?.[titleFieldId] ?? item.slug)
+                  : item.slug,
+                slug: item.slug,
+              })),
+            },
+          ];
+        } catch (err) {
+          logError("ai.context_snapshot.reference_items_failed", err, {
+            collectionId: refColId,
+          });
+          return null;
+        }
+      },
+    );
+
+    for (const entry of refEntries) {
+      if (entry) {
+        snapshot.references.set(entry[0], entry[1]);
+      }
+    }
+  }
 
   snapshotCache.set(cacheKey, {
     expiresAt: Date.now() + SNAPSHOT_CACHE_TTL_MS,
@@ -203,6 +285,7 @@ export async function getAIContextSnapshotWithRunner(
     collectionCount: collections.length,
     totalFields: collections.reduce((sum, c) => sum + c.fields.length, 0),
     totalEnumFields: collections.reduce((sum, c) => sum + c.enumCases.length, 0),
+    totalReferenceCollections: snapshot.references.size,
   });
 
   return snapshot;
@@ -243,7 +326,16 @@ export function formatSnapshotForPrompt(snapshot: AIContextSnapshot): string {
       const fieldLines =
         ctx.fields.length > 0
           ? ctx.fields
-              .map((f) => `    - ${f.name} (id: ${f.id}, type: ${f.type}${f.required ? ", required" : ""})`)
+              .map((f) => {
+                let line = `    - ${f.name} (id: ${f.id}, type: ${f.type}${f.required ? ", required" : ""})`;
+                if (f.collectionId) {
+                  const ref = snapshot.references.get(f.collectionId);
+                  if (ref) {
+                    line += ` → references "${ref.collectionName}"`;
+                  }
+                }
+                return line;
+              })
               .join("\n")
           : "    (no fields loaded)";
 
@@ -263,6 +355,19 @@ export function formatSnapshotForPrompt(snapshot: AIContextSnapshot): string {
     });
 
     parts.push(`ALL COLLECTIONS:\n${collectionBlocks.join("\n\n")}`);
+  }
+
+  // Reference collection options — so the AI knows valid item IDs for reference fields
+  if (snapshot.references.size > 0) {
+    const refBlocks = [...snapshot.references.values()].map((ref) => {
+      const optionList = ref.options
+        .map((o) => `    - "${o.label}" (id: ${o.id}, slug: ${o.slug})`)
+        .join("\n");
+      return `  "${ref.collectionName}" (id: ${ref.collectionId}):\n${optionList || "    (empty)"}`;
+    });
+    parts.push(
+      `REFERENCE COLLECTION OPTIONS — use the item ID (not slug or label) when setting collectionReference or multiCollectionReference fields:\n${refBlocks.join("\n\n")}`,
+    );
   }
 
   if (parts.length === 0) return "";
