@@ -766,8 +766,8 @@ Replaced the custom field-value preview with the real `PostEditor` component. Wh
 **What changed:**
 1. Consolidated duplicated meter state logic — removed dead `getMeterState` + `MeterState` type from `billing.ts` (never imported), renamed `deriveMeterState` → `getMeterState` in `use-billing-usage.ts` as the canonical client-side version.
 2. Standardized error response handling — two routes (`meta/fields`, `notion/import`) were using `getErrorResponse()` directly instead of `createErrorJsonResponse()`. Switched them to the standard helper and made `getErrorResponse` private.
-3. Consolidated duplicated transient Framer error patterns — `framer-copy.ts` and `framer-errors.ts` had identical pattern lists. Exported the list from `framer-errors.ts` as the single source of truth, imported in `framer-copy.ts`.
-4. Removed dead code — `toTransientFramerAppError` (exported, never imported), `getFramerStatusDetail` (exported, never imported), unused `AppError` import in `framer-errors.ts`.
+3. Consolidated duplicated transient Framer error patterns — `framer-copy.ts` and `framer-errors.ts` had identical pattern lists. Initially consolidated into `framer-errors.ts` as single source of truth, but this pulled the server-only `framer-api` package into client components via transitive import. Reverted and kept the duplication intentional with a comment explaining the client/server boundary.
+4. Removed dead code — `toTransientFramerAppError` (exported, never imported), `getFramerStatusDetail` (exported, never imported), unused `AppError` and `TRANSIENT_FRAMER_SHORT_MESSAGE` imports in `framer-errors.ts`.
 5. Replaced `console.error` with structured `logError` in `notion/import` route for logging consistency.
 6. Removed empty API directories (`auth/login`, `auth/logout`, `config`, `publish`, `uploads/temp`, `uploads/temp/[id]`).
 

@@ -43,12 +43,7 @@ const TRANSIENT_FRAMER_CODES = new Set<string>([
   ErrorCode.TIMEOUT,
 ]);
 
-/**
- * Lowercase message substrings that indicate a transient Framer connection
- * issue. Shared between server-side error detection (`framer-errors.ts`) and
- * client-side message matching (`framer-copy.ts`).
- */
-export const TRANSIENT_FRAMER_MESSAGE_PATTERNS = [
+const TRANSIENT_FRAMER_MESSAGE_PATTERNS = [
   "no connection to the server",
   "connection to the server was closed",
   "framer is temporarily unavailable",
