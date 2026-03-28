@@ -9,6 +9,7 @@ import {
   XCircle as XCircleIcon,
 } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
+import { Shimmer } from "@/components/ui/shimmer";
 import {
   Collapsible,
   CollapsibleContent,
@@ -80,39 +81,32 @@ const toneClasses: Record<
   {
     row: string;
     icon: string;
-    iconFrame: string;
     status: string;
   }
 > = {
   neutral: {
-    row: "bg-fresco-surface-subtle text-fresco-description",
+    row: "bg-fresco-surface-muted/10 text-fresco-description",
     icon: "text-fresco-subtitle",
-    iconFrame: "bg-fresco-surface-muted text-fresco-subtitle",
     status: "text-fresco-subtitle",
   },
   accent: {
-    row: "bg-[color-mix(in_srgb,var(--color-fresco-tint)_10%,transparent)] text-fresco-description",
+    row: "bg-fresco-surface-muted/10 text-fresco-description",
     icon: "text-fresco-tint",
-    iconFrame:
-      "bg-[color-mix(in_srgb,var(--color-fresco-tint)_14%,transparent)] text-fresco-tint",
     status: "text-fresco-tint",
   },
   warning: {
-    row: "bg-fresco-warning-callout-bg text-fresco-warning-callout-text",
+    row: "bg-fresco-surface-muted/10 text-fresco-warning-callout-text",
     icon: "text-fresco-warning",
-    iconFrame: "bg-[color-mix(in_srgb,var(--color-fresco-warning)_16%,transparent)] text-fresco-warning",
     status: "text-fresco-warning-callout-text",
   },
   success: {
-    row: "bg-fresco-success-callout-bg text-fresco-success-callout-text",
+    row: "bg-fresco-surface-muted/10 text-fresco-success-callout-text",
     icon: "text-fresco-success",
-    iconFrame: "bg-[color-mix(in_srgb,var(--color-fresco-success)_16%,transparent)] text-fresco-success",
     status: "text-fresco-success-callout-text",
   },
   danger: {
-    row: "bg-fresco-danger-callout-bg text-fresco-danger-callout-text",
+    row: "bg-fresco-surface-muted/10 text-fresco-danger-callout-text",
     icon: "text-fresco-error",
-    iconFrame: "bg-[color-mix(in_srgb,var(--color-fresco-error)_16%,transparent)] text-fresco-error",
     status: "text-fresco-danger-callout-text",
   },
 };
@@ -160,7 +154,9 @@ export type ToolCallRowProps = ComponentProps<"div"> & {
   actions?: ReactNode;
   tone?: ToolTone;
   shimmer?: boolean;
+  loading?: boolean;
   elevated?: boolean;
+  summaryOnly?: boolean;
 };
 
 export const ToolCallRow = ({
@@ -173,64 +169,101 @@ export const ToolCallRow = ({
   actions,
   tone = "neutral",
   shimmer = false,
+  loading = false,
   elevated = false,
+  summaryOnly = false,
   children,
   ...props
 }: ToolCallRowProps) => {
   const toneClass = toneClasses[tone];
+  const hasDetails = Boolean(children || summary || meta);
+  const primaryText = summary ?? label;
+  const showLoadingState =
+    loading ||
+    shimmer ||
+    status.toLowerCase() === "running" ||
+    status.toLowerCase() === "streaming";
+  const leadingIcon = icon;
 
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[18px] px-3 py-2.5",
-        elevated
-          ? "border border-fresco-divider/80 bg-fresco-surface-muted shadow-[0_18px_50px_rgba(0,0,0,0.22)]"
-          : "border border-transparent",
+        "group/tool relative",
         toneClass.row,
-        shimmer &&
-          "before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.02)_36%,rgba(255,255,255,0.12)_50%,rgba(255,255,255,0.02)_64%,transparent_100%)] before:animate-[tool-row-shimmer_1.8s_ease-in-out_infinite]",
         className
       )}
       {...props}
     >
-      <div className="relative z-10 flex flex-col gap-2">
-        <div className="flex items-start gap-2.5">
-          <div
-            className={cn(
-              "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full",
-              toneClass.iconFrame
-            )}
-          >
-            <span className={cn("flex items-center justify-center", toneClass.icon)}>
-              {icon}
+      <details className="relative z-10">
+        <summary
+          className={cn(
+            "flex list-none items-center gap-2 py-1 text-left outline-none marker:hidden [&::-webkit-details-marker]:hidden",
+            hasDetails && "cursor-pointer",
+            showLoadingState && "animate-pulse opacity-90",
+          )}
+        >
+          <div className="flex size-4 shrink-0 items-center justify-center">
+            <span
+              className={cn(
+                "flex items-center justify-center",
+                toneClass.icon,
+              )}
+            >
+              {leadingIcon}
             </span>
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="truncate text-[13px] font-medium text-fresco-title">
-                {label}
-              </span>
-              <span className={cn("shrink-0 text-[11px] font-medium", toneClass.status)}>
-                {status}
-              </span>
-            </div>
-            {(summary || meta) && (
-              <div className="mt-0.5 flex min-w-0 flex-col gap-0.5">
+          <div
+            className={cn(
+              "min-w-0 flex flex-1 gap-2",
+              summaryOnly ? "items-center" : "items-baseline",
+            )}
+          >
+            {summaryOnly ? (
+              typeof primaryText === "string" && showLoadingState ? (
+                <Shimmer
+                  as="span"
+                  className="min-w-0 truncate text-[12px] text-fresco-description"
+                  duration={1.8}
+                  spread={2.2}
+                >
+                  {primaryText}
+                </Shimmer>
+              ) : (
+                <span className="min-w-0 truncate text-[12px] text-fresco-description">
+                  {primaryText}
+                </span>
+              )
+            ) : (
+              <>
+                <span className="truncate text-[13px] font-medium text-fresco-title">
+                  {label}
+                </span>
+                <span className={cn("shrink-0 text-[10px] font-medium uppercase tracking-[0.08em]", toneClass.status)}>
+                  {status}
+                </span>
                 {summary ? (
-                  <div className="min-w-0 text-[11px] leading-relaxed text-fresco-description">
+                  <span className="min-w-0 truncate text-[11px] text-fresco-description">
                     {summary}
-                  </div>
+                  </span>
                 ) : null}
-                {meta ? (
-                  <div className="min-w-0 text-[10px] text-fresco-subtitle">{meta}</div>
-                ) : null}
-              </div>
+              </>
             )}
           </div>
           {actions ? <div className="shrink-0">{actions}</div> : null}
-        </div>
-        {children ? <div className="pl-9">{children}</div> : null}
-      </div>
+          {hasDetails ? (
+            <ChevronDownIcon className="size-3.5 shrink-0 text-fresco-subtitle transition-transform duration-200 group-open/tool:rotate-180" />
+          ) : null}
+        </summary>
+
+        {hasDetails ? (
+          <div className="pl-6 pb-1 pt-1.5">
+            {meta ? (
+              <div className="mb-2 text-[10px] text-fresco-subtitle">{meta}</div>
+            ) : null}
+            {children ? <div>{children}</div> : null}
+          </div>
+        ) : null}
+      </details>
     </div>
   );
 };

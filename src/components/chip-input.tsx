@@ -61,22 +61,30 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
     ref,
   ) {
     const editableRef = useRef<HTMLDivElement>(null);
+    const prefixLengthRef = useRef(0);
     const [isComposing, setIsComposing] = useState(false);
     // Track whether we're doing an internal DOM sync to avoid echo
     const isSyncingRef = useRef(false);
 
     useImperativeHandle(ref, () => ({
-      focus: () => editableRef.current?.focus(),
+      focus: () => {
+        const suffix = getSuffixEditableSpan(editableRef.current);
+        suffix?.focus();
+      },
       clear: () => {
         if (editableRef.current) {
-          const editable = getEditableSpan(editableRef.current);
-          if (editable) editable.textContent = "";
+          const prefix = getPrefixEditableSpan(editableRef.current);
+          const suffix = getSuffixEditableSpan(editableRef.current);
+          if (prefix) prefix.textContent = "";
+          if (suffix) suffix.textContent = "";
+          prefixLengthRef.current = 0;
         }
       },
       getText: () => {
         if (!editableRef.current) return "";
-        const editable = getEditableSpan(editableRef.current);
-        return editable?.textContent ?? "";
+        const prefix = getPrefixEditableSpan(editableRef.current);
+        const suffix = getSuffixEditableSpan(editableRef.current);
+        return `${prefix?.textContent ?? ""}${suffix?.textContent ?? ""}`;
       },
     }));
 
@@ -85,17 +93,29 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
       if (isSyncingRef.current) return;
       const el = editableRef.current;
       if (!el) return;
-      const editable = getEditableSpan(el);
-      if (!editable) return;
-      if (editable.textContent !== value) {
+      const prefix = getPrefixEditableSpan(el);
+      const suffix = getSuffixEditableSpan(el);
+      if (!suffix) return;
+
+      const nextPrefix =
+        chips.length > 0
+          ? value.slice(0, Math.min(prefixLengthRef.current, value.length))
+          : "";
+      const nextSuffix = chips.length > 0 ? value.slice(nextPrefix.length) : value;
+      const currentPrefix = prefix?.textContent ?? "";
+      const currentSuffix = suffix.textContent ?? "";
+
+      if (currentPrefix !== nextPrefix || currentSuffix !== nextSuffix) {
         isSyncingRef.current = true;
-        editable.textContent = value;
+        if (prefix) prefix.textContent = nextPrefix;
+        suffix.textContent = nextSuffix;
+        prefixLengthRef.current = nextPrefix.length;
         // Move cursor to end
         if (value.length > 0) {
           const sel = window.getSelection();
           if (sel) {
             const range = document.createRange();
-            range.selectNodeContents(editable);
+            range.selectNodeContents(suffix);
             range.collapse(false);
             sel.removeAllRanges();
             sel.addRange(range);
@@ -109,9 +129,13 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
       if (isSyncingRef.current) return;
       const el = editableRef.current;
       if (!el) return;
-      const editable = getEditableSpan(el);
-      const text = editable?.textContent ?? "";
+      const prefix = getPrefixEditableSpan(el);
+      const suffix = getSuffixEditableSpan(el);
+      const prefixText = prefix?.textContent ?? "";
+      const suffixText = suffix?.textContent ?? "";
+      const text = `${prefixText}${suffixText}`;
       isSyncingRef.current = true;
+      prefixLengthRef.current = prefixText.length;
       onChange(text);
       isSyncingRef.current = false;
     }, [onChange]);
@@ -129,8 +153,12 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
           return;
         }
         if (e.key === "Backspace") {
-          const editable = getEditableSpan(editableRef.current!);
-          if (editable && editable.textContent === "") {
+          const prefix = getPrefixEditableSpan(editableRef.current);
+          const suffix = getSuffixEditableSpan(editableRef.current);
+          if (
+            (prefix?.textContent ?? "") === "" &&
+            (suffix?.textContent ?? "") === ""
+          ) {
             onBackspaceEmpty?.();
           }
         }
@@ -166,20 +194,23 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
       if (!autoFocus) return;
       const el = editableRef.current;
       if (!el) return;
-      const editable = getEditableSpan(el);
-      editable?.focus();
+      const suffix = getSuffixEditableSpan(el);
+      suffix?.focus();
     }, [autoFocus]);
 
     // When chips change, ensure cursor is in the editable span
     useEffect(() => {
       const el = editableRef.current;
       if (!el || !document.activeElement || !el.contains(document.activeElement)) return;
-      const editable = getEditableSpan(el);
-      if (editable) {
+      const activeEditable =
+        getPrefixEditableSpan(el)?.contains(document.activeElement)
+          ? getPrefixEditableSpan(el)
+          : getSuffixEditableSpan(el);
+      if (activeEditable) {
         const sel = window.getSelection();
-        if (sel && (!sel.focusNode || !editable.contains(sel.focusNode))) {
+        if (sel && (!sel.focusNode || !activeEditable.contains(sel.focusNode))) {
           const range = document.createRange();
-          range.selectNodeContents(editable);
+          range.selectNodeContents(activeEditable);
           range.collapse(false);
           sel.removeAllRanges();
           sel.addRange(range);
@@ -187,7 +218,29 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
       }
     }, [chips]);
 
-    const showPlaceholder = chips.length === 0 && !value;
+    const showPlaceholder = !value;
+
+    const focusEditable = useCallback(
+      (target: "prefix" | "suffix", toEnd = true) => {
+        const el = editableRef.current;
+        if (!el) return;
+        const editable =
+          target === "prefix"
+            ? getPrefixEditableSpan(el)
+            : getSuffixEditableSpan(el);
+        if (!editable) return;
+
+        editable.focus();
+        const sel = window.getSelection();
+        if (!sel) return;
+        const range = document.createRange();
+        range.selectNodeContents(editable);
+        range.collapse(toEnd);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      },
+      [],
+    );
 
     return (
       <div
@@ -200,25 +253,37 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
         onClick={(e) => {
           // Only focus if clicking the container itself, not a chip button
           if ((e.target as HTMLElement).closest("button")) return;
-          const editable = getEditableSpan(editableRef.current!);
-          if (editable) {
-            editable.focus();
-            const sel = window.getSelection();
-            if (sel) {
-              const range = document.createRange();
-              range.selectNodeContents(editable);
-              range.collapse(false);
-              sel.removeAllRanges();
-              sel.addRange(range);
-            }
-          }
+          focusEditable("suffix");
         }}
       >
+        {chips.length > 0 ? (
+          <span
+            data-chip-prefix-editable="true"
+            contentEditable={!disabled}
+            suppressContentEditableWarning
+            className="inline min-h-[1.5em] min-w-[2px] whitespace-pre-wrap break-words caret-fresco-title outline-none"
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={() => setIsComposing(false)}
+            role="textbox"
+            aria-label="Message input prefix"
+            aria-multiline="true"
+          />
+        ) : null}
         {chips.map((chip) => (
           <span
             key={chip.id}
             contentEditable={false}
-            className="group/chip mr-1.5 inline-flex translate-y-[2px] items-center gap-1 rounded-md border border-fresco-divider bg-fresco-surface-muted px-1.5 py-0.5 text-[11px] font-medium text-fresco-tint select-none"
+            className="group/chip mr-1.5 inline-flex align-middle items-center gap-1 rounded-md border border-fresco-divider bg-fresco-surface-muted px-1.5 py-0.5 text-[11px] font-medium text-fresco-tint select-none"
+            onMouseDown={(e) => {
+              if ((e.target as HTMLElement).closest("button")) return;
+              e.preventDefault();
+              const bounds = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              const clickedLeftHalf = e.clientX < bounds.left + bounds.width / 2;
+              focusEditable(clickedLeftHalf ? "prefix" : "suffix");
+            }}
           >
             <Rows className="size-3 shrink-0" weight="fill" />
             <span className="max-w-32 truncate">{chip.label}</span>
@@ -239,11 +304,17 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
           </span>
         ))}
         <span
-          data-chip-editable="true"
+          data-chip-suffix-editable="true"
           contentEditable={!disabled}
           suppressContentEditableWarning
-          className="inline-block min-h-[1.5em] min-w-[2px] caret-fresco-title outline-none [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-fresco-subtitle [&:empty]:before:pointer-events-none"
-          data-placeholder={showPlaceholder ? (placeholder ?? "") : chips.length > 0 ? "Ask about these items…" : ""}
+          className="inline whitespace-pre-wrap break-words caret-fresco-title outline-none [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-fresco-subtitle [&:empty]:before:pointer-events-none"
+          data-placeholder={
+            showPlaceholder
+              ? chips.length > 0
+                ? "Ask about these items…"
+                : (placeholder ?? "")
+              : ""
+          }
           onInput={handleInput}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
@@ -258,7 +329,12 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
   },
 );
 
-/** Find the editable text span inside the container */
-function getEditableSpan(container: HTMLElement): HTMLSpanElement | null {
-  return container.querySelector<HTMLSpanElement>('[data-chip-editable="true"]');
+function getPrefixEditableSpan(container: HTMLElement | null): HTMLSpanElement | null {
+  if (!container) return null;
+  return container.querySelector<HTMLSpanElement>('[data-chip-prefix-editable="true"]');
+}
+
+function getSuffixEditableSpan(container: HTMLElement | null): HTMLSpanElement | null {
+  if (!container) return null;
+  return container.querySelector<HTMLSpanElement>('[data-chip-suffix-editable="true"]');
 }

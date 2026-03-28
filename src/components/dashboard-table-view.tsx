@@ -11,6 +11,7 @@ import {
 import { useRouter } from 'next/navigation';
 
 import { AIChatPanel } from '@/components/ai-chat-panel';
+import { AIWorkspacePane } from '@/components/ai-workspace-pane';
 import { BlogTable } from '@/components/blog-table';
 import { PostEditor } from '@/components/post-editor';
 import {
@@ -46,6 +47,10 @@ import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 20;
 const AI_CHAT_OPEN_STORAGE_KEY = 'lr:dashboard:ai-chat-open';
+const AI_CHAT_WIDTH_STORAGE_KEY = 'lr:dashboard:ai-chat-width';
+const DEFAULT_AI_CHAT_WIDTH = 460;
+const MIN_AI_CHAT_WIDTH = 380;
+const MAX_AI_CHAT_WIDTH = 760;
 
 type DrawerState = { mode: 'create' } | { mode: 'edit'; postId: string };
 
@@ -191,6 +196,22 @@ function readStoredAIChatOpen() {
 	return window.localStorage.getItem(AI_CHAT_OPEN_STORAGE_KEY) === 'true';
 }
 
+function clampChatWidth(width: number) {
+	return Math.min(Math.max(width, MIN_AI_CHAT_WIDTH), MAX_AI_CHAT_WIDTH);
+}
+
+function readStoredAIChatWidth() {
+	if (typeof window === 'undefined') {
+		return DEFAULT_AI_CHAT_WIDTH;
+	}
+
+	const raw = window.localStorage.getItem(AI_CHAT_WIDTH_STORAGE_KEY);
+	const parsed = raw ? Number(raw) : NaN;
+	return Number.isFinite(parsed) ?
+			clampChatWidth(parsed)
+		:	DEFAULT_AI_CHAT_WIDTH;
+}
+
 function CollectionTableSkeleton() {
 	return (
 		<div className='px-5 py-5'>
@@ -276,6 +297,7 @@ export function DashboardTableView({
 	const searchInputRef = useRef<HTMLInputElement | null>(null);
 	const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 	const [chatOpen, setChatOpen] = useState(readStoredAIChatOpen);
+	const [chatWidth, setChatWidth] = useState(readStoredAIChatWidth);
 	const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
 	const lastClickedIndexRef = useRef<number | null>(null);
 	const [searchIndex, setSearchIndex] = useState(() =>
@@ -318,6 +340,13 @@ export function DashboardTableView({
 			chatOpen ? 'true' : 'false',
 		);
 	}, [chatOpen]);
+
+	useEffect(() => {
+		window.localStorage.setItem(
+			AI_CHAT_WIDTH_STORAGE_KEY,
+			String(clampChatWidth(chatWidth)),
+		);
+	}, [chatWidth]);
 
 	useEffect(() => {
 		const handlePopState = () => {
@@ -538,15 +567,14 @@ export function DashboardTableView({
 		pendingCollectionId !== null || isCollectionTransitionPending;
 
 	return (
-		<section className='relative min-w-0 overflow-x-clip'>
-			<div className='min-h-full min-w-0  shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay)] md:border md:border-dash-content-border'>
-				<div
-					className={cn(
-						'bg-dash-topbar backdrop-blur-[14px]',
-						'sticky top-0 z-20',
-					)}
-				>
-					<div className='flex flex-wrap items-start gap-2.5 border-b border-dash-content-border px-4 py-3 md:items-center'>
+		<section className='relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden'>
+			<div
+				className={cn(
+					'bg-dash-topbar backdrop-blur-[14px]',
+					'sticky top-0 z-20 shrink-0',
+				)}
+			>
+				<div className='flex flex-wrap items-start gap-2.5 border-b border-dash-content-border px-4 py-3 md:items-center'>
 						{collections.length > 1 ?
 							<Select
 								disabled={isCollectionLoading}
@@ -677,9 +705,9 @@ export function DashboardTableView({
 								</KbdGroup>
 							</label>
 							<Button
-								aria-label='Open AI chat'
+								aria-label={chatOpen ? 'Close AI chat' : 'Open AI chat'}
 								className='h-10 rounded-xl'
-								onClick={() => setChatOpen(true)}
+								onClick={() => setChatOpen((prev) => !prev)}
 								size='default'
 								type='button'
 								variant='default'
@@ -691,13 +719,16 @@ export function DashboardTableView({
 								<span>{selectedRows.size > 0 ? `Chat with ${selectedRows.size} row${selectedRows.size === 1 ? '' : 's'}` : 'AI Assistant'}</span>
 							</Button>
 						</div>
-					</div>
 				</div>
+			</div>
 
-				<div className='min-w-0'>
-					{isCollectionLoading ?
-						<CollectionTableSkeleton />
-					:	<BlogTable
+			<div className='flex min-h-0 min-w-0 flex-1 overflow-hidden'>
+				<div className='min-w-0 flex-1 overflow-hidden'>
+					<div className='flex h-full min-h-0 min-w-0 flex-col shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay)] md:border md:border-dash-content-border'>
+						<div className='min-h-0 min-w-0 flex-1 overflow-auto'>
+							{isCollectionLoading ?
+								<CollectionTableSkeleton />
+							:	<BlogTable
 							activePostId={activePostId}
 							actionsDisabled={framerUnavailable}
 							columns={activeColumns}
@@ -852,88 +883,111 @@ export function DashboardTableView({
 								setChatOpen(true);
 							}}
 						/>
-					}
-				</div>
+							}
+						</div>
 
-				<div className='flex flex-col gap-4 border-t border-dash-content-border px-5 py-3 sm:flex-row sm:items-center sm:justify-between'>
-					<div className='text-[12px] text-fresco-description'>
-						{isCollectionLoading ?
-							'Loading collection…'
-						: filteredPosts.length === 0 ?
-							'Showing 0 of 0'
-						:	`Showing ${startIndex + 1}-${startIndex + visiblePosts.length} of ${filteredPosts.length}`
-						}
-					</div>
+						<div className='shrink-0 border-t border-dash-content-border px-5 py-3'>
+							<div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+								<div className='text-[12px] text-fresco-description'>
+									{isCollectionLoading ?
+										'Loading collection…'
+									: filteredPosts.length === 0 ?
+										'Showing 0 of 0'
+									:	`Showing ${startIndex + 1}-${startIndex + visiblePosts.length} of ${filteredPosts.length}`
+									}
+								</div>
 
-					{!isCollectionLoading && totalPages > 1 ?
-						<div className='flex flex-wrap items-center gap-2.5 sm:justify-end'>
-							<Button
-								className={cn(
-									'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
-									'rounded-xl px-3 text-[12px] font-medium text-fresco-title',
-								)}
-								disabled={currentPage === 1}
-								onClick={() =>
-									setPage((value) => Math.max(1, value - 1))
-								}
-								size='sm'
-								type='button'
-								variant='outline'
-							>
-								Previous
-							</Button>
-							<Select
-								onValueChange={(value) => {
-									setPage(Number(value));
-								}}
-								value={String(currentPage)}
-							>
-								<SelectTrigger
-									aria-label='Select page'
+								{!isCollectionLoading && totalPages > 1 ?
+									<div className='flex flex-wrap items-center gap-2.5 sm:justify-end'>
+										<Button
+											className={cn(
+												'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
+												'rounded-xl px-3 text-[12px] font-medium text-fresco-title',
+											)}
+											disabled={currentPage === 1}
+											onClick={() =>
+												setPage((value) => Math.max(1, value - 1))
+											}
+											size='sm'
+											type='button'
+											variant='outline'
+										>
+											Previous
+										</Button>
+										<Select
+											onValueChange={(value) => {
+												setPage(Number(value));
+											}}
+											value={String(currentPage)}
+										>
+											<SelectTrigger
+												aria-label='Select page'
 									className={cn(
 										'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
 										'min-w-28 rounded-xl text-[12px] font-medium text-fresco-text',
 									)}
-									size='sm'
-								>
-									<SelectValue
-										placeholder={`Page ${currentPage}`}
-									/>
-								</SelectTrigger>
-								<SelectContent className='border border-dash-control-border bg-[#141415] text-fresco-text shadow-2xl'>
-									{pageOptions.map((pageNumber) => (
-										<SelectItem
-											key={pageNumber}
-											value={String(pageNumber)}
+												size='sm'
+											>
+												<SelectValue
+													placeholder={`Page ${currentPage}`}
+												/>
+											</SelectTrigger>
+											<SelectContent className='border border-dash-control-border bg-[#141415] text-fresco-text shadow-2xl'>
+												{pageOptions.map((pageNumber) => (
+													<SelectItem
+														key={pageNumber}
+														value={String(pageNumber)}
+													>
+														Page {pageNumber}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+										<span className='text-[12px] text-fresco-description'>
+											of {totalPages}
+										</span>
+										<Button
+											className={cn(
+												'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
+												'rounded-xl px-3 text-[12px] font-medium text-fresco-title',
+											)}
+											disabled={currentPage === totalPages}
+											onClick={() =>
+												setPage((value) =>
+													Math.min(totalPages, value + 1),
+												)
+											}
+											size='sm'
+											type='button'
+											variant='outline'
 										>
-											Page {pageNumber}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-							<span className='text-[12px] text-fresco-description'>
-								of {totalPages}
-							</span>
-							<Button
-								className={cn(
-									'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
-									'rounded-xl px-3 text-[12px] font-medium text-fresco-title',
-								)}
-								disabled={currentPage === totalPages}
-								onClick={() =>
-									setPage((value) =>
-										Math.min(totalPages, value + 1),
-									)
-								}
-								size='sm'
-								type='button'
-								variant='outline'
-							>
-								Next
-							</Button>
+											Next
+										</Button>
+									</div>
+								:	null}
+							</div>
 						</div>
-					:	null}
+					</div>
 				</div>
+
+				<AIWorkspacePane
+					onWidthChange={setChatWidth}
+					open={chatOpen}
+					width={chatWidth}
+				>
+					<AIChatPanel
+						className='h-full border-0 shadow-none'
+						metadata={metadata}
+						onOpenChange={setChatOpen}
+						onPostsUpdated={handlePostsUpdated}
+						onClearSelection={handleClearSelection}
+						open={chatOpen}
+						pendingPrompt={pendingPrompt}
+						onPendingPromptConsumed={handlePendingPromptConsumed}
+						selectedPosts={selectedPosts}
+						variant='embedded'
+					/>
+				</AIWorkspacePane>
 			</div>
 
 			<Sheet
@@ -1016,17 +1070,6 @@ export function DashboardTableView({
 					</div>
 				</SheetContent>
 			</Sheet>
-
-			<AIChatPanel
-				metadata={metadata}
-				onOpenChange={setChatOpen}
-				onPostsUpdated={handlePostsUpdated}
-				onClearSelection={handleClearSelection}
-				open={chatOpen}
-				pendingPrompt={pendingPrompt}
-				onPendingPromptConsumed={handlePendingPromptConsumed}
-				selectedPosts={selectedPosts}
-			/>
 
 			<SiteInsightsPill
 				metadata={metadata}

@@ -1,39 +1,23 @@
 "use client";
 
-import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
 import {
-  Sparkle,
   X,
   WarningCircle,
   ArrowClockwise,
-  Wrench,
-  CheckCircle,
   CircleNotch,
   PaperPlaneRight,
   Stop,
-  GlobeSimple,
-  ImageSquare,
-  DownloadSimple,
   Plus,
   ClockCounterClockwise,
   PlusIcon,
-  Rows,
   Gauge,
   CurrencyDollarIcon,
   ChatCircleIcon,
-  Database,
 } from "@phosphor-icons/react";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ClipboardEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
 
 import { ChipInput, type ChipInputHandle } from "@/components/chip-input";
+import { cn } from "@/lib/utils";
 
 import {
   useBillingUsage,
@@ -45,25 +29,11 @@ import {
 
 import type {
   AIChatMessage,
-  ChatMessageMetadata,
-  StreamDebugDataPart,
 } from "@/lib/ai-chat-types";
 
 import { ChatHistoryPanel } from "@/components/chat-history-panel";
-import { saveConversation, type SavedConversation } from "@/lib/chat-history";
 import { UpgradeButton } from "@/components/upgrade-button";
 
-import {
-  Conversation,
-  ConversationContent,
-  ConversationEmptyState,
-  ConversationScrollButton,
-} from "@/components/ai-elements/conversation";
-import {
-  Message,
-  MessageContent,
-  MessageResponse,
-} from "@/components/ai-elements/message";
 import {
   PromptInput,
   PromptInputFooter,
@@ -74,13 +44,11 @@ import {
   usePromptInputController,
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
-import { EditProposalView } from "@/components/edit-proposal-view";
-import { ToolCallRow } from "@/components/ai-elements/tool";
-import { CmsActionConfirmation, buildSyntheticPost, buildSyntheticPostFromUpdate } from "@/components/cms-action-confirmation";
-import { AsyncImageCard } from "@/components/async-image-card";
+import {
+  buildSyntheticPost,
+} from "@/components/cms-action-confirmation";
 import type { CmsActionProposal } from "@/lib/cms-action-types";
 import {
-  renderFramerToolOutput,
   type FieldNameMap,
   type FieldTypeMap,
 } from "@/components/ai-tool-renderers";
@@ -94,15 +62,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import type { BlogCollectionMetadata, BlogPostRecord } from "@/lib/cms-types";
-import { parseEditProposals } from "@/lib/ai-edit-parser";
 import type { BulkApplyResult } from "@/lib/ai-bulk-apply";
 import { getCollectionHeader } from "@/lib/product-framer-shared";
-import {
-  ChainOfThought,
-  ChainOfThoughtHeader,
-  ChainOfThoughtContent,
-} from "@/components/ai-elements/chain-of-thought";
 import { PostEditor } from "@/components/post-editor";
+import { useAIChatSession } from "@/lib/use-ai-chat-session";
+import { AIConversationView } from "@/components/ai-conversation-view";
 
 interface AIChatPanelProps {
   open: boolean;
@@ -113,20 +77,14 @@ interface AIChatPanelProps {
   onClearSelection?: () => void;
   pendingPrompt?: string | null;
   onPendingPromptConsumed?: () => void;
+  variant?: "embedded" | "sheet";
+  className?: string;
 }
 
 type ChatSuggestion = {
   description: string;
   prompt: string;
   title: string;
-};
-
-const AI_CHAT_SESSION_STORAGE_KEY = "lr:dashboard:ai-chat-session";
-
-type PersistedChatSession = {
-  id: string;
-  messages: AIChatMessage[];
-  showHistory: boolean;
 };
 
 const EMPTY_CHAT_SUGGESTIONS: ChatSuggestion[] = [
@@ -178,86 +136,6 @@ const SELECTED_CHAT_SUGGESTIONS: ChatSuggestion[] = [
   },
 ];
 
-const STREAMING_STATUS_PHRASES = [
-  "Pondering",
-  "Conjuring",
-  "Percolating",
-  "Calculating",
-  "Travelling",
-  "Exercising",
-  "Fertilizing",
-  "Speculating",
-  "Stirring the pot",
-  "Spinning plates",
-  "Performing",
-  "Using Em Dash",
-  "Finding AGI",
-  "Rage quitting",
-  "Binge watching",
-  "Something with an ing",
-  "Quantumizing",
-  "Brainstorming",
-  "Wizarding",
-  "Enchanting",
-  "Alchemying",
-  "Cosmicking",
-  "Galaxifying",
-  "Neuronizing",
-  "Overclocking",
-  "Hyperthinking",
-  "Metaing",
-  "Dimensioning",
-  "Vibing",
-  "Telepathing",
-  "Goblining",
-  "Wizardmaxxing",
-  "Brainjuicing",
-  "Thinkulating",
-  "Mindbending",
-  "Chronosyncing",
-];
-
-function stripHtmlPreview(value: string, maxLength = 220) {
-  const plain = value
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (plain.length <= maxLength) {
-    return plain;
-  }
-
-  return `${plain.slice(0, maxLength).trimEnd()}…`;
-}
-
-function getPartialFieldString(
-  fieldData: unknown,
-  fieldNames: FieldNameMap,
-  matcher: (label: string) => boolean,
-) {
-  if (!fieldData || typeof fieldData !== "object") {
-    return null;
-  }
-
-  for (const [fieldId, entry] of Object.entries(
-    fieldData as Record<string, { value?: unknown }>,
-  )) {
-    const label = (fieldNames[fieldId] ?? fieldId).toLowerCase();
-    if (!matcher(label)) {
-      continue;
-    }
-
-    const value = entry?.value;
-    if (typeof value === "string" && value.trim().length > 0) {
-      return value.trim();
-    }
-  }
-
-  return null;
-}
-
 function formatElapsedMs(elapsedMs: number) {
   if (elapsedMs < 1000) {
     return `${elapsedMs}ms`;
@@ -305,168 +183,6 @@ function formatToolTimingMeta(timing?: {
   return `Started ${formatTimeLabel(timing.firstSeenAt)} • ${formatElapsedMs(durationMs)}`;
 }
 
-function PartialCmsProposalPreview({
-  input,
-  fieldNames,
-  rawInputText,
-  timingMeta,
-}: {
-  input: unknown;
-  fieldNames: FieldNameMap;
-  rawInputText?: string | null;
-  timingMeta?: string | null;
-}) {
-  const proposal =
-    input && typeof input === "object"
-      ? (input as {
-          description?: unknown;
-          payload?: {
-            action?: unknown;
-            items?: Array<{
-              slug?: unknown;
-              fieldData?: unknown;
-            }>;
-          };
-        })
-      : null;
-
-  const description =
-    typeof proposal?.description === "string" ? proposal.description : null;
-  const action =
-    typeof proposal?.payload?.action === "string"
-      ? proposal.payload.action
-      : null;
-  const items = Array.isArray(proposal?.payload?.items)
-    ? proposal.payload.items
-    : [];
-
-  const visibleItems = items
-    .map((item, index) => {
-      const title =
-        getPartialFieldString(
-          item?.fieldData,
-          fieldNames,
-          (label) => label.includes("title"),
-        ) ??
-        (typeof item?.slug === "string" && item.slug.trim().length > 0
-          ? item.slug
-          : `Draft ${index + 1}`);
-
-      const descriptionText = getPartialFieldString(
-        item?.fieldData,
-        fieldNames,
-        (label) =>
-          label.includes("description") ||
-          label.includes("summary") ||
-          label.includes("excerpt"),
-      );
-
-      const bodyText = getPartialFieldString(
-        item?.fieldData,
-        fieldNames,
-        (label) =>
-          label.includes("content") ||
-          label.includes("body") ||
-          label.includes("article"),
-      );
-
-      return {
-        title,
-        descriptionText,
-        bodyPreview: bodyText ? stripHtmlPreview(bodyText, 280) : null,
-      };
-    })
-    .filter((item) => item.title || item.descriptionText || item.bodyPreview);
-
-  const summary =
-    description ??
-    (action === "add_items"
-      ? `Streaming ${items.length} draft item${items.length === 1 ? "" : "s"} into the CMS proposal.`
-      : "Streaming the CMS action payload.");
-
-  return (
-    <ToolCallRow
-      elevated
-      icon={<Database className="size-3.5" weight="fill" />}
-      label={
-        action === "add_items"
-          ? `Assembling ${items.length || ""} draft${items.length === 1 ? "" : "s"}`
-          : "Assembling CMS action"
-      }
-      status="Streaming"
-      summary={summary}
-      tone="accent"
-      shimmer
-    >
-      {visibleItems.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border border-fresco-divider/60">
-          {visibleItems.slice(0, 10).map((item, index) => (
-            <div
-              key={`${item.title}-${index}`}
-              className={
-                index === 0
-                  ? "px-3 py-2.5"
-                  : "border-t border-fresco-divider/60 px-3 py-2.5"
-              }
-            >
-              <div className="text-[12px] font-medium text-fresco-title">
-                {item.title}
-              </div>
-              {item.descriptionText ? (
-                <div className="mt-0.5 text-[11px] leading-relaxed text-fresco-subtitle">
-                  {item.descriptionText}
-                </div>
-              ) : null}
-              {item.bodyPreview ? (
-                <div className="mt-1.5 text-[11px] leading-relaxed text-fresco-description">
-                  {item.bodyPreview}
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-[11px] leading-relaxed text-fresco-description">
-          Waiting for the first draft fields to stream in.
-        </div>
-      )}
-      {!visibleItems.length && rawInputText ? (
-        <div className="overflow-hidden rounded-lg border border-fresco-divider/60 bg-fresco-surface-subtle/70">
-          <div className="border-b border-fresco-divider/60 px-3 py-2 text-[10px] font-medium uppercase tracking-[0.08em] text-fresco-subtitle">
-            Raw tool input stream
-          </div>
-          <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words px-3 py-2 text-[11px] leading-relaxed text-fresco-description">
-            {rawInputText}
-          </pre>
-        </div>
-      ) : null}
-      {timingMeta ? (
-        <div className="text-[10px] text-fresco-subtitle">{timingMeta}</div>
-      ) : null}
-    </ToolCallRow>
-  );
-}
-
-function FramerToolGlyph({ className }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      viewBox="33 23 75 97"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M 44.65 33.992 L 95.35 33.992 L 95.35 59.341 L 70 59.341 Z M 44.65 59.341 L 70 59.341 L 95.35 84.691 L 44.65 84.691 Z M 44.65 84.691 L 70 84.691 L 70 110.041 Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function formatToolName(rawToolName: string) {
-  return rawToolName.replace(/^framer_/, "").replace(/_/g, " ");
-}
-
 function getActiveToolNames(messages: AIChatMessage[]) {
   const lastAssistantMessage = [...messages]
     .reverse()
@@ -496,119 +212,12 @@ function getActiveToolNames(messages: AIChatMessage[]) {
       return [];
     }
 
-    return [formatToolName(part.type.replace(/^tool-/, ""))];
+    return [
+      part.type.replace(/^tool-framer_/, "").replace(/^tool-/, "").replace(/_/g, " "),
+    ];
   });
 
   return [...new Set(names)];
-}
-
-function StreamingStatus({
-  activeTools = [],
-  compact = false,
-}: {
-  activeTools?: string[];
-  compact?: boolean;
-}) {
-  const [phraseIndex, setPhraseIndex] = useState(0);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-
-  useEffect(() => {
-    let timeout: number;
-    const tick = () => {
-      setPhraseIndex(
-        (current) => (current + 1) % STREAMING_STATUS_PHRASES.length,
-      );
-      timeout = window.setTimeout(tick, 1500 + Math.random() * 1500);
-    };
-    timeout = window.setTimeout(tick, 1500 + Math.random() * 1500);
-    return () => window.clearTimeout(timeout);
-  }, []);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setElapsedSeconds((current) => current + 1);
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, []);
-
-  const elapsedLabel =
-    elapsedSeconds < 60
-      ? `${elapsedSeconds}s elapsed`
-      : `${Math.floor(elapsedSeconds / 60)}m ${String(
-          elapsedSeconds % 60,
-        ).padStart(2, "0")}s elapsed`;
-
-  const longWaitMessage =
-    activeTools.length === 0 && elapsedSeconds >= 90
-      ? "Still assembling the final CMS payload. Large draft batches can take a couple of minutes."
-      : activeTools.length === 0 && elapsedSeconds >= 45
-        ? "Preparing the final CMS action payload. Large draft batches may take about a minute."
-        : null;
-
-  const toolSummary =
-    activeTools.length === 0
-      ? "Fetching context, drafting content, or waiting on tools."
-      : activeTools.length === 1
-        ? `Currently running ${activeTools[0]}.`
-        : `Currently running ${activeTools.slice(0, 3).join(", ")}${activeTools.length > 3 ? ", and more" : ""}.`;
-
-  if (compact) {
-    return (
-      <div
-        aria-live="polite"
-        className="mb-2 flex items-start gap-2 rounded-[16px] border border-fresco-divider/70 bg-fresco-surface-muted/70 px-3 py-2 text-left shadow-[0_10px_30px_rgba(0,0,0,0.14)]"
-      >
-        <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-fresco-tint)_14%,transparent)] text-fresco-tint">
-          <CircleNotch className="size-3.5 animate-spin" weight="bold" />
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="text-[12px] font-medium text-fresco-title">
-              Working on your request
-            </div>
-            <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-fresco-description">
-              {elapsedLabel}
-            </div>
-          </div>
-          <div className="mt-0.5 text-[11px] leading-relaxed text-fresco-description">
-            {longWaitMessage ?? toolSummary}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div aria-live="polite" className="py-1.5 pl-1">
-      <div className="flex items-start gap-3 rounded-[18px] border border-fresco-divider/70 bg-fresco-surface-muted/70 px-3 py-2.5 shadow-[0_12px_36px_rgba(0,0,0,0.16)]">
-        <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-fresco-tint)_14%,transparent)] text-fresco-tint">
-          <CircleNotch className="size-3.5 animate-spin" weight="bold" />
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="text-[12px] font-medium text-fresco-title">
-              Working on your request
-            </div>
-            <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-fresco-description">
-              {elapsedLabel}
-            </div>
-          </div>
-          <Shimmer
-            as="div"
-            className="mt-0.5 text-[11px] font-medium tracking-[0.01em] text-fresco-subtitle"
-            duration={1.8}
-            spread={2.4}
-          >
-            {STREAMING_STATUS_PHRASES[phraseIndex]}
-          </Shimmer>
-          <div className="mt-1 text-[11px] leading-relaxed text-fresco-description">
-            {longWaitMessage ?? toolSummary} If an action needs approval, it will appear here automatically.
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function AttachmentPreviewStrip() {
@@ -672,47 +281,6 @@ function DirectAttachButton() {
   );
 }
 
-function readPersistedChatSession(): PersistedChatSession | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const raw = window.localStorage.getItem(AI_CHAT_SESSION_STORAGE_KEY);
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<PersistedChatSession>;
-    if (
-      !parsed ||
-      typeof parsed.id !== "string" ||
-      !Array.isArray(parsed.messages)
-    ) {
-      return null;
-    }
-
-    return {
-      id: parsed.id,
-      messages: parsed.messages as AIChatMessage[],
-      showHistory: parsed.showHistory === true,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function writePersistedChatSession(session: PersistedChatSession) {
-  window.localStorage.setItem(
-    AI_CHAT_SESSION_STORAGE_KEY,
-    JSON.stringify(session),
-  );
-}
-
-function clearPersistedChatSession() {
-  window.localStorage.removeItem(AI_CHAT_SESSION_STORAGE_KEY);
-}
-
 function AIChatPanelContent({
   open,
   onOpenChange,
@@ -722,23 +290,10 @@ function AIChatPanelContent({
   onClearSelection,
   pendingPrompt,
   onPendingPromptConsumed,
+  variant = "sheet",
+  className,
 }: AIChatPanelProps) {
   const { textInput } = usePromptInputController();
-  const initialSessionRef = useRef<PersistedChatSession | null | undefined>(
-    undefined,
-  );
-  if (
-    initialSessionRef.current === undefined &&
-    typeof window !== "undefined"
-  ) {
-    initialSessionRef.current = readPersistedChatSession();
-  }
-  const [chatKey, setChatKey] = useState(
-    () => initialSessionRef.current?.id ?? crypto.randomUUID(),
-  );
-  const [showHistory, setShowHistory] = useState(
-    () => initialSessionRef.current?.showHistory ?? false,
-  );
   const [previewPost, setPreviewPost] = useState<BlogPostRecord | null>(null);
 
   const bodyData = useMemo(
@@ -763,308 +318,32 @@ function AIChatPanelContent({
     ],
   );
 
-  const sendSnapshotRef = useRef<typeof bodyData | null>(null);
-
-  const chatTransport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: "/api/ai/chat",
-        prepareSendMessagesRequest: ({
-          id,
-          messages: msgs,
-          trigger,
-          messageId,
-        }) => {
-          const MAX_TOOL_RESULT_CHARS = 2000;
-          const MAX_FILE_URL_LEN = 50_000;
-          let lastUserIdx = -1;
-          for (let i = msgs.length - 1; i >= 0; i--) {
-            if (msgs[i].role === "user") {
-              lastUserIdx = i;
-              break;
-            }
-          }
-          const sanitized = msgs.map((msg, idx) => {
-            if (!Array.isArray(msg.parts)) return msg;
-            let needsWork = false;
-            for (const p of msg.parts) {
-              if (
-                p.type === "tool-invocation" &&
-                "state" in p &&
-                (p as any).state !== "output-available" &&
-                (p as any).state !== "output-error"
-              ) {
-                needsWork = true;
-                break;
-              }
-              if (
-                p.type === "tool-invocation" &&
-                "result" in p &&
-                p.result !== undefined &&
-                JSON.stringify(p.result).length > MAX_TOOL_RESULT_CHARS
-              ) {
-                needsWork = true;
-                break;
-              }
-              if (
-                idx !== lastUserIdx &&
-                p.type === "file" &&
-                "url" in p &&
-                typeof p.url === "string" &&
-                p.url.length > MAX_FILE_URL_LEN
-              ) {
-                needsWork = true;
-                break;
-              }
-            }
-            if (!needsWork) return msg;
-            return {
-              ...msg,
-              parts: msg.parts.map((p) => {
-                // Patch dangling tool invocations (stopped mid-stream)
-                if (
-                  p.type === "tool-invocation" &&
-                  "state" in p &&
-                  (p as any).state !== "output-available" &&
-                  (p as any).state !== "output-error"
-                ) {
-                  return {
-                    ...p,
-                    state: "output-available" as const,
-                    output: {
-                      _cancelled: true,
-                      message: "Tool call was cancelled by the user.",
-                    },
-                  };
-                }
-                if (
-                  p.type === "tool-invocation" &&
-                  "result" in p &&
-                  p.result !== undefined
-                ) {
-                  const s = JSON.stringify(p.result);
-                  if (s.length > MAX_TOOL_RESULT_CHARS)
-                    return {
-                      ...p,
-                      result: {
-                        _truncated: true,
-                        preview: s.slice(0, MAX_TOOL_RESULT_CHARS),
-                      },
-                    };
-                }
-                if (
-                  idx !== lastUserIdx &&
-                  p.type === "file" &&
-                  "url" in p &&
-                  typeof p.url === "string" &&
-                  p.url.length > MAX_FILE_URL_LEN
-                ) {
-                  return {
-                    type: "text" as const,
-                    text: `[User attached an image: ${("filename" in p && p.filename) || "image"}]`,
-                  };
-                }
-                return p;
-              }),
-            };
-          });
-
-          const payloadBodyData = sendSnapshotRef.current || bodyData;
-          return {
-            body: {
-              ...payloadBodyData,
-              id,
-              messages: sanitized,
-              trigger,
-              messageId,
-            },
-          };
-        },
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bodyData, chatKey],
-  );
-
-  const [, setStreamDebugEvents] = useState<
-    StreamDebugDataPart[]
-  >([]);
-  const [rawToolInputs, setRawToolInputs] = useState<
-    Record<string, { text: string; toolName?: string | null }>
-  >({});
-  const [toolTimingByCallId, setToolTimingByCallId] = useState<
-    Record<
-      string,
-      {
-        firstSeenAt: string;
-        firstSeenElapsedMs: number;
-        lastSeenElapsedMs: number;
-        finishedElapsedMs?: number;
-        toolName?: string | null;
-      }
-    >
-  >({});
-
   const {
+    addToolApprovalResponse,
+    clearError,
+    error,
+    handleNewChat,
+    handleRestoreConversation,
+    handleSendWithContext,
+    isStreaming,
+    messageContexts,
     messages,
-    sendMessage,
-    setMessages,
+    rawToolInputs,
+    regenerate,
+    setShowHistory,
+    showHistory,
     status,
     stop,
-    error,
-    regenerate,
-    clearError,
-    addToolApprovalResponse,
-  } = useChat<AIChatMessage>({
-    transport: chatTransport,
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
-    onData: (dataPart) => {
-      if (dataPart.type !== "data-stream_debug") {
-        return;
-      }
-
-      const event = dataPart.data as StreamDebugDataPart;
-
-      setStreamDebugEvents((current) => [...current.slice(-199), event]);
-
-      console.log(
-        JSON.stringify({
-          ts: event.ts,
-          level: "info",
-          event: "ai.chat_panel.stream_debug",
-          chunkType: event.chunkType,
-          elapsedMs: event.elapsedMs,
-          toolCallId: event.toolCallId ?? undefined,
-          toolName: event.toolName ?? undefined,
-        }),
-      );
-
-      if (event.toolCallId) {
-        setToolTimingByCallId((current) => {
-          const existing = current[event.toolCallId!];
-          return {
-            ...current,
-            [event.toolCallId!]: {
-              firstSeenAt: existing?.firstSeenAt ?? event.ts,
-              firstSeenElapsedMs:
-                existing?.firstSeenElapsedMs ?? event.elapsedMs,
-              lastSeenElapsedMs: event.elapsedMs,
-              finishedElapsedMs:
-                event.chunkType === "tool-output-available" ||
-                event.chunkType === "tool-output-error" ||
-                event.chunkType === "tool-output-denied" ||
-                event.chunkType === "tool-input-error"
-                  ? event.elapsedMs
-                  : existing?.finishedElapsedMs,
-              toolName: existing?.toolName ?? event.toolName ?? null,
-            },
-          };
-        });
-
-        if (event.delta) {
-          setRawToolInputs((current) => {
-            const existing = current[event.toolCallId!] ?? {
-              text: "",
-              toolName: event.toolName ?? null,
-            };
-            return {
-              ...current,
-              [event.toolCallId!]: {
-                toolName: existing.toolName ?? event.toolName ?? null,
-                text: `${existing.text}${event.delta ?? ""}`.slice(-20000),
-              },
-            };
-          });
-        } else if (event.toolName) {
-          setRawToolInputs((current) => {
-            const existing = current[event.toolCallId!];
-            if (existing?.toolName === event.toolName) {
-              return current;
-            }
-            return {
-              ...current,
-              [event.toolCallId!]: {
-                text: existing?.text ?? "",
-                toolName: event.toolName,
-              },
-            };
-          });
-        }
-      }
-    },
-    onError: (err) => {
-      console.log(
-        JSON.stringify({
-          ts: new Date().toISOString(),
-          level: "error",
-          event: "ai.chat_panel.error",
-          message: err.message,
-        }),
-      );
-    },
+    toolTimingByCallId,
+    totalTokens,
+  } = useAIChatSession({
+    bodyData,
+    pendingPrompt,
+    onClearSelection,
+    onPendingPromptConsumed,
+    selectedPosts,
+    textInput,
   });
-
-  useEffect(() => {
-    const initialSession = initialSessionRef.current;
-    if (!initialSession || initialSession.messages.length === 0) {
-      return;
-    }
-
-    setMessages(initialSession.messages);
-    initialSessionRef.current = null;
-  }, [setMessages]);
-
-  // Auto-send a pending prompt from inline nudges
-  useEffect(() => {
-    if (!pendingPrompt || status !== "ready") return;
-    sendMessage({ text: pendingPrompt });
-    onPendingPromptConsumed?.();
-  }, [pendingPrompt, status, sendMessage, onPendingPromptConsumed]);
-
-  // Track which selected posts were attached to each user message
-  const messageContextRef = useRef<
-    Map<string, Array<{ id: string; title: string }>>
-  >(new Map());
-  const pendingContextRef = useRef<Array<{ id: string; title: string }> | null>(
-    null,
-  );
-
-  // When a new user message appears, associate pending context with it
-  const prevMessageCountRef = useRef(messages.length);
-  useEffect(() => {
-    if (
-      messages.length > prevMessageCountRef.current &&
-      pendingContextRef.current
-    ) {
-      for (let i = messages.length - 1; i >= 0; i--) {
-        if (messages[i].role === "user") {
-          messageContextRef.current.set(
-            messages[i].id,
-            pendingContextRef.current,
-          );
-          pendingContextRef.current = null;
-          break;
-        }
-      }
-    }
-    prevMessageCountRef.current = messages.length;
-  }, [messages]);
-
-  const handleSendWithContext = useCallback(
-    (msg: { text: string }) => {
-      if (selectedPosts.length > 0) {
-        pendingContextRef.current = selectedPosts.map((p) => ({
-          id: p.id,
-          title: p.title || p.slug,
-        }));
-      }
-      sendSnapshotRef.current = bodyData;
-      sendMessage(msg);
-      if (selectedPosts.length > 0) {
-        onClearSelection?.();
-      }
-    },
-    [selectedPosts, bodyData, sendMessage, onClearSelection],
-  );
 
   // Map field IDs → human-readable names for rich tool output rendering
   // Scans all messages for framer_get_collection_fields outputs to cover any collection
@@ -1110,86 +389,20 @@ function AIChatPanelContent({
     return map;
   }, [metadata.fields, messages]);
 
-  // Accumulate total token usage across all assistant messages in this conversation
-  const totalTokens = useMemo(() => {
-    let input = 0;
-    let output = 0;
-    for (const msg of messages) {
-      const meta = msg.metadata as ChatMessageMetadata | undefined;
-      if (meta?.inputTokens) input += meta.inputTokens;
-      if (meta?.outputTokens) output += meta.outputTokens;
-    }
-    return { input, output, total: input + output };
-  }, [messages]);
-
-  const handleNewChat = useCallback(() => {
-    if (messages.length > 0) void saveConversation(chatKey, messages);
-    clearError();
-    setMessages([]);
-    textInput.clear();
-    setChatKey(crypto.randomUUID());
-    setShowHistory(false);
-    setStreamDebugEvents([]);
-    setRawToolInputs({});
-    setToolTimingByCallId({});
-    processedStagedToolCallsRef.current.clear();
-    clearPersistedChatSession();
-  }, [setMessages, messages, chatKey, clearError, textInput]);
-
-  // Persist conversation after each assistant turn completes
-  const prevStatusRef = useRef(status);
-  useEffect(() => {
-    const wasActive =
-      prevStatusRef.current === "streaming" ||
-      prevStatusRef.current === "submitted";
-    const nowIdle = status === "ready" || status === "error";
-    if (wasActive && nowIdle && messages.length > 0) {
-      void saveConversation(chatKey, messages);
-      invalidateBillingUsage();
-    }
-    prevStatusRef.current = status;
-  }, [status, messages, chatKey]);
-
   useEffect(() => {
     if (messages.length === 0) {
-      if (!showHistory) {
-        clearPersistedChatSession();
-      }
-      setStreamDebugEvents([]);
-      setRawToolInputs({});
-      setToolTimingByCallId({});
       processedStagedToolCallsRef.current.clear();
-      return;
     }
+  }, [messages.length]);
 
-    if (status === "streaming" || status === "submitted") {
-      return;
-    }
-
-    writePersistedChatSession({
-      id: chatKey,
-      messages,
-      showHistory,
-    });
-  }, [chatKey, messages, showHistory, status]);
-
-  const handleRestoreConversation = useCallback(
-    (conv: SavedConversation) => {
-      if (messages.length > 0) void saveConversation(chatKey, messages);
-      clearError();
-      setMessages(conv.messages as AIChatMessage[]);
-      textInput.clear();
-      setChatKey(conv.id);
-      setShowHistory(false);
-    },
-    [setMessages, messages, chatKey, clearError, textInput],
-  );
-
-  const isStreaming = status === "streaming" || status === "submitted";
   const activeToolNames = useMemo(() => getActiveToolNames(messages), [messages]);
   const [, setStreamTimingTick] = useState(0);
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
-    null,
+  const portalContainer = useMemo(
+    () =>
+      typeof document === "undefined"
+        ? null
+        : document.getElementById("dashboard-shell"),
+    [],
   );
 
   useEffect(() => {
@@ -1203,10 +416,6 @@ function AIChatPanelContent({
 
     return () => window.clearInterval(interval);
   }, [isStreaming]);
-
-  useEffect(() => {
-    setPortalContainer(document.getElementById("dashboard-shell"));
-  }, []);
 
   function handleApplied(result: BulkApplyResult) {
     if (result.succeeded.length > 0) {
@@ -1319,46 +528,23 @@ function AIChatPanelContent({
     [toolTimingByCallId],
   );
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        className="absolute z-[80] flex flex-col gap-0 overflow-visible border-fresco-divider bg-fresco-panel p-0 text-fresco-title shadow-[-40px_0_120px_rgba(0,0,0,0.55)] data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-full data-[side=right]:sm:max-w-none md:data-[side=right]:w-[min(48vw,640px)]"
-        overlayClassName="absolute inset-0 z-[70] bg-black/50 duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0"
-        portalContainer={portalContainer}
-        showCloseButton={false}
-        side="right"
-        onPointerDownOutside={(e) => {
-          // Prevent closing the AI chat when the preview drawer is open
-          if (document.querySelector("[data-cms-preview-drawer]")) {
-            e.preventDefault();
-          }
-        }}
-        onInteractOutside={(e) => {
-          if (document.querySelector("[data-cms-preview-drawer]")) {
-            e.preventDefault();
-          }
-        }}
-      >
-        <SheetTitle className="sr-only">AI Assistant</SheetTitle>
-        <SheetDescription className="sr-only">
-          Chat with AI to manage your CMS, edit posts, and more.
-        </SheetDescription>
-
-        {/* Chat content — clipped so the preview drawer can overflow to the left */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+  const chatPanelContent = (
+    <>
+      {/* Chat content — clipped so the preview drawer can overflow to the left */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-fresco-divider px-4 py-3">
+        <div className="flex items-center gap-3 border-b border-fresco-divider px-4 py-2">
           <ChatCircleIcon
             className="size-5 shrink-0 text-fresco-tint"
             weight="duotone"
           />
           <div className="min-w-0 flex-1">
-            <span className="text-sm font-semibold">AI Assistant</span>
+            <span className="text-sm">AI Assistant</span>
           </div>
           <Button
             aria-label="Chat history"
-            className="size-8 shrink-0"
+            className="size-7 shrink-0"
             onClick={() => setShowHistory((v) => !v)}
             size="icon-sm"
             title="Chat history"
@@ -1370,7 +556,7 @@ function AIChatPanelContent({
           {messages.length > 0 && (
             <Button
               aria-label="New chat"
-              className="size-8 shrink-0"
+              className="size-7 shrink-0"
               onClick={handleNewChat}
               size="icon-sm"
               title="New chat"
@@ -1382,7 +568,7 @@ function AIChatPanelContent({
           )}
           <Button
             aria-label="Close AI panel"
-            className="size-8 shrink-0"
+            className="size-7 shrink-0"
             onClick={() => onOpenChange(false)}
             size="icon-sm"
             type="button"
@@ -1399,630 +585,12 @@ function AIChatPanelContent({
           />
         ) : (
           <>
-            <Conversation className="min-h-0 flex-1">
-              <ConversationContent className="gap-6 px-4 py-4">
-                {messages.length === 0 && (
-                  <ConversationEmptyState className="items-stretch">
-                    <div className="mx-auto flex max-w-2xl flex-col items-center gap-3 text-center">
-                      <Sparkle
-                        className="size-8 text-fresco-subtitle"
-                        weight="duotone"
-                      />
-                      <div className="space-y-1">
-                        <h3 className="font-medium text-sm text-fresco-title">
-                          How can I help?
-                        </h3>
-                        <p className="text-sm text-fresco-description">
-                          Ask me anything about this CMS, the active Framer
-                          collection, or the rows you&apos;ve selected.
-                        </p>
-                      </div>
-                    </div>
-                  </ConversationEmptyState>
-                )}
-
-                {messages.map((message) => {
-                  const sources = message.parts.filter(
-                    (
-                      p,
-                    ): p is typeof p & {
-                      type: "source-url";
-                      url: string;
-                      title?: string;
-                    } => p.type === "source-url",
-                  );
-                  const hasTextContent = message.parts.some(
-                    (p) => p.type === "text" && p.text.length > 0,
-                  );
-                  const isLastMessage =
-                    message.id === messages[messages.length - 1]?.id;
-                  const showSourcesSpinner =
-                    isLastMessage &&
-                    isStreaming &&
-                    sources.length > 0 &&
-                    !hasTextContent;
-                  return (
-                    <Message key={message.id} from={message.role}>
-                      <MessageContent>
-                        {message.role === "user" &&
-                          messageContextRef.current.has(message.id) && (
-                            <div className="flex flex-wrap gap-1.5 mb-1">
-                              {messageContextRef.current
-                                .get(message.id)!
-                                .map((ctx) => (
-                                  <span
-                                    key={ctx.id}
-                                    className="inline-flex items-center gap-1.5 rounded-md border border-fresco-divider bg-fresco-surface-muted px-2 py-0.5 text-[11px] font-medium text-fresco-tint"
-                                  >
-                                    <Rows
-                                      className="size-3 shrink-0"
-                                      weight="fill"
-                                    />
-                                    <span className="max-w-32 truncate">
-                                      {ctx.title}
-                                    </span>
-                                  </span>
-                                ))}
-                            </div>
-                          )}
-                        {sources.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <GlobeSimple
-                              className="size-3.5 shrink-0 text-fresco-subtitle"
-                              weight="fill"
-                            />
-                            {sources.map((src, si) => (
-                              <a
-                                key={si}
-                                className="inline-flex max-w-48 items-center truncate rounded border border-fresco-divider bg-fresco-surface-muted px-2 py-0.5 text-[10px] text-fresco-tint transition-colors hover:bg-fresco-divider"
-                                href={src.url}
-                                rel="noopener noreferrer"
-                                target="_blank"
-                              >
-                                {src.title || new URL(src.url).hostname}
-                              </a>
-                            ))}
-                            {showSourcesSpinner && (
-                              <CircleNotch className="size-3.5 shrink-0 animate-spin text-fresco-subtitle" />
-                            )}
-                          </div>
-                        )}
-                        {/* Find the last propose_cms_action index so earlier duplicates are collapsed */}
-                        {(() => {
-                          const lastCmsActionIdx = message.parts.reduce(
-                            (last, p, idx) =>
-                              p.type === "tool-propose_cms_action" ? idx : last,
-                            -1,
-                          );
-                          return message.parts.map((part, i) => {
-                            if (part.type === "file") {
-                              const isImage =
-                                part.mediaType?.startsWith("image/");
-                              if (isImage) {
-                                return (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    key={i}
-                                    alt={part.filename ?? "Attached image"}
-                                    className="max-h-48 rounded-md border border-fresco-divider object-contain"
-                                    src={part.url}
-                                  />
-                                );
-                              }
-                              return (
-                                <div
-                                  key={i}
-                                  className="inline-flex items-center gap-1.5 rounded border border-fresco-divider bg-fresco-surface-muted px-2 py-1 text-xs text-fresco-description"
-                                >
-                                  <ImageSquare
-                                    className="size-3.5 shrink-0"
-                                    weight="fill"
-                                  />
-                                  <span className="truncate max-w-40">
-                                    {part.filename ?? "Attachment"}
-                                  </span>
-                                </div>
-                              );
-                            }
-                            if (part.type === "text" && part.text.length > 0) {
-                              return (
-                                <MessageResponse key={i} isAnimating={isLastMessage && isStreaming}>
-                                  {part.text}
-                                </MessageResponse>
-                              );
-                            }
-                            if (part.type === "reasoning") {
-                              const reasoningPart = part as { type: "reasoning"; text?: string; state?: string };
-                              const text = reasoningPart.text ?? "";
-                              const isThinking = reasoningPart.state !== "complete" && isLastMessage && isStreaming;
-                              if (!text && !isThinking) return null;
-                              return (
-                                <ChainOfThought
-                                  key={i}
-                                  streaming={isThinking}
-                                  defaultOpen={isThinking}
-                                >
-                                  <ChainOfThoughtHeader>
-                                    {isThinking ? undefined : "Thought process"}
-                                  </ChainOfThoughtHeader>
-                                  <ChainOfThoughtContent>
-                                    {text || "Thinking…"}
-                                  </ChainOfThoughtContent>
-                                </ChainOfThought>
-                              );
-                            }
-                            if (part.type === "tool-propose_edits") {
-                              const toolData =
-                                "output" in part && part.output
-                                  ? part.output
-                                  : part.input;
-                              if (!toolData) return null;
-                              const edits = parseEditProposals(toolData);
-                              if (edits.length === 0) return null;
-                              return (
-                                <EditProposalView
-                                  key={i}
-                                  edits={edits}
-                                  posts={selectedPosts}
-                                  fieldDefinitions={metadata.fields.filter(
-                                    (f) => f.supported,
-                                  )}
-                                  onApplied={handleApplied}
-                                />
-                              );
-                            }
-                            if (part.type === "tool-propose_cms_action") {
-                              // Only render the last proposal as interactive; earlier ones were superseded by retries
-                              if (i !== lastCmsActionIdx) return null;
-                              const input = "input" in part ? part.input as CmsActionProposal : null;
-                              const state = "state" in part ? (part as any).state as string : undefined;
-                              const toolCallId =
-                                "toolCallId" in part &&
-                                typeof (part as any).toolCallId === "string"
-                                  ? ((part as any).toolCallId as string)
-                                  : null;
-                              const rawInputText =
-                                toolCallId ? rawToolInputs[toolCallId]?.text : null;
-                              const timingMeta = getToolTimingMeta(toolCallId);
-
-                              if (!input?.payload || !input?.description) {
-                                if (state === "input-streaming" || state === "partial-call" || state === "call") {
-                                  return (
-                                    <PartialCmsProposalPreview
-                                      key={i}
-                                      input={"input" in part ? part.input : null}
-                                      fieldNames={allFieldNames}
-                                      rawInputText={rawInputText}
-                                      timingMeta={timingMeta}
-                                    />
-                                  );
-                                }
-                                return null;
-                              }
-
-                              return (
-                                <CmsActionConfirmation
-                                  key={i}
-                                  proposal={input}
-                                  state={state}
-                                  output={"output" in part ? part.output : undefined}
-                                  fieldNames={allFieldNames}
-                                  metadata={metadata}
-                                  onPreviewItem={setPreviewPost}
-                                  onApprove={() => {
-                                    if ("approval" in part && (part as any).approval?.id) {
-                                      addToolApprovalResponse({
-                                        id: (part as any).approval.id,
-                                        approved: true,
-                                      });
-                                    }
-                                  }}
-                                  onReject={() => {
-                                    if ("approval" in part && (part as any).approval?.id) {
-                                      addToolApprovalResponse({
-                                        id: (part as any).approval.id,
-                                        approved: false,
-                                      });
-                                    }
-                                  }}
-                                />
-                              );
-                            }
-                            if (
-                              part.type === "source-url" ||
-                              part.type === "source-document"
-                            )
-                              return null;
-                            if (part.type === "tool-get_project_context") {
-                              const toolCallId =
-                                "toolCallId" in part &&
-                                typeof (part as any).toolCallId === "string"
-                                  ? ((part as any).toolCallId as string)
-                                  : null;
-                              const hasOutput =
-                                "output" in part && part.output != null;
-                              const hasError =
-                                "errorText" in part &&
-                                typeof (part as any).errorText === "string";
-                              return (
-                                <ToolCallRow
-                                  key={i}
-                                  icon={
-                                    <Database
-                                      className="size-3.5"
-                                      weight="fill"
-                                    />
-                                  }
-                                  label="Load project context"
-                                  shimmer={!hasOutput && !hasError}
-                                  status={
-                                    hasError
-                                      ? "Error"
-                                      : hasOutput
-                                        ? "Done"
-                                        : "Running"
-                                  }
-                                  summary={
-                                    hasError
-                                      ? (part as any).errorText
-                                      : hasOutput
-                                        ? "Project context loaded."
-                                        : "Fetching collections, fields, enum cases, and active collection reference options…"
-                                  }
-                                  meta={getToolTimingMeta(toolCallId)}
-                                  tone={
-                                    hasError
-                                      ? "danger"
-                                      : hasOutput
-                                        ? "success"
-                                        : "accent"
-                                  }
-                                />
-                              );
-                            }
-                            if (
-                              part.type === "tool-generate_and_upload_image"
-                            ) {
-                              const hasOutput =
-                                "output" in part && part.output != null;
-                              const hasError =
-                                "errorText" in part &&
-                                typeof (part as any).errorText === "string";
-                              const output = hasOutput
-                                ? (part.output as {
-                                    success?: boolean;
-                                    async?: boolean;
-                                    jobId?: string;
-                                    url?: string;
-                                    error?: string;
-                                    prompt?: string;
-                                  })
-                                : null;
-
-                              // SDK-level tool error (output-error state)
-                              if (hasError) {
-                                return (
-                                  <ToolCallRow
-                                    key={i}
-                                    icon={
-                                      <ImageSquare
-                                        className="size-3.5"
-                                        weight="fill"
-                                      />
-                                    }
-                                    label="Generate image"
-                                    status="Error"
-                                    summary={(part as any).errorText}
-                                    tone="danger"
-                                  />
-                                );
-                              }
-
-                              // New async path — tool returned immediately with a jobId
-                              if (output?.async && output?.jobId) {
-                                return (
-                                  <AsyncImageCard
-                                    key={i}
-                                    jobId={output.jobId}
-                                    prompt={
-                                      output.prompt ?? "AI generated image"
-                                    }
-                                  />
-                                );
-                              }
-
-                              // Legacy sync path — tool returned a direct URL (backwards compat)
-                              if (!hasOutput) {
-                                return (
-                                  <ToolCallRow
-                                    key={i}
-                                    icon={
-                                      <ImageSquare
-                                        className="size-3.5"
-                                        weight="fill"
-                                      />
-                                    }
-                                    label="Generate image"
-                                    shimmer
-                                    status="Running"
-                                    summary="Creating and uploading an image for this request."
-                                    tone="accent"
-                                  />
-                                );
-                              }
-                              if (output?.success && output?.url) {
-                                return (
-                                  <ToolCallRow
-                                    key={i}
-                                    actions={
-                                      <a
-                                        className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium text-fresco-tint transition-colors hover:bg-fresco-divider"
-                                        download={`ai-image-${Date.now()}.png`}
-                                        href={output.url}
-                                        rel="noopener noreferrer"
-                                        target="_blank"
-                                      >
-                                        <DownloadSimple
-                                          className="size-3.5"
-                                          weight="bold"
-                                        />
-                                        <span>Download</span>
-                                      </a>
-                                    }
-                                    icon={
-                                      <ImageSquare
-                                        className="size-3.5"
-                                        weight="fill"
-                                      />
-                                    }
-                                    label="Generate image"
-                                    status="Done"
-                                    summary="Image generated and uploaded."
-                                    tone="success"
-                                  >
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                      alt={
-                                        output.prompt ?? "AI generated image"
-                                      }
-                                      className="max-h-64 rounded-xl border border-fresco-divider object-contain"
-                                      src={output.url}
-                                    />
-                                  </ToolCallRow>
-                                );
-                              }
-                              return (
-                                <ToolCallRow
-                                  key={i}
-                                  icon={
-                                    <ImageSquare
-                                      className="size-3.5"
-                                      weight="fill"
-                                    />
-                                  }
-                                  label="Generate image"
-                                  status="Error"
-                                  summary={
-                                    output?.error ?? "Image generation failed"
-                                  }
-                                  tone="danger"
-                                />
-                              );
-                            }
-                            if (part.type === "tool-google_search") return null;
-                            if (part.type === "tool-web_search") {
-                              const hasOutput =
-                                "output" in part && part.output != null;
-                              const hasError =
-                                "errorText" in part &&
-                                typeof (part as any).errorText === "string";
-                              const output = hasOutput
-                                ? (part.output as {
-                                    answer?: string;
-                                    sources?: Array<{
-                                      url: string;
-                                      title: string;
-                                    }>;
-                                  })
-                                : null;
-                              return (
-                                <ToolCallRow
-                                  key={i}
-                                  icon={
-                                    <GlobeSimple
-                                      className="size-3.5"
-                                      weight="fill"
-                                    />
-                                  }
-                                  label="Web search"
-                                  shimmer={!hasOutput && !hasError}
-                                  status={
-                                    hasError
-                                      ? "Error"
-                                      : hasOutput
-                                        ? "Done"
-                                        : "Running"
-                                  }
-                                  summary={
-                                    hasError
-                                      ? (part as any).errorText
-                                      : hasOutput
-                                        ? "Gathered sources from the web."
-                                        : "Searching the web for supporting sources."
-                                  }
-                                  tone={
-                                    hasError
-                                      ? "danger"
-                                      : hasOutput
-                                        ? "success"
-                                        : "accent"
-                                  }
-                                >
-                                  {output?.sources &&
-                                  output.sources.length > 0 ? (
-                                    <div className="flex flex-wrap items-center gap-1.5">
-                                      {output.sources.map((src, si) => (
-                                        <a
-                                          key={si}
-                                          className="inline-flex max-w-48 items-center truncate rounded-full border border-fresco-divider bg-fresco-surface-muted px-2.5 py-1 text-[10px] text-fresco-tint transition-colors hover:bg-fresco-divider"
-                                          href={src.url}
-                                          rel="noopener noreferrer"
-                                          target="_blank"
-                                        >
-                                          {src.title ||
-                                            new URL(src.url).hostname}
-                                        </a>
-                                      ))}
-                                    </div>
-                                  ) : null}
-                                </ToolCallRow>
-                              );
-                            }
-                            if (part.type.startsWith("tool-")) {
-                              const rawToolName = part.type.slice(
-                                "tool-".length,
-                              );
-                              const toolName = formatToolName(rawToolName);
-                              const hasOutput =
-                                "output" in part && part.output != null;
-                              const hasError =
-                                "errorText" in part &&
-                                typeof (part as any).errorText === "string";
-                              const isFramerTool =
-                                rawToolName.startsWith("framer_");
-                              // A tool call is "stale" if the stream finished but it never got output or error
-                              const isStale =
-                                !hasOutput &&
-                                !hasError &&
-                                (!isLastMessage || !isStreaming);
-                              const tone = hasError
-                                ? "danger"
-                                : hasOutput
-                                  ? "success"
-                                  : isStale
-                                    ? "warning"
-                                    : "accent";
-                              const statusLabel = hasError
-                                ? "Error"
-                                : hasOutput
-                                  ? "Done"
-                                  : isStale
-                                    ? "Stopped"
-                                    : "Running";
-                              const toolIcon = isFramerTool ? (
-                                <FramerToolGlyph className="size-3.5" />
-                              ) : (
-                                <Wrench className="size-3.5" />
-                              );
-
-                              // Tool errored — show the error message
-                              if (hasError) {
-                                return (
-                                  <ToolCallRow
-                                    key={i}
-                                    icon={
-                                      <WarningCircle
-                                        className="size-3.5"
-                                        weight="fill"
-                                      />
-                                    }
-                                    label={toolName}
-                                    meta={isFramerTool ? "Framer" : "Tool"}
-                                    status="Error"
-                                    summary={(part as any).errorText}
-                                    tone="danger"
-                                  />
-                                );
-                              }
-
-                              // Try rich UI for completed Framer tool calls
-                              if (hasOutput) {
-                                // save_preference — show a compact "memory saved" chip
-                                if (rawToolName === "save_preference") {
-                                  const input =
-                                    "input" in part
-                                      ? (part as any).input
-                                      : null;
-                                  const category =
-                                    input?.category ?? "preference";
-                                  const content = input?.content ?? "";
-                                  const categoryLabel =
-                                    category === "correction"
-                                      ? "Correction"
-                                      : category === "workflow"
-                                        ? "Workflow"
-                                        : "Preference";
-                                  return (
-                                    <ToolCallRow
-                                      key={i}
-                                      icon={
-                                        <CheckCircle
-                                          className="size-3.5"
-                                          weight="fill"
-                                        />
-                                      }
-                                      label={`${categoryLabel} saved`}
-                                      meta={categoryLabel}
-                                      status="Done"
-                                      summary={content}
-                                      tone="accent"
-                                    />
-                                  );
-                                }
-
-                                const richUI = renderFramerToolOutput(
-                                  rawToolName,
-                                  (part as any).output,
-                                  allFieldNames,
-                                  allFieldTypes,
-                                );
-                                if (richUI) {
-                                  return (
-                                    <ToolCallRow
-                                      key={i}
-                                      icon={toolIcon}
-                                      label={toolName}
-                                      meta={isFramerTool ? "Framer" : "Tool"}
-                                      status={statusLabel}
-                                      summary="Completed successfully."
-                                      tone={tone}
-                                    >
-                                      {richUI}
-                                    </ToolCallRow>
-                                  );
-                                }
-                              }
-
-                              return (
-                                <ToolCallRow
-                                  key={i}
-                                  icon={toolIcon}
-                                  label={toolName}
-                                  meta={isFramerTool ? "Framer" : "Tool"}
-                                  shimmer={!hasOutput && !isStale}
-                                  status={statusLabel}
-                                  summary={
-                                    isStale
-                                      ? "This tool stopped before returning a result."
-                                      : hasOutput
-                                        ? "Completed successfully."
-                                        : "Working on your request."
-                                  }
-                                  tone={tone}
-                                />
-                              );
-                            }
-                            return null;
-                          });
-                        })()}
-                      </MessageContent>
-                    </Message>
-                  );
-                })}
-
-                {isStreaming && <StreamingStatus activeTools={activeToolNames} />}
-
-                {error && !isStreaming && (
+            <AIConversationView
+              addToolApprovalResponse={addToolApprovalResponse}
+              allFieldNames={allFieldNames}
+              allFieldTypes={allFieldTypes}
+              errorContent={
+                error && !isStreaming && !isRecoverableAIError(error.message) ? (
                   <QuotaOrError
                     error={error}
                     onRetry={() => {
@@ -2030,10 +598,19 @@ function AIChatPanelContent({
                       regenerate();
                     }}
                   />
-                )}
-              </ConversationContent>
-              <ConversationScrollButton />
-            </Conversation>
+                ) : null
+              }
+              getToolTimingMeta={getToolTimingMeta}
+              handleApplied={handleApplied}
+              isStreaming={isStreaming}
+              messageContexts={messageContexts}
+              messages={messages}
+              metadata={metadata}
+              onPreviewPost={setPreviewPost}
+              rawToolInputs={rawToolInputs}
+              selectedPosts={selectedPosts}
+              streamingIndicator={null}
+            />
 
             {/* Input */}
             <div className="border-t border-fresco-divider p-4 pb-8">
@@ -2070,6 +647,50 @@ function AIChatPanelContent({
             </div>
           </div>
         )}
+    </>
+  );
+
+  if (variant === "embedded") {
+    return (
+      <div
+        className={cn(
+          "relative flex h-full min-h-0 flex-col overflow-visible bg-fresco-panel text-fresco-title",
+          className,
+        )}
+      >
+        {chatPanelContent}
+      </div>
+    );
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        className={cn(
+          "absolute z-[80] flex flex-col gap-0 overflow-visible border-fresco-divider bg-fresco-panel p-0 text-fresco-title shadow-[-40px_0_120px_rgba(0,0,0,0.55)] data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-full data-[side=right]:sm:max-w-none md:data-[side=right]:w-[min(48vw,640px)]",
+          className,
+        )}
+        overlayClassName="absolute inset-0 z-[70] bg-black/50 duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0"
+        portalContainer={portalContainer}
+        showCloseButton={false}
+        side="right"
+        onPointerDownOutside={(e) => {
+          // Prevent closing the AI chat when the preview drawer is open
+          if (document.querySelector("[data-cms-preview-drawer]")) {
+            e.preventDefault();
+          }
+        }}
+        onInteractOutside={(e) => {
+          if (document.querySelector("[data-cms-preview-drawer]")) {
+            e.preventDefault();
+          }
+        }}
+      >
+        <SheetTitle className="sr-only">AI Assistant</SheetTitle>
+        <SheetDescription className="sr-only">
+          Chat with AI to manage your CMS, edit posts, and more.
+        </SheetDescription>
+        {chatPanelContent}
       </SheetContent>
     </Sheet>
   );
@@ -2154,7 +775,6 @@ function ChatInputOrQuotaGate({
           ))}
         </Suggestions>
       )}
-      {isStreaming ? <StreamingStatus activeTools={activeToolNames} compact /> : null}
       <ChipInputPromptArea
         selectedPosts={selectedPosts}
         isStreaming={isStreaming}
@@ -2323,7 +943,9 @@ function QuotaOrError({
   error: Error;
   onRetry: () => void;
 }) {
-  const isQuota = /allowance|exhausted|429/i.test(error.message);
+  const rawMessage = error.message ?? "Something went wrong.";
+  const isQuota = /allowance|exhausted|429/i.test(rawMessage);
+  const normalizedMessage = normalizeAIErrorMessage(rawMessage);
 
   if (isQuota) {
     return (
@@ -2344,11 +966,11 @@ function QuotaOrError({
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+    <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/8 px-3 py-2 text-xs text-red-300">
       <WarningCircle className="size-3.5 shrink-0" weight="fill" />
-      <span className="min-w-0 flex-1 truncate">{error.message}</span>
+      <span className="min-w-0 flex-1 truncate">{normalizedMessage}</span>
       <Button
-        className="h-auto shrink-0 gap-1 px-1.5 py-0.5 text-red-300 hover:bg-red-500/20 hover:text-red-200"
+        className="h-auto shrink-0 gap-1 rounded-full px-2 py-1 text-red-200 hover:bg-red-500/15 hover:text-red-100"
         onClick={onRetry}
         size="xs"
         type="button"
@@ -2359,6 +981,22 @@ function QuotaOrError({
       </Button>
     </div>
   );
+}
+
+function normalizeAIErrorMessage(message: string) {
+  if (isRecoverableAIError(message)) {
+    return "A tool call ended before returning a result. Try again.";
+  }
+
+  if (/network|fetch failed|failed to fetch/i.test(message)) {
+    return "The request failed before the assistant could finish. Try again.";
+  }
+
+  return message;
+}
+
+function isRecoverableAIError(message: string) {
+  return /tool result is missing for tool call/i.test(message);
 }
 
 /**

@@ -56,7 +56,7 @@ export function ChainOfThought({
       <Collapsible open={isOpen} onOpenChange={setOpen} asChild>
         <div
           className={cn(
-            "overflow-hidden rounded-2xl border border-fresco-divider/60 bg-fresco-surface-muted/40",
+            "overflow-hidden rounded-xl border border-fresco-divider/60 bg-fresco-surface-muted/30",
             className,
           )}
           {...props}
@@ -82,19 +82,19 @@ export function ChainOfThoughtHeader({
   return (
     <CollapsibleTrigger
       className={cn(
-        "flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-fresco-surface-muted/60",
+        "flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-fresco-surface-muted/40",
         className,
       )}
       {...props}
     >
-      <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-fresco-tint)_12%,transparent)]">
+      <div className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--color-fresco-tint)_10%,transparent)]">
         {streaming ? (
           <CircleNotch className="size-3.5 animate-spin text-fresco-tint" />
         ) : (
           <Brain className="size-3.5 text-fresco-tint" weight="duotone" />
         )}
       </div>
-      <span className="flex-1 text-[12px] font-medium text-fresco-subtitle">
+      <span className="flex-1 text-[11px] font-medium uppercase tracking-[0.08em] text-fresco-subtitle">
         {streaming ? (
           <Shimmer as="span" duration={1.8} spread={2.4}>
             Thinking…

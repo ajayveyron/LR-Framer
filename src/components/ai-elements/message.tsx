@@ -40,7 +40,7 @@ export type MessageProps = HTMLAttributes<HTMLDivElement> & {
 export const Message = ({ className, from, ...props }: MessageProps) => (
   <div
     className={cn(
-      "group flex w-full max-w-[95%] flex-col gap-2",
+      "group flex w-full max-w-full flex-col gap-2",
       from === "user" ? "is-user ml-auto justify-end" : "is-assistant",
       className
     )}
@@ -58,11 +58,11 @@ export const MessageContent = ({
   <div
     className={cn(
       // [TUNE] Base conversation text — font size, spacing, overflow
-      "is-user:dark flex w-fit min-w-0 max-w-full flex-col gap-3 overflow-hidden text-md",
+      "is-user:dark flex w-fit min-w-0 max-w-full flex-col gap-3 overflow-hidden text-sm",
       // [TUNE] User message bubble — background, padding, border-radius, text color
-      "group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground",
+      "group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:bg-fresco-surface-muted/70 group-[.is-user]:px-3 group-[.is-user]:py-3 group-[.is-user]:text-foreground",
       // [TUNE] Assistant message text color
-      "group-[.is-assistant]:text-foreground group-[.is-assistant]:font-light group-[.is-assistant]:leading-relaxed group-[.is-assistant]:tracking-wide",
+      "group-[.is-assistant]:text-foreground group-[.is-assistant]:leading-6",
       className
     )}
     {...props}
@@ -345,7 +345,7 @@ export const MessageResponse = memo(
       animated={{ animation: "blurIn", duration: 200, easing: "ease-out" }}
       className={cn(
         // [TUNE] Markdown rendered response — overall sizing & child spacing
-        "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+        "size-full text-[13px] [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         className
       )}
       components={streamdownComponents}

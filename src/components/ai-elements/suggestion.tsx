@@ -46,7 +46,7 @@ export function Suggestion({
   return (
     <Button
       className={cn(
-        "shrink-0 rounded-full border-fresco-divider bg-fresco-surface-muted text-xs font-medium text-fresco-title transition-colors hover:border-fresco-tint hover:bg-fresco-divider",
+        "shrink-0 rounded-full border-fresco-divider/70 bg-fresco-surface-muted/70 text-[11px] font-medium text-fresco-title transition-colors hover:border-fresco-divider hover:bg-fresco-surface-muted",
         className,
       )}
       onClick={() => onClick?.(suggestion)}
