@@ -10,6 +10,7 @@ export interface ImageJobResult {
   mimeType?: string;
   error?: string;
   prompt?: string;
+  appliedTargetCount?: number;
 }
 
 const POLL_INTERVAL_MS = 2000;

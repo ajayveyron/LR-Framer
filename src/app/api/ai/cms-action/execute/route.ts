@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { createErrorJsonResponse } from "@/lib/api";
 import { invalidateAIContextSnapshot } from "@/lib/ai-context-snapshot";
+import {
+  formatAddItemsValidationError,
+  validateAddItemsAction,
+} from "@/lib/cms-action-validation";
 import { AppError } from "@/lib/errors";
 import { logEvent, logError } from "@/lib/logger";
 import { normalizeFieldData } from "@/lib/normalize-field-data";
@@ -13,6 +17,7 @@ import {
   setCollectionItemAttributes,
   addEnumCase,
   getAllCollections,
+  getCollectionFields,
   updateEnumCase,
   removeEnumCase,
   setEnumCaseOrder,
@@ -123,7 +128,15 @@ export async function POST(request: Request) {
     let result: unknown;
 
     switch (payload.action) {
-      case "add_items":
+      case "add_items": {
+        const fields = await runInFramerContext(() =>
+          getCollectionFields(payload.collectionId),
+        );
+        const validation = validateAddItemsAction(payload, fields);
+        if (validation.blockingIssues.length > 0) {
+          throw new AppError(formatAddItemsValidationError(validation), 400);
+        }
+
         result = await runInFramerContext(() =>
           addCollectionItems(
             payload.collectionId,
@@ -134,6 +147,7 @@ export async function POST(request: Request) {
           ),
         );
         break;
+      }
       case "remove_items":
         result = await runInFramerContext(() =>
           removeCollectionItems(payload.collectionId, payload.itemIds),

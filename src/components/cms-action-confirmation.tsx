@@ -25,6 +25,10 @@ import {
   getActionLabel,
   type ActionSeverity,
 } from "@/lib/cms-action-types";
+import {
+  summarizeValidationIssues,
+  validateAddItemsAgainstMetadata,
+} from "@/lib/cms-action-validation";
 import type {
   BlogCollectionMetadata,
   BlogPostRecord,
@@ -421,6 +425,15 @@ export function CmsActionConfirmation({
   const severity = getActionSeverity(proposal.payload);
   const styles = severityStyles(severity);
   const label = getActionLabel(proposal.payload);
+  const addItemsValidation =
+    proposal.payload.action === "add_items"
+      ? validateAddItemsAgainstMetadata(proposal.payload, metadata)
+      : null;
+  const blockingIssues = addItemsValidation?.blockingIssues ?? [];
+  const warningIssues = addItemsValidation?.warningIssues ?? [];
+  const blockingSummary = summarizeValidationIssues(blockingIssues);
+  const warningSummary = summarizeValidationIssues(warningIssues);
+  const canApprove = blockingIssues.length === 0;
 
   const outputData = output as { success?: boolean; error?: string } | undefined;
   const errorMsg = outputData?.success === false ? outputData.error : null;
@@ -500,22 +513,76 @@ export function CmsActionConfirmation({
           />
         </div>
 
+        {(blockingIssues.length > 0 || warningIssues.length > 0) && (
+          <div className="rounded-lg border border-fresco-warning/30 bg-fresco-warning-callout-bg px-3 py-2.5">
+            <div className="flex items-start gap-2">
+              <Warning className="mt-0.5 size-3.5 shrink-0 text-fresco-warning" weight="fill" />
+              <div className="min-w-0 flex-1">
+                {blockingIssues.length > 0 && (
+                  <>
+                    <p className="text-[12px] font-medium text-fresco-warning-callout-text">
+                      This proposal is incomplete.
+                    </p>
+                    <div className="mt-1 flex flex-col gap-1">
+                      {blockingSummary.map((issue) => (
+                        <span
+                          key={issue.key}
+                          className="text-[11px] text-fresco-warning-callout-text"
+                        >
+                          <span className="font-medium">{issue.label}</span>: {issue.message}
+                        </span>
+                      ))}
+                      {blockingIssues.length > blockingSummary.length && (
+                        <span className="text-[11px] text-fresco-warning-callout-text">
+                          {blockingIssues.length - blockingSummary.length} more required-field issues hidden.
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {warningIssues.length > 0 && (
+                  <div className={cn("flex flex-col gap-1", blockingIssues.length > 0 && "mt-2")}>
+                    <p className="text-[12px] font-medium text-fresco-warning-callout-text">
+                      Thumbnail still missing.
+                    </p>
+                    {warningSummary.map((issue) => (
+                      <span
+                        key={issue.key}
+                        className="text-[11px] text-fresco-warning-callout-text"
+                      >
+                        <span className="font-medium">{issue.label}</span>: {issue.message}
+                      </span>
+                    ))}
+                    <span className="text-[11px] text-fresco-warning-callout-text/85">
+                      Image fields can be applied after generation, but enum/reference/text fields must be present before approval.
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {state === "pending" && (
           <div className="flex items-center gap-2">
             <Button
               size="sm"
               variant={styles.buttonVariant}
               className="flex-1 gap-1.5"
+              disabled={!canApprove}
               onClick={onApprove}
             >
               <CheckCircle className="size-3.5" weight="bold" />
-              {severity === "destructive"
-                ? "Approve removal"
-                : severity === "warning"
-                  ? "Approve publish"
-                  : itemCount > 1
-                    ? `Approve all ${itemCount}`
-                    : "Approve"}
+              {!canApprove
+                ? "Fix required fields first"
+                : severity === "destructive"
+                  ? "Approve removal"
+                  : severity === "warning"
+                    ? "Approve publish"
+                    : itemCount > 1
+                      ? `Approve all ${itemCount}`
+                      : "Approve"}
             </Button>
             <Button
               size="sm"

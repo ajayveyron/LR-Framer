@@ -31,6 +31,7 @@ export async function GET(
       mimeType: job.mimeType,
       error: job.error,
       prompt: job.prompt,
+      appliedTargetCount: job.appliedTargetCount ?? 0,
     });
   } catch (error) {
     return createErrorJsonResponse(error);

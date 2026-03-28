@@ -513,8 +513,11 @@ export function DashboardTableView({
 
 	const handlePostsUpdated = useCallback((updatedPosts: BlogPostRecord[]) => {
 		setCachedPosts((current) => {
-			const updated = new Map(updatedPosts.map((p) => [p.id, p]));
-			return current.map((p) => updated.get(p.id) ?? p);
+			let nextPosts = current;
+			for (const updatedPost of updatedPosts) {
+				nextPosts = upsertCachedPost(nextPosts, updatedPost);
+			}
+			return nextPosts;
 		});
 	}, []);
 

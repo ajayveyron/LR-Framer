@@ -61,6 +61,7 @@ type RunInFramerContext = <T>(fn: () => Promise<T>) => Promise<T>;
 
 interface AIContextSnapshotOptions {
   cacheKey?: string;
+  focusCollectionId?: string;
 }
 
 export interface AIContextSnapshot {
@@ -82,6 +83,7 @@ const snapshotCache = new Map<
     value: AIContextSnapshot;
   }
 >();
+const snapshotInFlight = new Map<string, Promise<AIContextSnapshot>>();
 
 const DEFAULT_SNAPSHOT_CACHE_KEY = "__default__";
 
@@ -136,159 +138,205 @@ export async function getAIContextSnapshotWithRunner(
     return cached.value;
   }
 
-  const startMs = Date.now();
-
-  // Fetch project info + collection list in parallel
-  const [project, rawCollections] = await Promise.all([
-    (runInFramerContext
-      ? runInFramerContext(() => getProjectInfo())
-      : getProjectInfo()
-    ).catch((err) => {
-      logError("ai.context_snapshot.project_info_failed", err);
-      return null;
-    }),
-    (runInFramerContext
-      ? runInFramerContext(() => getAllCollections())
-      : getAllCollections()
-    ).catch((err) => {
-      logError("ai.context_snapshot.collections_failed", err);
-      return [] as CollectionSnapshot[];
-    }),
-  ]);
-
-  // For each collection, fetch fields (and enum cases for any enum fields)
-  const collections = await mapWithConcurrency(
-    rawCollections,
-    SNAPSHOT_COLLECTION_CONCURRENCY,
-    async (col): Promise<CollectionContext> => {
-      let fields: FieldSnapshot[] = [];
-      let enumCases: EnumSnapshot[] = [];
-
-      try {
-        const rawFields = await (runInFramerContext
-          ? runInFramerContext(() => getCollectionFields(col.id))
-          : getCollectionFields(col.id));
-        fields = rawFields.map((f: any) => ({
-          id: f.id,
-          name: f.name,
-          type: f.type,
-          required: f.required,
-          ...(f.collectionId ? { collectionId: f.collectionId } : {}),
-        }));
-
-        // Fetch enum cases for all enum fields in this collection
-        const enumFields = fields.filter((f) => f.type === "enum");
-        if (enumFields.length > 0) {
-          const enumResults = await mapWithConcurrency(
-            enumFields,
-            SNAPSHOT_ENUM_CONCURRENCY,
-            async (field) => {
-              try {
-                const cases = await (runInFramerContext
-                  ? runInFramerContext(() => getEnumFieldCases(col.id, field.id))
-                  : getEnumFieldCases(col.id, field.id));
-                return { fieldId: field.id, fieldName: field.name, cases };
-              } catch (err) {
-                logError("ai.context_snapshot.enum_cases_failed", err, {
-                  collectionId: col.id,
-                  fieldId: field.id,
-                });
-                return null;
-              }
-            },
-          );
-          enumCases = enumResults.filter((r): r is EnumSnapshot => r !== null);
-        }
-      } catch (err) {
-        logError("ai.context_snapshot.fields_failed", err, {
-          collectionId: col.id,
-        });
-      }
-
-      return { collection: col, fields, enumCases };
-    },
-  );
-
-  const snapshot: AIContextSnapshot = { project, collections, references: new Map() };
-
-  // Collect unique referenced collection IDs across all fields
-  const refCollectionIds = new Set<string>();
-  for (const ctx of collections) {
-    for (const field of ctx.fields) {
-      if (
-        (field.type === "collectionReference" || field.type === "multiCollectionReference") &&
-        field.collectionId
-      ) {
-        refCollectionIds.add(field.collectionId);
-      }
-    }
+  const inFlight = snapshotInFlight.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
   }
 
-  // Fetch items from each referenced collection to build options
-  if (refCollectionIds.size > 0) {
-    const SNAPSHOT_REF_CONCURRENCY = 10;
-    const refEntries = await mapWithConcurrency(
-      [...refCollectionIds],
-      SNAPSHOT_REF_CONCURRENCY,
-      async (refColId): Promise<[string, ReferenceSnapshot] | null> => {
+  const buildPromise = (async () => {
+    const startMs = Date.now();
+    let projectAndCollectionsMs = 0;
+    let fieldsMs = 0;
+    let referencesMs = 0;
+
+    const projectCollectionsStartMs = Date.now();
+
+    // Fetch project info + collection list in parallel
+    const [project, rawCollections] = await Promise.all([
+      (runInFramerContext
+        ? runInFramerContext(() => getProjectInfo())
+        : getProjectInfo()
+      ).catch((err) => {
+        logError("ai.context_snapshot.project_info_failed", err);
+        return null;
+      }),
+      (runInFramerContext
+        ? runInFramerContext(() => getAllCollections())
+        : getAllCollections()
+      ).catch((err) => {
+        logError("ai.context_snapshot.collections_failed", err);
+        return [] as CollectionSnapshot[];
+      }),
+    ]);
+
+    projectAndCollectionsMs = Date.now() - projectCollectionsStartMs;
+
+    const fieldsStartMs = Date.now();
+
+    // For each collection, fetch fields (and enum cases for any enum fields)
+    const collections = await mapWithConcurrency(
+      rawCollections,
+      SNAPSHOT_COLLECTION_CONCURRENCY,
+      async (col): Promise<CollectionContext> => {
+        let fields: FieldSnapshot[] = [];
+        let enumCases: EnumSnapshot[] = [];
+
         try {
-          const data = await (runInFramerContext
-            ? runInFramerContext(() => getCollectionItems(refColId))
-            : getCollectionItems(refColId));
+          const rawFields = await (runInFramerContext
+            ? runInFramerContext(() => getCollectionFields(col.id))
+            : getCollectionFields(col.id));
+          fields = rawFields.map((f: any) => ({
+            id: f.id,
+            name: f.name,
+            type: f.type,
+            required: f.required,
+            ...(f.collectionId ? { collectionId: f.collectionId } : {}),
+          }));
 
-          // Find a title-like field for the label
-          const titleFieldId = Object.entries(data._fieldTypes ?? {}).find(
-            ([, type]) => type === "string" || type === "formattedText",
-          )?.[0];
-
-          const collectionName =
-            collections.find((c) => c.collection.id === refColId)?.collection.name ??
-            refColId;
-
-          return [
-            refColId,
-            {
-              collectionId: refColId,
-              collectionName,
-              options: data.items.map((item: any) => ({
-                id: item.id,
-                label: titleFieldId
-                  ? String(item.fieldData?.[titleFieldId] ?? item.slug)
-                  : item.slug,
-                slug: item.slug,
-              })),
-            },
-          ];
+          // Fetch enum cases for all enum fields in this collection
+          const enumFields = fields.filter((f) => f.type === "enum");
+          if (enumFields.length > 0) {
+            const enumResults = await mapWithConcurrency(
+              enumFields,
+              SNAPSHOT_ENUM_CONCURRENCY,
+              async (field) => {
+                try {
+                  const cases = await (runInFramerContext
+                    ? runInFramerContext(() =>
+                        getEnumFieldCases(col.id, field.id),
+                      )
+                    : getEnumFieldCases(col.id, field.id));
+                  return { fieldId: field.id, fieldName: field.name, cases };
+                } catch (err) {
+                  logError("ai.context_snapshot.enum_cases_failed", err, {
+                    collectionId: col.id,
+                    fieldId: field.id,
+                  });
+                  return null;
+                }
+              },
+            );
+            enumCases = enumResults.filter((r): r is EnumSnapshot => r !== null);
+          }
         } catch (err) {
-          logError("ai.context_snapshot.reference_items_failed", err, {
-            collectionId: refColId,
+          logError("ai.context_snapshot.fields_failed", err, {
+            collectionId: col.id,
           });
-          return null;
         }
+
+        return { collection: col, fields, enumCases };
       },
     );
 
-    for (const entry of refEntries) {
-      if (entry) {
-        snapshot.references.set(entry[0], entry[1]);
+    fieldsMs = Date.now() - fieldsStartMs;
+
+    const snapshot: AIContextSnapshot = {
+      project,
+      collections,
+      references: new Map(),
+    };
+
+    const referenceSourceCollections =
+      options.focusCollectionId
+        ? collections.filter((ctx) => ctx.collection.id === options.focusCollectionId)
+        : collections;
+
+    // Collect unique referenced collection IDs across the relevant fields.
+    const refCollectionIds = new Set<string>();
+    for (const ctx of referenceSourceCollections) {
+      for (const field of ctx.fields) {
+        if (
+          (field.type === "collectionReference" ||
+            field.type === "multiCollectionReference") &&
+          field.collectionId
+        ) {
+          refCollectionIds.add(field.collectionId);
+        }
       }
     }
+
+    // Fetch items from each referenced collection to build options
+    if (refCollectionIds.size > 0) {
+      const referencesStartMs = Date.now();
+      const SNAPSHOT_REF_CONCURRENCY = 10;
+      const refEntries = await mapWithConcurrency(
+        [...refCollectionIds],
+        SNAPSHOT_REF_CONCURRENCY,
+        async (refColId): Promise<[string, ReferenceSnapshot] | null> => {
+          try {
+            const data = await (runInFramerContext
+              ? runInFramerContext(() => getCollectionItems(refColId))
+              : getCollectionItems(refColId));
+
+            // Find a title-like field for the label
+            const titleFieldId = Object.entries(data._fieldTypes ?? {}).find(
+              ([, type]) => type === "string" || type === "formattedText",
+            )?.[0];
+
+            const collectionName =
+              collections.find((c) => c.collection.id === refColId)?.collection
+                .name ?? refColId;
+
+            return [
+              refColId,
+              {
+                collectionId: refColId,
+                collectionName,
+                options: data.items.map((item: any) => ({
+                  id: item.id,
+                  label: titleFieldId
+                    ? String(item.fieldData?.[titleFieldId] ?? item.slug)
+                    : item.slug,
+                  slug: item.slug,
+                })),
+              },
+            ];
+          } catch (err) {
+            logError("ai.context_snapshot.reference_items_failed", err, {
+              collectionId: refColId,
+            });
+            return null;
+          }
+        },
+      );
+
+      for (const entry of refEntries) {
+        if (entry) {
+          snapshot.references.set(entry[0], entry[1]);
+        }
+      }
+
+      referencesMs = Date.now() - referencesStartMs;
+    }
+
+    snapshotCache.set(cacheKey, {
+      expiresAt: Date.now() + SNAPSHOT_CACHE_TTL_MS,
+      value: snapshot,
+    });
+
+    logEvent("info", "ai.context_snapshot.built", {
+      durationMs: Date.now() - startMs,
+      projectAndCollectionsMs,
+      fieldsMs,
+      referencesMs,
+      collectionCount: collections.length,
+      totalFields: collections.reduce((sum, c) => sum + c.fields.length, 0),
+      totalEnumFields: collections.reduce((sum, c) => sum + c.enumCases.length, 0),
+      totalReferenceCollections: snapshot.references.size,
+      focusedCollectionId: options.focusCollectionId ?? null,
+      focusedReferenceCollections: refCollectionIds.size,
+    });
+
+    return snapshot;
+  })();
+
+  snapshotInFlight.set(cacheKey, buildPromise);
+
+  try {
+    return await buildPromise;
+  } finally {
+    snapshotInFlight.delete(cacheKey);
   }
-
-  snapshotCache.set(cacheKey, {
-    expiresAt: Date.now() + SNAPSHOT_CACHE_TTL_MS,
-    value: snapshot,
-  });
-
-  logEvent("info", "ai.context_snapshot.built", {
-    durationMs: Date.now() - startMs,
-    collectionCount: collections.length,
-    totalFields: collections.reduce((sum, c) => sum + c.fields.length, 0),
-    totalEnumFields: collections.reduce((sum, c) => sum + c.enumCases.length, 0),
-    totalReferenceCollections: snapshot.references.size,
-  });
-
-  return snapshot;
 }
 
 export function invalidateAIContextSnapshot(cacheKey?: string) {

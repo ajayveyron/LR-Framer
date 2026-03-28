@@ -1,16 +1,80 @@
 import { generateText, tool } from "ai";
 import { z } from "zod";
+import { anyApi } from "convex/server";
 
 import { auth } from "@clerk/nextjs/server";
 
 import { getAIConfig } from "@/lib/ai-config";
-import { createImageJob, updateImageJob } from "@/lib/ai-image-jobs";
+import {
+  addImageJobTarget,
+  createImageJob,
+  getImageJob,
+  incrementImageJobAppliedTargetCount,
+  removeImageJobTarget,
+  updateImageJob,
+} from "@/lib/ai-image-jobs";
+import { fetchProductMutation } from "@/lib/convex";
 import { trackTokenUsage, FALLBACK_IMAGE_TOKEN_COST } from "@/lib/billing";
 import { getImageSystemPrompt } from "@/lib/brand";
 import { uploadBlogAsset } from "@/lib/framer-core";
 import { logEvent, logError } from "@/lib/logger";
 
 type RunInFramerContext = <T>(fn: () => Promise<T>) => Promise<T>;
+
+async function applyImageToStagedItemTarget(
+  jobId: string,
+  target: { stagedItemId: string; fieldId: string },
+  imageUrl: string,
+) {
+  await fetchProductMutation(anyApi.stagedItems.setFieldValue, {
+    id: target.stagedItemId,
+    fieldId: target.fieldId,
+    value: imageUrl,
+  });
+  removeImageJobTarget(jobId, target);
+  incrementImageJobAppliedTargetCount(jobId);
+}
+
+async function flushCompletedImageTargets(jobId: string, imageUrl: string) {
+  const job = getImageJob(jobId);
+  const pendingTargets = [...(job?.pendingTargets ?? [])];
+  if (pendingTargets.length === 0) return;
+
+  for (const target of pendingTargets) {
+    try {
+      await applyImageToStagedItemTarget(jobId, target, imageUrl);
+    } catch (error) {
+      logError("ai.image_job.target_apply.failed", error, {
+        jobId,
+        stagedItemId: target.stagedItemId,
+        fieldId: target.fieldId,
+      });
+    }
+  }
+}
+
+export async function attachImageJobToStagedItem(
+  jobId: string,
+  target: { stagedItemId: string; fieldId: string },
+) {
+  const job = addImageJobTarget(jobId, target);
+  if (!job) return false;
+
+  if (job.status === "completed" && job.url) {
+    try {
+      await applyImageToStagedItemTarget(jobId, target, job.url);
+      return true;
+    } catch (error) {
+      logError("ai.image_job.target_apply_immediate.failed", error, {
+        jobId,
+        stagedItemId: target.stagedItemId,
+        fieldId: target.fieldId,
+      });
+    }
+  }
+
+  return true;
+}
 
 /**
  * Runs the actual image generation + Framer upload in the background.
@@ -66,26 +130,71 @@ async function runImageGeneration(
     }
 
     const systemPrompt = await getImageSystemPrompt();
+    const MAX_ATTEMPTS = 2;
+    let result: Awaited<ReturnType<typeof generateText>> | undefined;
+    let imageFile:
+      | NonNullable<Awaited<ReturnType<typeof generateText>>["files"]>[number]
+      | undefined;
+    let lastError: unknown;
 
-    const result = await generateText({
-      model: config.provider(config.imageModel),
-      system: systemPrompt,
-      messages: [{ role: "user" as const, content: userContent }],
-      providerOptions: {
-        vertex: { generationConfig: { responseModalities: ["IMAGE", "TEXT"] } },
-      },
-      maxRetries: 1,
-    });
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 300_000);
 
-    const imageFile = result.files?.find((f) =>
-      f.mediaType?.startsWith("image/"),
-    );
+      try {
+        logEvent("info", "ai.tool.generate_image.attempt", {
+          jobId,
+          attempt,
+          maxAttempts: MAX_ATTEMPTS,
+          referenceImageCount: allRefs.length,
+        });
 
-    if (!imageFile) {
-      logEvent("warn", "ai.tool.generate_image.no_image", { jobId, durationMs: Date.now() - startMs });
+        result = await generateText({
+          model: config.provider(config.imageModel),
+          system: systemPrompt,
+          messages: [{ role: "user" as const, content: userContent }],
+          providerOptions: {
+            vertex: {
+              generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
+            },
+          },
+          maxRetries: 0,
+          abortSignal: controller.signal,
+        });
+
+        imageFile = result.files?.find((f) => f.mediaType?.startsWith("image/"));
+
+        if (!imageFile) {
+          throw new Error("The model did not return an image.");
+        }
+
+        break;
+      } catch (error) {
+        lastError = error;
+        logEvent("warn", "ai.tool.generate_image.attempt_failed", {
+          jobId,
+          attempt,
+          maxAttempts: MAX_ATTEMPTS,
+          error: error instanceof Error ? error.message : String(error),
+          willRetry: attempt < MAX_ATTEMPTS,
+        });
+
+        if (attempt < MAX_ATTEMPTS) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+        }
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    if (!result || !imageFile) {
+      const message =
+        lastError instanceof Error
+          ? lastError.message
+          : "The model did not return an image. Try a different prompt.";
       updateImageJob(jobId, {
         status: "failed",
-        error: "The model did not return an image. Try a different prompt.",
+        error: message,
       });
       return;
     }
@@ -106,6 +215,7 @@ async function runImageGeneration(
       thumbnailUrl: asset.thumbnailUrl ?? undefined,
       mimeType,
     });
+    await flushCompletedImageTargets(jobId, asset.url);
 
     logEvent("info", "ai.tool.generate_image.completed", {
       jobId,
@@ -159,7 +269,8 @@ function buildGenerateAndUploadImageTool(runInFramerContext?: RunInFramerContext
       "This tool returns IMMEDIATELY with a jobId while the image generates in the background. " +
       "The user will see a live progress indicator and the image will appear automatically when ready. " +
       "You do NOT need to wait for the image — continue with your next task (writing content, proposing CMS actions, etc.). " +
-      "Once the image is ready, the user can apply it to a CMS item from the UI, or you can reference the jobId in a later turn. " +
+      "When you need to use the image in propose_cms_action, put __image_job__:{jobId} into the image field value. " +
+      "The system will replace that placeholder with the uploaded asset automatically once the job finishes. " +
       "Accepts referenceImageUrls (array of up to 3 sibling item image URLs) to match the collection's visual style, " +
       "or referenceImageUrl (single URL) for a user-uploaded reference.",
     inputSchema: z.object({

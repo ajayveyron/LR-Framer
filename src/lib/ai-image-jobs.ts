@@ -14,7 +14,7 @@
  * across all route handlers within the same Node.js process.
  */
 
-import { logEvent, logError } from "@/lib/logger";
+import { logEvent } from "@/lib/logger";
 
 export interface ImageJob {
   id: string;
@@ -27,6 +27,11 @@ export interface ImageJob {
   error?: string;
   createdAt: number;
   completedAt?: number;
+  appliedTargetCount?: number;
+  pendingTargets?: Array<{
+    stagedItemId: string;
+    fieldId: string;
+  }>;
 }
 
 const GLOBAL_KEY = "__framerlink_image_jobs" as const;
@@ -81,4 +86,51 @@ export function updateImageJob(id: string, update: Partial<ImageJob>): void {
       logEvent("warn", "ai.image_job.failed", { jobId: id, durationMs, error: job.error });
     }
   }
+}
+
+export function addImageJobTarget(
+  id: string,
+  target: { stagedItemId: string; fieldId: string },
+): ImageJob | undefined {
+  const job = jobs.get(id);
+  if (!job) return undefined;
+
+  const pendingTargets = job.pendingTargets ?? [];
+  const exists = pendingTargets.some(
+    (entry) =>
+      entry.stagedItemId === target.stagedItemId &&
+      entry.fieldId === target.fieldId,
+  );
+
+  if (!exists) {
+    pendingTargets.push(target);
+    job.pendingTargets = pendingTargets;
+  }
+
+  return job;
+}
+
+export function removeImageJobTarget(
+  id: string,
+  target: { stagedItemId: string; fieldId: string },
+): ImageJob | undefined {
+  const job = jobs.get(id);
+  if (!job?.pendingTargets?.length) return job;
+
+  job.pendingTargets = job.pendingTargets.filter(
+    (entry) =>
+      !(
+        entry.stagedItemId === target.stagedItemId &&
+        entry.fieldId === target.fieldId
+      ),
+  );
+
+  return job;
+}
+
+export function incrementImageJobAppliedTargetCount(id: string): ImageJob | undefined {
+  const job = jobs.get(id);
+  if (!job) return undefined;
+  job.appliedTargetCount = (job.appliedTargetCount ?? 0) + 1;
+  return job;
 }

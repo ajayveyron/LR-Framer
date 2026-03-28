@@ -60,6 +60,38 @@ export const update = mutationGeneric({
   },
 });
 
+export const setFieldValue = mutationGeneric({
+  args: {
+    id: v.id("stagedItems"),
+    fieldId: v.string(),
+    value: v.any(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Staged item not found");
+
+    let fieldValues: Record<string, unknown> = {};
+    try {
+      fieldValues = JSON.parse(existing.fieldDataJson) as Record<string, unknown>;
+    } catch {
+      fieldValues = {};
+    }
+
+    if (args.value == null) {
+      delete fieldValues[args.fieldId];
+    } else {
+      fieldValues[args.fieldId] = args.value;
+    }
+
+    await ctx.db.patch(args.id, {
+      fieldDataJson: JSON.stringify(fieldValues),
+      updatedAt: Date.now(),
+    });
+
+    return args.id;
+  },
+});
+
 export const remove = mutationGeneric({
   args: { id: v.id("stagedItems") },
   handler: async (ctx, args) => {

@@ -774,3 +774,25 @@ Replaced the custom field-value preview with the real `PostEditor` component. Wh
 **Why:** Reduce cognitive complexity, eliminate duplication (DRY), standardize patterns across the codebase, and remove dead code — all without changing any business logic, APIs, or user-facing behavior.
 
 **Scope:** `src/lib/billing.ts`, `src/lib/use-billing-usage.ts`, `src/lib/api.ts`, `src/lib/framer-errors.ts`, `src/lib/framer-copy.ts`, `src/components/ai-chat-panel.tsx`, `src/components/usage-meter.tsx`, `src/app/api/meta/fields/route.ts`, `src/app/api/notion/import/route.ts`.
+
+## 2026-03-27 — Remove inline blog preview card, enforce post length and field completeness
+
+**What changed:**
+1. Removed the `render_blog_preview` tool from the AI chat route and the "BLOG PREVIEW RULE" from the system prompt. The inline rich text preview card was redundant since users already review content by opening the post editor from the CMS action confirmation card.
+2. Removed the `BlogPreviewCard` rendering block and import from `ai-chat-panel.tsx`. The component file `blog-preview-card.tsx` is left in place but no longer referenced.
+3. Strengthened the "CMS MUTATION RULES" in the system prompt to explicitly require: enum fields (Category) must always be set using case IDs from project context; collectionReference fields (Person/Author) must always be set using item IDs from the referenced collection; image fields must always get a freshly generated thumbnail via `generate_and_upload_image` (never copy an existing item's URL); string fields like Description must match existing item style/length.
+4. Strengthened the "NEW ITEM CREATION RULES" to explicitly require 800–1500 word blog posts matching existing collection length, instead of the vague "comprehensive, publication-ready content" instruction.
+
+**Why:** The blog preview card added an extra tool call step that slowed down content creation without adding value (the post editor already serves as the review surface). Posts were being created with only 300-400 words instead of matching the 800-1500 word standard of existing posts. Required fields like Person and Category were being left empty, and thumbnails were being copied from existing posts instead of freshly generated.
+
+**Scope:** `src/app/api/ai/chat/route.ts` (removed tool definition, removed BLOG PREVIEW RULE, strengthened CMS MUTATION RULES and NEW ITEM CREATION RULES), `src/components/ai-chat-panel.tsx` (removed BlogPreviewCard import and rendering block).
+
+## 2026-03-27 — Fix thinking UI not showing + update retired image model
+
+**What changed:**
+1. Added `sendReasoning: true` to the `toUIMessageStreamResponse` call in the chat route. Without this flag, the Vercel AI SDK strips reasoning parts from the stream, so the ChainOfThought component in the chat panel never receives data to render.
+2. Updated `GEMINI_IMAGE_MODEL` from `gemini-2.5-flash-image-preview` (retired October 31, 2025) to `gemini-2.5-flash-image` (stable, active until October 2, 2026).
+
+**Why:** Users reported the thinking UI shimmer/disclosure never appeared despite `thinkingLevel: "low"` being configured. The reasoning data was being generated server-side but silently dropped before reaching the client. Image generation was failing with a 404 because the preview model was retired.
+
+**Scope:** `src/app/api/ai/chat/route.ts` (added `sendReasoning: true`), `src/lib/env.ts` (updated `GEMINI_IMAGE_MODEL` constant).

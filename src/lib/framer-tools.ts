@@ -1,7 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { anyApi } from "convex/server";
 
 import { invalidateAIContextSnapshot } from "@/lib/ai-context-snapshot";
+import { extractImageJobId } from "@/lib/ai-image-placeholders";
+import { attachImageJobToStagedItem } from "@/lib/ai-image-tool";
+import {
+  formatAddItemsValidationError,
+  validateAddItemsAction,
+} from "@/lib/cms-action-validation";
 import {
   addCollectionItems,
   addEnumCase,
@@ -24,7 +31,6 @@ import {
 import { logEvent, logError } from "@/lib/logger";
 import { normalizeFieldData } from "@/lib/normalize-field-data";
 import { fetchProductMutation } from "@/lib/convex";
-import { anyApi } from "convex/server";
 
 const MAX_TOOL_RESULT_BYTES = 500_000;
 
@@ -456,13 +462,42 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContex
 
         switch (payload.action) {
           case "add_items": {
+            const fields = await (runInFramerContext
+              ? runInFramerContext(() => getCollectionFields(payload.collectionId))
+              : getCollectionFields(payload.collectionId));
+            const validation = validateAddItemsAction(payload, fields);
+            if (validation.blockingIssues.length > 0) {
+              return {
+                success: false,
+                action: payload.action,
+                error: formatAddItemsValidationError(validation),
+              };
+            }
+
             // Stage items in Convex instead of pushing directly to Framer
             if (stagingContext) {
-              const stagedIds: string[] = [];
+              const stagedItems: Array<{
+                id: string;
+                stagedId: string;
+                slug: string;
+                draft: boolean;
+                fieldData?: typeof payload.items[number]["fieldData"];
+              }> = [];
               for (const item of payload.items) {
                 const fieldValues: Record<string, unknown> = {};
+                const pendingImageTargets: Array<{
+                  jobId: string;
+                  fieldId: string;
+                }> = [];
                 if (item.fieldData) {
                   for (const [key, entry] of Object.entries(item.fieldData)) {
+                    if (entry.type === "image") {
+                      const jobId = extractImageJobId(entry.value);
+                      if (jobId) {
+                        pendingImageTargets.push({ jobId, fieldId: key });
+                        continue;
+                      }
+                    }
                     fieldValues[key] = entry.value;
                   }
                 }
@@ -479,7 +514,21 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContex
                       source: "ai" as const,
                     },
                   );
-                  stagedIds.push(String(id));
+                  const stagedId = String(id);
+                  stagedItems.push({
+                    id: `staged:${stagedId}`,
+                    stagedId,
+                    slug: item.slug,
+                    draft: item.draft ?? true,
+                    fieldData: item.fieldData,
+                  });
+
+                  for (const target of pendingImageTargets) {
+                    await attachImageJobToStagedItem(target.jobId, {
+                      stagedItemId: stagedId,
+                      fieldId: target.fieldId,
+                    });
+                  }
                 } catch (err) {
                   logError("ai.cms_action.stage_item_failed", err, { slug: item.slug });
                 }
@@ -489,16 +538,14 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContex
                 action: payload.action,
                 durationMs: Date.now() - startMs,
                 slugs,
-                stagedCount: stagedIds.length,
+                stagedCount: stagedItems.length,
               });
               return {
                 success: true,
                 action: payload.action,
                 staged: true,
-                items: payload.items.map((item) => ({
-                  slug: item.slug,
-                  draft: item.draft ?? true,
-                })),
+                collectionId: payload.collectionId,
+                items: stagedItems,
               };
             }
 

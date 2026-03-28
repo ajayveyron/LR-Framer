@@ -63,8 +63,10 @@ import { TRANSIENT_FRAMER_EDITOR_MESSAGE } from "@/lib/framer-copy";
 
 import { cn } from "@/lib/utils";
 import { logEvent, logError } from "@/lib/logger";
+import { extractImageJobId } from "@/lib/ai-image-placeholders";
 import { buildPostInputSchema, type PostInputPayload } from "@/lib/post-schema";
 import { getCollectionHeader } from "@/lib/product-framer-shared";
+import { useImageJob } from "@/lib/use-image-job";
 
 type FormValues = PostInputPayload;
 const EMPTY_SELECT_VALUE = "__none__";
@@ -450,6 +452,252 @@ function getDefaultFieldValue(
     default:
       return value ?? "";
   }
+}
+
+function normalizeOptionLabel(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function getNormalizedEnumSelectValue(
+  field: DashboardFieldDefinition,
+  value: unknown,
+) {
+  if (typeof value !== "string" || value.length === 0) {
+    return value;
+  }
+
+  const normalizedValue = normalizeOptionLabel(value);
+  const matchedOption = (field.options ?? []).find(
+    (option) =>
+      option.value === value ||
+      option.id === value ||
+      normalizeOptionLabel(option.label) === normalizedValue,
+  );
+
+  return matchedOption?.value ?? value;
+}
+
+function getNormalizedReferenceSelectValue(
+  field: DashboardFieldDefinition,
+  value: unknown,
+) {
+  if (typeof value !== "string" || value.length === 0) {
+    return value;
+  }
+
+  const normalizedValue = normalizeOptionLabel(value);
+  const matchedOption = (field.referenceCollection?.options ?? []).find(
+    (option) =>
+      option.slug === value ||
+      option.id === value ||
+      normalizeOptionLabel(option.label) === normalizedValue,
+  );
+
+  return matchedOption?.slug ?? value;
+}
+
+function getNormalizedMultiReferenceSelectValues(
+  field: DashboardFieldDefinition,
+  value: unknown,
+) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => getNormalizedReferenceSelectValue(field, entry))
+    .filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+}
+
+function AssetFieldValue({
+  field,
+  inputId,
+  path,
+  currentValue,
+  isUploading,
+  onUpload,
+  onRemove,
+  onGenerate,
+  onResolved,
+}: {
+  field: DashboardFieldDefinition;
+  inputId: string;
+  path: `fieldValues.${string}`;
+  currentValue: DashboardFieldValue;
+  isUploading: boolean;
+  onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
+  onRemove: () => void;
+  onGenerate: () => void;
+  onResolved: (url: string) => void;
+}) {
+  const rawValue = typeof currentValue === "string" ? currentValue : "";
+  const pendingJobId = extractImageJobId(rawValue);
+  const imageJob = useImageJob(pendingJobId);
+  const resolvedUrl =
+    pendingJobId && imageJob?.status === "completed" && imageJob.url
+      ? imageJob.url
+      : "";
+  const assetUrl = pendingJobId ? resolvedUrl : rawValue;
+  const isGenerating =
+    Boolean(pendingJobId) &&
+    (!imageJob ||
+      imageJob.status === "pending" ||
+      imageJob.status === "running");
+  const generationFailed =
+    Boolean(pendingJobId) && imageJob?.status === "failed";
+  const uploadId = `${inputId}-upload`;
+
+  useEffect(() => {
+    if (!resolvedUrl || resolvedUrl === rawValue) {
+      return;
+    }
+
+    onResolved(resolvedUrl);
+  }, [onResolved, rawValue, resolvedUrl]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      {assetUrl ? (
+        <div className="rounded-none border border-fresco-divider bg-fresco-surface-elevated shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] flex items-center gap-3 rounded-lg p-3">
+          {field.type === "image" ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              alt={field.name}
+              className="h-[80px] w-28 shrink-0 rounded-lg border border-fresco-divider object-cover"
+              src={assetUrl}
+            />
+          ) : (
+            <div
+              aria-hidden="true"
+              className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-fresco-surface-muted text-fresco-text"
+            >
+              <svg
+                fill="none"
+                height="22"
+                viewBox="0 0 22 22"
+                width="22"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M6.5 2.75H12.375L16.5 6.875V17.125C16.5 18.1605 15.6605 19 14.625 19H7.375C6.33947 19 5.5 18.1605 5.5 17.125V3.75C5.5 3.19772 5.94772 2.75 6.5 2.75Z"
+                  fill="currentColor"
+                  fillOpacity="0.12"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                />
+                <path
+                  d="M12 2.75V7.25H16.5"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                />
+              </svg>
+            </div>
+          )}
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <strong className="truncate text-fresco-title">
+              {getAssetLabel(assetUrl)}
+            </strong>
+            <div className="flex items-center gap-1.5">
+              <Button
+                asChild
+                className="h-7 rounded-lg px-2.5 text-xs"
+                size="sm"
+                variant="outline"
+              >
+                <label htmlFor={uploadId}>
+                  <input
+                    accept={field.type === "image" ? "image/*" : undefined}
+                    hidden
+                    id={uploadId}
+                    onChange={onUpload}
+                    type="file"
+                  />
+                  {isUploading ? "Uploading..." : "Replace"}
+                </label>
+              </Button>
+              {!field.required ? (
+                <Button
+                  className="h-7 rounded-lg px-2.5 text-xs"
+                  onClick={onRemove}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  Remove
+                </Button>
+              ) : null}
+              {field.type === "image" ? (
+                <Button
+                  className="h-7 rounded-lg px-2.5 text-xs"
+                  onClick={onGenerate}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <Sparkle className="size-3.5" weight="duotone" />
+                  AI
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {!assetUrl && isGenerating ? (
+        <div className="rounded-lg border border-fresco-divider bg-fresco-surface-elevated p-3 text-sm text-fresco-description shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)]">
+          <div className="flex items-center gap-2">
+            <SpinnerGap className="size-4 animate-spin text-fresco-tint" />
+            <span>AI thumbnail is still generating. It will attach automatically when ready.</span>
+          </div>
+        </div>
+      ) : null}
+
+      {!assetUrl && generationFailed ? (
+        <div className="rounded-lg border border-fresco-danger-callout-border bg-fresco-danger-callout-bg p-3 text-sm text-fresco-danger-callout-text">
+          {imageJob?.error ?? "AI thumbnail generation failed."}
+        </div>
+      ) : null}
+
+      {!assetUrl && !isGenerating ? (
+        <>
+          <div className="rounded-lg border border-dashed border-fresco-divider bg-fresco-surface-subtle px-3 py-2 text-sm text-fresco-subtitle">
+            No {field.name.toLowerCase()} attached yet.
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Button
+              asChild
+              className="h-9 rounded-lg px-3"
+              size="sm"
+              variant="outline"
+            >
+              <label htmlFor={uploadId}>
+                <input
+                  accept={field.type === "image" ? "image/*" : undefined}
+                  hidden
+                  id={uploadId}
+                  onChange={onUpload}
+                  type="file"
+                />
+                {isUploading ? "Uploading..." : "Upload"}
+              </label>
+            </Button>
+            {field.type === "image" ? (
+              <Button
+                className="h-9 rounded-lg px-3"
+                onClick={onGenerate}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <Sparkle className="size-4" weight="duotone" />
+                Generate Image
+              </Button>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
 }
 
 function getFieldErrorMessage(
@@ -1600,10 +1848,14 @@ export function PostEditor({
             control={form.control}
             name={path}
             render={({ field: controllerField }) => {
+              const normalizedValue = getNormalizedEnumSelectValue(
+                field,
+                controllerField.value,
+              );
               const selectedValue =
-                typeof controllerField.value === "string" &&
-                controllerField.value.length > 0
-                  ? controllerField.value
+                typeof normalizedValue === "string" &&
+                normalizedValue.length > 0
+                  ? normalizedValue
                   : field.required
                     ? undefined
                     : EMPTY_SELECT_VALUE;
@@ -1655,7 +1907,10 @@ export function PostEditor({
       const referenceOptions = field.referenceCollection?.options ?? [];
 
       if (field.type === "multiCollectionReference") {
-        const selectedValues = Array.isArray(currentValue) ? currentValue : [];
+        const selectedValues = getNormalizedMultiReferenceSelectValues(
+          field,
+          currentValue,
+        );
 
         return (
           <div className={cn(className, wideFieldClassName)} key={field.id}>
@@ -1734,10 +1989,14 @@ export function PostEditor({
             control={form.control}
             name={path}
             render={({ field: controllerField }) => {
+              const normalizedValue = getNormalizedReferenceSelectValue(
+                field,
+                controllerField.value,
+              );
               const selectedValue =
-                typeof controllerField.value === "string" &&
-                controllerField.value.length > 0
-                  ? controllerField.value
+                typeof normalizedValue === "string" &&
+                normalizedValue.length > 0
+                  ? normalizedValue
                   : field.required
                     ? undefined
                     : EMPTY_SELECT_VALUE;
@@ -1823,9 +2082,7 @@ export function PostEditor({
     }
 
     if (field.type === "image" || field.type === "file") {
-      const assetUrl = typeof currentValue === "string" ? currentValue : "";
       const isUploading = pendingUploads[field.id] === true;
-      const uploadId = `${inputId}-upload`;
 
       return (
         <div className={className} key={field.id}>
@@ -1836,145 +2093,31 @@ export function PostEditor({
               required={field.required}
             />
           </div>
-          <div className="flex flex-col gap-3">
-            {assetUrl ? (
-              <div className="rounded-none border border-fresco-divider bg-fresco-surface-elevated shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay),0_8px_24px_rgba(0,0,0,0.12)] flex items-center gap-3 rounded-lg p-3">
-                {field.type === "image" ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    alt={field.name}
-                    className="h-[80px] w-28 shrink-0 rounded-lg border border-fresco-divider object-cover"
-                    src={assetUrl}
-                  />
-                ) : (
-                  <div
-                    aria-hidden="true"
-                    className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-fresco-surface-muted text-fresco-text"
-                  >
-                    <svg
-                      fill="none"
-                      height="22"
-                      viewBox="0 0 22 22"
-                      width="22"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M6.5 2.75H12.375L16.5 6.875V17.125C16.5 18.1605 15.6605 19 14.625 19H7.375C6.33947 19 5.5 18.1605 5.5 17.125V3.75C5.5 3.19772 5.94772 2.75 6.5 2.75Z"
-                        fill="currentColor"
-                        fillOpacity="0.12"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                      />
-                      <path
-                        d="M12 2.75V7.25H16.5"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                      />
-                    </svg>
-                  </div>
-                )}
-                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <strong className="truncate text-fresco-title">
-                    {getAssetLabel(assetUrl)}
-                  </strong>
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      asChild
-                      className="h-7 rounded-lg px-2.5 text-xs"
-                      size="sm"
-                      variant="outline"
-                    >
-                      <label htmlFor={uploadId}>
-                        <input
-                          accept={
-                            field.type === "image" ? "image/*" : undefined
-                          }
-                          hidden
-                          id={uploadId}
-                          onChange={(event) => {
-                            void handleAssetUpload(field, path, event);
-                          }}
-                          type="file"
-                        />
-                        {isUploading ? "Uploading..." : "Replace"}
-                      </label>
-                    </Button>
-                    {!field.required ? (
-                      <Button
-                        className="h-7 rounded-lg px-2.5 text-xs"
-                        onClick={() => {
-                          form.setValue(path, "", {
-                            shouldDirty: true,
-                            shouldTouch: true,
-                            shouldValidate: true,
-                          });
-                        }}
-                        size="sm"
-                        type="button"
-                        variant="ghost"
-                      >
-                        Remove
-                      </Button>
-                    ) : null}
-                    {field.type === "image" ? (
-                      <Button
-                        className="h-7 rounded-lg px-2.5 text-xs"
-                        onClick={() => setAiImageFieldId(field.id)}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        <Sparkle className="size-3.5" weight="duotone" />
-                        AI
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <Input
-                className={formControlClassName}
-                id={inputId}
-                placeholder={field.name}
-                {...form.register(path)}
-              />
-            )}
-            {!assetUrl ? (
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <Button
-                  asChild
-                  className="h-9 rounded-lg px-3"
-                  size="sm"
-                  variant="outline"
-                >
-                  <label htmlFor={uploadId}>
-                    <input
-                      accept={field.type === "image" ? "image/*" : undefined}
-                      hidden
-                      id={uploadId}
-                      onChange={(event) => {
-                        void handleAssetUpload(field, path, event);
-                      }}
-                      type="file"
-                    />
-                    {isUploading ? "Uploading..." : "Upload"}
-                  </label>
-                </Button>
-                {field.type === "image" ? (
-                  <Button
-                    className="h-9 rounded-lg px-3"
-                    onClick={() => setAiImageFieldId(field.id)}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    <Sparkle className="size-4" weight="duotone" />
-                    Generate Image
-                  </Button>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
+          <AssetFieldValue
+            currentValue={currentValue ?? null}
+            field={field}
+            inputId={inputId}
+            isUploading={isUploading}
+            onGenerate={() => setAiImageFieldId(field.id)}
+            onRemove={() => {
+              form.setValue(path, "", {
+                shouldDirty: true,
+                shouldTouch: true,
+                shouldValidate: true,
+              });
+            }}
+            onResolved={(imageUrl) => {
+              form.setValue(path, imageUrl, {
+                shouldDirty: true,
+                shouldTouch: true,
+                shouldValidate: true,
+              });
+            }}
+            onUpload={(event) => {
+              void handleAssetUpload(field, path, event);
+            }}
+            path={path}
+          />
           {field.helpText ? (
             <span className={helperTextClassName}>{field.helpText}</span>
           ) : null}
@@ -2313,7 +2456,8 @@ export function PostEditor({
         referenceImageUrl={
           aiImageFieldId &&
           typeof watchedFieldValues?.[aiImageFieldId] === "string" &&
-          (watchedFieldValues[aiImageFieldId] as string).length > 0
+          (watchedFieldValues[aiImageFieldId] as string).length > 0 &&
+          !extractImageJobId(watchedFieldValues[aiImageFieldId] as string)
             ? (watchedFieldValues[aiImageFieldId] as string)
             : undefined
         }

@@ -43,7 +43,11 @@ import {
   invalidateBillingUsage,
 } from "@/lib/use-billing-usage";
 
-import type { AIChatMessage, ChatMessageMetadata } from "@/lib/ai-chat-types";
+import type {
+  AIChatMessage,
+  ChatMessageMetadata,
+  StreamDebugDataPart,
+} from "@/lib/ai-chat-types";
 
 import { ChatHistoryPanel } from "@/components/chat-history-panel";
 import { saveConversation, type SavedConversation } from "@/lib/chat-history";
@@ -99,7 +103,6 @@ import {
   ChainOfThoughtContent,
 } from "@/components/ai-elements/chain-of-thought";
 import { PostEditor } from "@/components/post-editor";
-import { BlogPreviewCard } from "@/components/blog-preview-card";
 
 interface AIChatPanelProps {
   open: boolean;
@@ -214,6 +217,236 @@ const STREAMING_STATUS_PHRASES = [
   "Chronosyncing",
 ];
 
+function stripHtmlPreview(value: string, maxLength = 220) {
+  const plain = value
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (plain.length <= maxLength) {
+    return plain;
+  }
+
+  return `${plain.slice(0, maxLength).trimEnd()}…`;
+}
+
+function getPartialFieldString(
+  fieldData: unknown,
+  fieldNames: FieldNameMap,
+  matcher: (label: string) => boolean,
+) {
+  if (!fieldData || typeof fieldData !== "object") {
+    return null;
+  }
+
+  for (const [fieldId, entry] of Object.entries(
+    fieldData as Record<string, { value?: unknown }>,
+  )) {
+    const label = (fieldNames[fieldId] ?? fieldId).toLowerCase();
+    if (!matcher(label)) {
+      continue;
+    }
+
+    const value = entry?.value;
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function formatElapsedMs(elapsedMs: number) {
+  if (elapsedMs < 1000) {
+    return `${elapsedMs}ms`;
+  }
+
+  const seconds = elapsedMs / 1000;
+  if (seconds < 60) {
+    return `${seconds.toFixed(1)}s`;
+  }
+
+  const wholeMinutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.round(seconds % 60);
+  return `${wholeMinutes}m ${String(remainingSeconds).padStart(2, "0")}s`;
+}
+
+function formatTimeLabel(ts: string) {
+  const date = new Date(ts);
+  if (Number.isNaN(date.valueOf())) {
+    return ts;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(date);
+}
+
+function formatToolTimingMeta(timing?: {
+  firstSeenAt: string;
+  firstSeenElapsedMs: number;
+  lastSeenElapsedMs: number;
+  finishedElapsedMs?: number;
+}) {
+  if (!timing) {
+    return null;
+  }
+
+  const finishedOrLastElapsedMs =
+    timing.finishedElapsedMs ?? timing.lastSeenElapsedMs;
+  const durationMs = Math.max(
+    0,
+    finishedOrLastElapsedMs - timing.firstSeenElapsedMs,
+  );
+  return `Started ${formatTimeLabel(timing.firstSeenAt)} • ${formatElapsedMs(durationMs)}`;
+}
+
+function PartialCmsProposalPreview({
+  input,
+  fieldNames,
+  rawInputText,
+  timingMeta,
+}: {
+  input: unknown;
+  fieldNames: FieldNameMap;
+  rawInputText?: string | null;
+  timingMeta?: string | null;
+}) {
+  const proposal =
+    input && typeof input === "object"
+      ? (input as {
+          description?: unknown;
+          payload?: {
+            action?: unknown;
+            items?: Array<{
+              slug?: unknown;
+              fieldData?: unknown;
+            }>;
+          };
+        })
+      : null;
+
+  const description =
+    typeof proposal?.description === "string" ? proposal.description : null;
+  const action =
+    typeof proposal?.payload?.action === "string"
+      ? proposal.payload.action
+      : null;
+  const items = Array.isArray(proposal?.payload?.items)
+    ? proposal.payload.items
+    : [];
+
+  const visibleItems = items
+    .map((item, index) => {
+      const title =
+        getPartialFieldString(
+          item?.fieldData,
+          fieldNames,
+          (label) => label.includes("title"),
+        ) ??
+        (typeof item?.slug === "string" && item.slug.trim().length > 0
+          ? item.slug
+          : `Draft ${index + 1}`);
+
+      const descriptionText = getPartialFieldString(
+        item?.fieldData,
+        fieldNames,
+        (label) =>
+          label.includes("description") ||
+          label.includes("summary") ||
+          label.includes("excerpt"),
+      );
+
+      const bodyText = getPartialFieldString(
+        item?.fieldData,
+        fieldNames,
+        (label) =>
+          label.includes("content") ||
+          label.includes("body") ||
+          label.includes("article"),
+      );
+
+      return {
+        title,
+        descriptionText,
+        bodyPreview: bodyText ? stripHtmlPreview(bodyText, 280) : null,
+      };
+    })
+    .filter((item) => item.title || item.descriptionText || item.bodyPreview);
+
+  const summary =
+    description ??
+    (action === "add_items"
+      ? `Streaming ${items.length} draft item${items.length === 1 ? "" : "s"} into the CMS proposal.`
+      : "Streaming the CMS action payload.");
+
+  return (
+    <ToolCallRow
+      elevated
+      icon={<Database className="size-3.5" weight="fill" />}
+      label={
+        action === "add_items"
+          ? `Assembling ${items.length || ""} draft${items.length === 1 ? "" : "s"}`
+          : "Assembling CMS action"
+      }
+      status="Streaming"
+      summary={summary}
+      tone="accent"
+      shimmer
+    >
+      {visibleItems.length > 0 ? (
+        <div className="overflow-hidden rounded-lg border border-fresco-divider/60">
+          {visibleItems.slice(0, 10).map((item, index) => (
+            <div
+              key={`${item.title}-${index}`}
+              className={
+                index === 0
+                  ? "px-3 py-2.5"
+                  : "border-t border-fresco-divider/60 px-3 py-2.5"
+              }
+            >
+              <div className="text-[12px] font-medium text-fresco-title">
+                {item.title}
+              </div>
+              {item.descriptionText ? (
+                <div className="mt-0.5 text-[11px] leading-relaxed text-fresco-subtitle">
+                  {item.descriptionText}
+                </div>
+              ) : null}
+              {item.bodyPreview ? (
+                <div className="mt-1.5 text-[11px] leading-relaxed text-fresco-description">
+                  {item.bodyPreview}
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-[11px] leading-relaxed text-fresco-description">
+          Waiting for the first draft fields to stream in.
+        </div>
+      )}
+      {!visibleItems.length && rawInputText ? (
+        <div className="overflow-hidden rounded-lg border border-fresco-divider/60 bg-fresco-surface-subtle/70">
+          <div className="border-b border-fresco-divider/60 px-3 py-2 text-[10px] font-medium uppercase tracking-[0.08em] text-fresco-subtitle">
+            Raw tool input stream
+          </div>
+          <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words px-3 py-2 text-[11px] leading-relaxed text-fresco-description">
+            {rawInputText}
+          </pre>
+        </div>
+      ) : null}
+      {timingMeta ? (
+        <div className="text-[10px] text-fresco-subtitle">{timingMeta}</div>
+      ) : null}
+    </ToolCallRow>
+  );
+}
+
 function FramerToolGlyph({ className }: { className?: string }) {
   return (
     <svg
@@ -234,8 +467,50 @@ function formatToolName(rawToolName: string) {
   return rawToolName.replace(/^framer_/, "").replace(/_/g, " ");
 }
 
-function StreamingStatus() {
+function getActiveToolNames(messages: AIChatMessage[]) {
+  const lastAssistantMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant");
+
+  if (!lastAssistantMessage?.parts?.length) {
+    return [];
+  }
+
+  const names = lastAssistantMessage.parts.flatMap((part) => {
+    if (!part.type.startsWith("tool-")) {
+      return [];
+    }
+
+    const state = "state" in part ? (part.state as string | undefined) : undefined;
+    const hasOutput =
+      ("output" in part && part.output != null) ||
+      ("result" in part && part.result != null);
+
+    if (
+      hasOutput ||
+      state === "output-available" ||
+      state === "output-error" ||
+      state === "output-denied" ||
+      state === "approval-requested"
+    ) {
+      return [];
+    }
+
+    return [formatToolName(part.type.replace(/^tool-/, ""))];
+  });
+
+  return [...new Set(names)];
+}
+
+function StreamingStatus({
+  activeTools = [],
+  compact = false,
+}: {
+  activeTools?: string[];
+  compact?: boolean;
+}) {
   const [phraseIndex, setPhraseIndex] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
     let timeout: number;
@@ -249,16 +524,89 @@ function StreamingStatus() {
     return () => window.clearTimeout(timeout);
   }, []);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setElapsedSeconds((current) => current + 1);
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const elapsedLabel =
+    elapsedSeconds < 60
+      ? `${elapsedSeconds}s elapsed`
+      : `${Math.floor(elapsedSeconds / 60)}m ${String(
+          elapsedSeconds % 60,
+        ).padStart(2, "0")}s elapsed`;
+
+  const longWaitMessage =
+    activeTools.length === 0 && elapsedSeconds >= 90
+      ? "Still assembling the final CMS payload. Large draft batches can take a couple of minutes."
+      : activeTools.length === 0 && elapsedSeconds >= 45
+        ? "Preparing the final CMS action payload. Large draft batches may take about a minute."
+        : null;
+
+  const toolSummary =
+    activeTools.length === 0
+      ? "Fetching context, drafting content, or waiting on tools."
+      : activeTools.length === 1
+        ? `Currently running ${activeTools[0]}.`
+        : `Currently running ${activeTools.slice(0, 3).join(", ")}${activeTools.length > 3 ? ", and more" : ""}.`;
+
+  if (compact) {
+    return (
+      <div
+        aria-live="polite"
+        className="mb-2 flex items-start gap-2 rounded-[16px] border border-fresco-divider/70 bg-fresco-surface-muted/70 px-3 py-2 text-left shadow-[0_10px_30px_rgba(0,0,0,0.14)]"
+      >
+        <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-fresco-tint)_14%,transparent)] text-fresco-tint">
+          <CircleNotch className="size-3.5 animate-spin" weight="bold" />
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="text-[12px] font-medium text-fresco-title">
+              Working on your request
+            </div>
+            <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-fresco-description">
+              {elapsedLabel}
+            </div>
+          </div>
+          <div className="mt-0.5 text-[11px] leading-relaxed text-fresco-description">
+            {longWaitMessage ?? toolSummary}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div aria-live="polite" className="py-1.5 pl-1">
-      <Shimmer
-        as="span"
-        className="text-[11px] font-medium tracking-[0.01em] text-fresco-subtitle"
-        duration={1.8}
-        spread={2.4}
-      >
-        {STREAMING_STATUS_PHRASES[phraseIndex]}
-      </Shimmer>
+      <div className="flex items-start gap-3 rounded-[18px] border border-fresco-divider/70 bg-fresco-surface-muted/70 px-3 py-2.5 shadow-[0_12px_36px_rgba(0,0,0,0.16)]">
+        <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-fresco-tint)_14%,transparent)] text-fresco-tint">
+          <CircleNotch className="size-3.5 animate-spin" weight="bold" />
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="text-[12px] font-medium text-fresco-title">
+              Working on your request
+            </div>
+            <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-fresco-description">
+              {elapsedLabel}
+            </div>
+          </div>
+          <Shimmer
+            as="div"
+            className="mt-0.5 text-[11px] font-medium tracking-[0.01em] text-fresco-subtitle"
+            duration={1.8}
+            spread={2.4}
+          >
+            {STREAMING_STATUS_PHRASES[phraseIndex]}
+          </Shimmer>
+          <div className="mt-1 text-[11px] leading-relaxed text-fresco-description">
+            {longWaitMessage ?? toolSummary} If an action needs approval, it will appear here automatically.
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -537,6 +885,25 @@ function AIChatPanelContent({
     [bodyData, chatKey],
   );
 
+  const [, setStreamDebugEvents] = useState<
+    StreamDebugDataPart[]
+  >([]);
+  const [rawToolInputs, setRawToolInputs] = useState<
+    Record<string, { text: string; toolName?: string | null }>
+  >({});
+  const [toolTimingByCallId, setToolTimingByCallId] = useState<
+    Record<
+      string,
+      {
+        firstSeenAt: string;
+        firstSeenElapsedMs: number;
+        lastSeenElapsedMs: number;
+        finishedElapsedMs?: number;
+        toolName?: string | null;
+      }
+    >
+  >({});
+
   const {
     messages,
     sendMessage,
@@ -550,6 +917,80 @@ function AIChatPanelContent({
   } = useChat<AIChatMessage>({
     transport: chatTransport,
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
+    onData: (dataPart) => {
+      if (dataPart.type !== "data-stream_debug") {
+        return;
+      }
+
+      const event = dataPart.data as StreamDebugDataPart;
+
+      setStreamDebugEvents((current) => [...current.slice(-199), event]);
+
+      console.log(
+        JSON.stringify({
+          ts: event.ts,
+          level: "info",
+          event: "ai.chat_panel.stream_debug",
+          chunkType: event.chunkType,
+          elapsedMs: event.elapsedMs,
+          toolCallId: event.toolCallId ?? undefined,
+          toolName: event.toolName ?? undefined,
+        }),
+      );
+
+      if (event.toolCallId) {
+        setToolTimingByCallId((current) => {
+          const existing = current[event.toolCallId!];
+          return {
+            ...current,
+            [event.toolCallId!]: {
+              firstSeenAt: existing?.firstSeenAt ?? event.ts,
+              firstSeenElapsedMs:
+                existing?.firstSeenElapsedMs ?? event.elapsedMs,
+              lastSeenElapsedMs: event.elapsedMs,
+              finishedElapsedMs:
+                event.chunkType === "tool-output-available" ||
+                event.chunkType === "tool-output-error" ||
+                event.chunkType === "tool-output-denied" ||
+                event.chunkType === "tool-input-error"
+                  ? event.elapsedMs
+                  : existing?.finishedElapsedMs,
+              toolName: existing?.toolName ?? event.toolName ?? null,
+            },
+          };
+        });
+
+        if (event.delta) {
+          setRawToolInputs((current) => {
+            const existing = current[event.toolCallId!] ?? {
+              text: "",
+              toolName: event.toolName ?? null,
+            };
+            return {
+              ...current,
+              [event.toolCallId!]: {
+                toolName: existing.toolName ?? event.toolName ?? null,
+                text: `${existing.text}${event.delta ?? ""}`.slice(-20000),
+              },
+            };
+          });
+        } else if (event.toolName) {
+          setRawToolInputs((current) => {
+            const existing = current[event.toolCallId!];
+            if (existing?.toolName === event.toolName) {
+              return current;
+            }
+            return {
+              ...current,
+              [event.toolCallId!]: {
+                text: existing?.text ?? "",
+                toolName: event.toolName,
+              },
+            };
+          });
+        }
+      }
+    },
     onError: (err) => {
       console.log(
         JSON.stringify({
@@ -688,6 +1129,10 @@ function AIChatPanelContent({
     textInput.clear();
     setChatKey(crypto.randomUUID());
     setShowHistory(false);
+    setStreamDebugEvents([]);
+    setRawToolInputs({});
+    setToolTimingByCallId({});
+    processedStagedToolCallsRef.current.clear();
     clearPersistedChatSession();
   }, [setMessages, messages, chatKey, clearError, textInput]);
 
@@ -710,6 +1155,10 @@ function AIChatPanelContent({
       if (!showHistory) {
         clearPersistedChatSession();
       }
+      setStreamDebugEvents([]);
+      setRawToolInputs({});
+      setToolTimingByCallId({});
+      processedStagedToolCallsRef.current.clear();
       return;
     }
 
@@ -737,9 +1186,23 @@ function AIChatPanelContent({
   );
 
   const isStreaming = status === "streaming" || status === "submitted";
+  const activeToolNames = useMemo(() => getActiveToolNames(messages), [messages]);
+  const [, setStreamTimingTick] = useState(0);
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
     null,
   );
+
+  useEffect(() => {
+    if (!isStreaming) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setStreamTimingTick((current) => current + 1);
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [isStreaming]);
 
   useEffect(() => {
     setPortalContainer(document.getElementById("dashboard-shell"));
@@ -758,6 +1221,103 @@ function AIChatPanelContent({
       });
     }
   }
+
+  const processedStagedToolCallsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const stagedPosts: BlogPostRecord[] = [];
+
+    for (const message of messages) {
+      for (const part of message.parts) {
+        if (part.type !== "tool-propose_cms_action") {
+          continue;
+        }
+
+        const toolCallId =
+          "toolCallId" in part && typeof (part as any).toolCallId === "string"
+            ? ((part as any).toolCallId as string)
+            : null;
+
+        if (!toolCallId || processedStagedToolCallsRef.current.has(toolCallId)) {
+          continue;
+        }
+
+        const output =
+          "output" in part && part.output && typeof part.output === "object"
+            ? (part.output as {
+                staged?: boolean;
+                action?: string;
+                items?: Array<{
+                  id?: string;
+                  stagedId?: string;
+                  slug: string;
+                  draft?: boolean;
+                  fieldData?: Record<
+                    string,
+                    { type: string; value: unknown }
+                  >;
+                }>;
+              })
+            : null;
+        const input =
+          "input" in part && part.input && typeof part.input === "object"
+            ? (part.input as CmsActionProposal)
+            : null;
+
+        if (
+          !output?.staged ||
+          output.action !== "add_items" ||
+          !Array.isArray(output.items) ||
+          !input?.payload ||
+          input.payload.action !== "add_items" ||
+          input.payload.collectionId !== metadata.collectionId
+        ) {
+          continue;
+        }
+
+        for (const item of output.items) {
+          const synthetic = buildSyntheticPost(item, allFieldNames);
+          stagedPosts.push({
+            ...synthetic,
+            id: item.id ?? synthetic.id,
+            staged: true,
+            stagedId: item.stagedId,
+          });
+        }
+
+        processedStagedToolCallsRef.current.add(toolCallId);
+      }
+    }
+
+    if (stagedPosts.length > 0) {
+      onPostsUpdated(stagedPosts);
+    }
+  }, [allFieldNames, messages, metadata.collectionId, onPostsUpdated]);
+
+  const getToolTimingMeta = useCallback(
+    (toolCallId?: string | null) => {
+      if (!toolCallId) {
+        return null;
+      }
+
+      const timing = toolTimingByCallId[toolCallId];
+      if (!timing) {
+        return null;
+      }
+
+      if (timing.finishedElapsedMs != null) {
+        return formatToolTimingMeta(timing);
+      }
+
+      const liveDurationMs = Math.max(
+        0,
+        Date.now() - new Date(timing.firstSeenAt).getTime(),
+      );
+
+      return `Started ${formatTimeLabel(timing.firstSeenAt)} • ${formatElapsedMs(liveDurationMs)}`;
+    },
+    [toolTimingByCallId],
+  );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -977,7 +1537,11 @@ function AIChatPanelContent({
                               const isThinking = reasoningPart.state !== "complete" && isLastMessage && isStreaming;
                               if (!text && !isThinking) return null;
                               return (
-                                <ChainOfThought key={i} streaming={isThinking}>
+                                <ChainOfThought
+                                  key={i}
+                                  streaming={isThinking}
+                                  defaultOpen={isThinking}
+                                >
                                   <ChainOfThoughtHeader>
                                     {isThinking ? undefined : "Thought process"}
                                   </ChainOfThoughtHeader>
@@ -1007,29 +1571,34 @@ function AIChatPanelContent({
                                 />
                               );
                             }
-                            if (part.type === "tool-render_blog_preview") {
-                              const data = "output" in part && part.output
-                                ? (part.output as { title?: string; content?: string; slug?: string; status?: "draft" | "published" })
-                                : "input" in part
-                                  ? (part.input as { title?: string; content?: string; slug?: string; status?: "draft" | "published" })
-                                  : null;
-                              if (!data?.title || !data?.content) return null;
-                              return (
-                                <BlogPreviewCard
-                                  key={i}
-                                  title={data.title}
-                                  content={data.content}
-                                  slug={data.slug}
-                                  status={data.status}
-                                />
-                              );
-                            }
                             if (part.type === "tool-propose_cms_action") {
                               // Only render the last proposal as interactive; earlier ones were superseded by retries
                               if (i !== lastCmsActionIdx) return null;
                               const input = "input" in part ? part.input as CmsActionProposal : null;
-                              if (!input?.payload || !input?.description) return null;
                               const state = "state" in part ? (part as any).state as string : undefined;
+                              const toolCallId =
+                                "toolCallId" in part &&
+                                typeof (part as any).toolCallId === "string"
+                                  ? ((part as any).toolCallId as string)
+                                  : null;
+                              const rawInputText =
+                                toolCallId ? rawToolInputs[toolCallId]?.text : null;
+                              const timingMeta = getToolTimingMeta(toolCallId);
+
+                              if (!input?.payload || !input?.description) {
+                                if (state === "input-streaming" || state === "partial-call" || state === "call") {
+                                  return (
+                                    <PartialCmsProposalPreview
+                                      key={i}
+                                      input={"input" in part ? part.input : null}
+                                      fieldNames={allFieldNames}
+                                      rawInputText={rawInputText}
+                                      timingMeta={timingMeta}
+                                    />
+                                  );
+                                }
+                                return null;
+                              }
 
                               return (
                                 <CmsActionConfirmation
@@ -1065,6 +1634,11 @@ function AIChatPanelContent({
                             )
                               return null;
                             if (part.type === "tool-get_project_context") {
+                              const toolCallId =
+                                "toolCallId" in part &&
+                                typeof (part as any).toolCallId === "string"
+                                  ? ((part as any).toolCallId as string)
+                                  : null;
                               const hasOutput =
                                 "output" in part && part.output != null;
                               const hasError =
@@ -1093,8 +1667,9 @@ function AIChatPanelContent({
                                       ? (part as any).errorText
                                       : hasOutput
                                         ? "Project context loaded."
-                                        : "Fetching collections, fields, and enum cases…"
+                                        : "Fetching collections, fields, enum cases, and active collection reference options…"
                                   }
+                                  meta={getToolTimingMeta(toolCallId)}
                                   tone={
                                     hasError
                                       ? "danger"
@@ -1445,7 +2020,7 @@ function AIChatPanelContent({
                   );
                 })}
 
-                {isStreaming && <StreamingStatus />}
+                {isStreaming && <StreamingStatus activeTools={activeToolNames} />}
 
                 {error && !isStreaming && (
                   <QuotaOrError
@@ -1467,6 +2042,7 @@ function AIChatPanelContent({
                 selectedPosts={selectedPosts}
                 messageCount={messages.length}
                 isStreaming={isStreaming}
+                activeToolNames={activeToolNames}
                 sendMessage={handleSendWithContext}
                 stop={stop}
                 onClearSelection={onClearSelection}
@@ -1509,6 +2085,7 @@ function ChatInputOrQuotaGate({
   selectedPosts,
   messageCount,
   isStreaming,
+  activeToolNames,
   sendMessage,
   stop,
   onClearSelection,
@@ -1517,6 +2094,7 @@ function ChatInputOrQuotaGate({
   selectedPosts: BlogPostRecord[];
   messageCount: number;
   isStreaming: boolean;
+  activeToolNames: string[];
   sendMessage: (msg: { text: string }) => void;
   stop: () => void;
   onClearSelection?: () => void;
@@ -1576,6 +2154,7 @@ function ChatInputOrQuotaGate({
           ))}
         </Suggestions>
       )}
+      {isStreaming ? <StreamingStatus activeTools={activeToolNames} compact /> : null}
       <ChipInputPromptArea
         selectedPosts={selectedPosts}
         isStreaming={isStreaming}

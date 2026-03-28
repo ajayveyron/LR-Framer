@@ -37,6 +37,11 @@ export function AsyncImageCard({ jobId, prompt }: AsyncImageCardProps) {
   const status = job?.status ?? "pending";
 
   if (status === "completed" && job?.url) {
+    const summary =
+      (job.appliedTargetCount ?? 0) > 0
+        ? `Image generated and applied to ${job.appliedTargetCount} staged draft${job.appliedTargetCount === 1 ? "" : "s"}.`
+        : "Image generated and uploaded.";
+
     return (
       <ToolCallRow
         actions={
@@ -69,7 +74,7 @@ export function AsyncImageCard({ jobId, prompt }: AsyncImageCardProps) {
         icon={<ImageSquare className="size-3.5" weight="fill" />}
         label="Generate image"
         status="Done"
-        summary="Image generated and uploaded."
+        summary={summary}
         tone="success"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}

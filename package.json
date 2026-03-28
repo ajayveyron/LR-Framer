@@ -9,7 +9,8 @@
     "lint": "eslint . --max-warnings=0",
     "test": "node --import tsx --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "framer:check": "node --env-file=.env scripts/check-framer.mjs"
+    "framer:check": "node --env-file=.env scripts/check-framer.mjs",
+    "test:ai:reasoning-stream": "node --env-file=.env --import tsx scripts/check-ai-reasoning-stream.ts"
   },
   "dependencies": {
     "@ai-sdk/google-vertex": "^4.0.80",
