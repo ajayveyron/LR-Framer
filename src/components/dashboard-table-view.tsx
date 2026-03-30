@@ -248,7 +248,6 @@ function CollectionTableSkeleton() {
 
 export function DashboardTableView({
 	activeCollectionId,
-	bridgeStatus,
 	collections,
 	framerStatus,
 	initialDrawerState = null,
@@ -257,18 +256,6 @@ export function DashboardTableView({
 	role,
 }: {
 	activeCollectionId: string;
-	bridgeStatus?: {
-		configured: boolean;
-		issues: Array<{ path: string; message: string }>;
-		webhookPath: string;
-		manualSyncPath: string;
-		dataSourceId: string | null;
-		statusPropertyName: string;
-		approvedStatusValue: string;
-		slugPropertyName: string;
-		framerItemIdPropertyName: string;
-		fieldMap: Record<string, string>;
-	};
 	collections: FramerCollectionOption[];
 	framerStatus: {
 		cachedAt: string | null;
@@ -651,25 +638,6 @@ export function DashboardTableView({
 						</Button>
 
 						<div className='flex flex-row items-center gap-2.5 ml-auto'>
-							{/* {bridgeStatus ?
-								<Badge
-									className={cn("border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title", 'flex h-10 items-center gap-2 rounded-xl px-3 text-[12px] font-medium text-fresco-description')}
-									variant='outline'
-								>
-									<span
-										aria-hidden='true'
-										className={cn(
-											'inline-flex size-2 rounded-full',
-											bridgeStatus.configured ?
-												"bg-fresco-success shadow-[0_0_0_4px_var(--color-fresco-live-ring)]"
-											:	'bg-fresco-subtitle',
-										)}
-									/>
-									{bridgeStatus.configured ?
-										'Bridge Ready'
-									:	'Manual Mode'}
-								</Badge>
-							:	null} */}
 							<label
 								className={cn(
 									'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
@@ -706,6 +674,7 @@ export function DashboardTableView({
 							</label>
 							<Button
 								aria-label={chatOpen ? 'Close AI chat' : 'Open AI chat'}
+								aria-keyshortcuts="Meta+K"
 								className='h-10 rounded-xl'
 								onClick={() => setChatOpen((prev) => !prev)}
 								size='default'
@@ -717,6 +686,10 @@ export function DashboardTableView({
 									weight='duotone'
 								/>
 								<span>{selectedRows.size > 0 ? `Chat with ${selectedRows.size} row${selectedRows.size === 1 ? '' : 's'}` : 'AI Assistant'}</span>
+								<KbdGroup className='ml-1 hidden md:flex'>
+									<Kbd className='h-5 min-w-5 rounded-md border border-white/10 bg-black/20 px-1.5 text-[11px] text-white/50'>&thinsp;&#8984;&thinsp;</Kbd>
+									<Kbd className='h-5 min-w-5 rounded-md border border-white/10 bg-black/20 px-1.5 text-[11px] text-white/50'>K</Kbd>
+								</KbdGroup>
 							</Button>
 						</div>
 				</div>

@@ -122,11 +122,11 @@ export default async function MarketingHomePage() {
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
                 Start free
               </LoadingLink>
-              <LoadingLink 
-                href="/onboarding"
+              <LoadingLink
+                href={isSignedIn ? "/onboarding" : "/sign-up"}
                 className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-8 py-3.5 text-[15px] font-medium text-[#FAFAFA] backdrop-blur-md transition-colors hover:bg-white/10 w-full sm:w-auto"
               >
-                See setup flow
+                {isSignedIn ? "See setup flow" : "Learn more"}
               </LoadingLink>
             </div>
           </FadeIn>
@@ -426,10 +426,10 @@ export default async function MarketingHomePage() {
             &copy; {new Date().getFullYear()} Framer Bot Team. All rights reserved.
           </span>
           <div className="flex gap-6">
-            <Link href="/" className="text-[14px] text-[#A1A1AA] hover:text-[#FAFAFA] transition-colors">
+            <Link href="/terms" className="text-[14px] text-[#A1A1AA] hover:text-[#FAFAFA] transition-colors">
               Terms
             </Link>
-            <Link href="/" className="text-[14px] text-[#A1A1AA] hover:text-[#FAFAFA] transition-colors">
+            <Link href="/privacy" className="text-[14px] text-[#A1A1AA] hover:text-[#FAFAFA] transition-colors">
               Privacy
             </Link>
           </div>

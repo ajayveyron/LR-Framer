@@ -62,6 +62,7 @@ import type {
 import { TRANSIENT_FRAMER_EDITOR_MESSAGE } from "@/lib/framer-copy";
 
 import { cn } from "@/lib/utils";
+import { looksLikeHtml } from "@/lib/shared-utils";
 import { logEvent, logError } from "@/lib/logger";
 import { extractImageJobId } from "@/lib/ai-image-placeholders";
 import { buildPostInputSchema, type PostInputPayload } from "@/lib/post-schema";
@@ -120,10 +121,6 @@ const richTextBlockOptions: Array<{
   { value: "h5", label: "H5", commandValue: "<h5>" },
   { value: "h6", label: "H6", commandValue: "<h6>" },
 ];
-
-function looksLikeHtml(value: string) {
-  return /<\/?[a-z][\s\S]*>/i.test(value);
-}
 
 function escapeHtml(value: string) {
   return value

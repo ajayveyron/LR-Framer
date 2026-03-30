@@ -39,6 +39,7 @@ import {
   syncNotionPageToFramer,
 } from "@/lib/notion-bridge-core";
 import { extractPageIdFromPayload } from "@/lib/notion-payload";
+import { looksLikeHtml, mapWithConcurrency } from "@/lib/shared-utils";
 
 const NOTION_API_BASE_URL = "https://api.notion.com/v1";
 const NOTION_API_VERSION = "2025-09-03";
@@ -128,32 +129,6 @@ function writeCachedDataSource(
   };
 
   return value;
-}
-
-async function mapWithConcurrency<T, TResult>(
-  items: T[],
-  limit: number,
-  mapItem: (item: T, index: number) => Promise<TResult>,
-) {
-  if (items.length === 0) {
-    return [] as TResult[];
-  }
-
-  const results = new Array<TResult>(items.length);
-  let nextIndex = 0;
-  const workerCount = Math.min(limit, items.length);
-
-  await Promise.all(
-    Array.from({ length: workerCount }, async () => {
-      while (nextIndex < items.length) {
-        const currentIndex = nextIndex;
-        nextIndex += 1;
-        results[currentIndex] = await mapItem(items[currentIndex], currentIndex);
-      }
-    }),
-  );
-
-  return results;
 }
 
 export function getNotionBridgeStatus() {
@@ -648,10 +623,6 @@ async function buildSyncCandidates(pages: NotionPage[]) {
     candidates,
     pageMap,
   };
-}
-
-function looksLikeHtml(value: string) {
-  return /<\/?[a-z][\s\S]*>/i.test(value);
 }
 
 function decodeHtmlEntities(value: string) {

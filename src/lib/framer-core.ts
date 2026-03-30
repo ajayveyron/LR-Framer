@@ -111,6 +111,7 @@ import type {
 import { AppError } from "./errors.ts";
 import { getFramerRuntimeContext } from "./framer-runtime.ts";
 import { logError, logEvent } from "./logger.ts";
+import { looksLikeHtml } from "./shared-utils.ts";
 
 const LAST_EDITED_AT_KEY = "lr:lastEditedAt";
 const LAST_EDITED_BY_KEY = "lr:lastEditedBy";
@@ -199,7 +200,7 @@ function formatDisplayValue(value: DashboardFieldValue) {
 }
 
 function getFormattedTextContentType(value: string) {
-  return /<\/?[a-z][\s\S]*>/i.test(value) ? "html" : "markdown";
+  return looksLikeHtml(value) ? "html" : "markdown";
 }
 
 function findLogicalField(

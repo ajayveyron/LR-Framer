@@ -55,9 +55,17 @@ function StepDots({
   total: number;
 }) {
   return (
-    <div className="flex items-center justify-center gap-1.5">
+    <div
+      aria-label={`Step ${current + 1} of ${total}`}
+      aria-valuemax={total}
+      aria-valuemin={1}
+      aria-valuenow={current + 1}
+      className="flex items-center justify-center gap-1.5"
+      role="progressbar"
+    >
       {Array.from({ length: total }, (_, i) => (
         <div
+          aria-current={i === current ? "step" : undefined}
           key={i}
           className={cn(
             "h-1.5 rounded-full transition-all",

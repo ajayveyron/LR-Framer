@@ -8,6 +8,7 @@ import {
   getProjectInfo,
 } from "@/lib/framer";
 import { logEvent, logError } from "@/lib/logger";
+import { mapWithConcurrency } from "@/lib/shared-utils";
 
 // ---------------------------------------------------------------------------
 // AI Context Snapshot
@@ -86,38 +87,6 @@ const snapshotCache = new Map<
 const snapshotInFlight = new Map<string, Promise<AIContextSnapshot>>();
 
 const DEFAULT_SNAPSHOT_CACHE_KEY = "__default__";
-
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  mapper: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  if (items.length === 0) {
-    return [];
-  }
-
-  const results = new Array<R>(items.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (true) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-
-      if (currentIndex >= items.length) {
-        return;
-      }
-
-      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
-    }
-  }
-
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
-  );
-
-  return results;
-}
 
 /**
  * Build a full context snapshot for the AI system prompt.
