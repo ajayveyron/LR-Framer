@@ -51,6 +51,7 @@ import { SiteInsightsPill } from '@/components/site-insights-overlay';
 import { ACTIVE_COLLECTION_COOKIE, getCollectionHeader } from '@/lib/product-framer-shared';
 import type { FramerCollectionOption, SiteRole } from '@/lib/product-types';
 import { toggleRow, toggleAllRows, shiftClickRange } from '@/lib/selection';
+import { useCmsMutations } from '@/lib/use-cms-mutations';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 20;
@@ -283,7 +284,8 @@ export function DashboardTableView({
 	const [drawerState, setDrawerState] = useState<DrawerState | null>(
 		initialDrawerState,
 	);
-	const [loadingPosts, setLoadingPosts] = useState<Set<string>>(new Set());
+	const cms = useCmsMutations({ activeCollectionId, setCachedPosts });
+	const loadingPosts = cms.loadingPosts;
 	const [editorRevision, setEditorRevision] = useState(0);
 	const [query, setQuery] = useState('');
 	const [page, setPage] = useState(1);
@@ -737,146 +739,27 @@ export function DashboardTableView({
 							onToggleAll={handleToggleAll}
 							onShiftClick={handleShiftClick}
 							onDraftToggle={async (post) => {
-								// Handle staged item → push to Framer
 								if (post.staged && post.stagedId) {
 									if (framerUnavailable) return;
-									setLoadingPosts((prev) => new Set(prev).add(post.id));
-									try {
-										// Create in Framer via the posts API
-										const response = await fetch('/api/posts', {
-											method: 'POST',
-											headers: {
-												'Content-Type': 'application/json',
-												...getCollectionHeader(activeCollectionId),
-											},
-											body: JSON.stringify({
-												slug: post.slug,
-												fieldValues: post.fieldValues,
-											}),
-										});
-										if (response.ok) {
-											const { post: newPost } = await response.json();
-											// Remove staged item from Convex
-											await fetch(`/api/staged-items/${post.stagedId}`, { method: 'DELETE' });
-											// Replace staged item with real Framer item in the list
-											setCachedPosts((current) =>
-												current
-													.filter((p) => p.id !== post.id)
-													.concat(newPost),
-											);
-										}
-									} catch (error) {
-										console.error('Failed to push staged item to Framer', error);
-									} finally {
-										setLoadingPosts((prev) => {
-											const next = new Set(prev);
-											next.delete(post.id);
-											return next;
-										});
-									}
+									await cms.pushStagedItem(post);
 									return;
 								}
-
-								if (framerUnavailable) {
-									return;
-								}
-
+								if (framerUnavailable) return;
 								// Publishing (draft → live) needs confirmation
 								if (post.draft) {
 									setPublishConfirm(post);
 									return;
 								}
-
-								setLoadingPosts((prev) =>
-									new Set(prev).add(post.id),
-								);
-								try {
-									const response = await fetch(
-										`/api/posts/${post.id}`,
-										{
-											method: 'PUT',
-											headers: {
-												'Content-Type':
-													'application/json',
-												...getCollectionHeader(activeCollectionId),
-											},
-											body: JSON.stringify({
-												slug: post.slug,
-												draft: !post.draft,
-												fieldValues: post.fieldValues,
-											}),
-										},
-									);
-									if (response.ok) {
-										const { post: nextPost } =
-											await response.json();
-										setCachedPosts((current) =>
-											upsertCachedPost(current, nextPost),
-										);
-									}
-								} catch (error) {
-									console.error(
-										'Failed to toggle draft status',
-										error,
-									);
-								} finally {
-									setLoadingPosts((prev) => {
-										const next = new Set(prev);
-										next.delete(post.id);
-										return next;
-									});
-								}
+								await cms.toggleDraft(post);
 							}}
 							onDelete={async (postId) => {
-								// Handle staged item deletion
 								const post = cachedPosts.find((p) => p.id === postId);
 								if (post?.staged && post.stagedId) {
-									setLoadingPosts((prev) => new Set(prev).add(postId));
-									try {
-										await fetch(`/api/staged-items/${post.stagedId}`, { method: 'DELETE' });
-										setCachedPosts((current) => current.filter((p) => p.id !== postId));
-									} catch (error) {
-										console.error('Failed to discard staged item', error);
-									} finally {
-										setLoadingPosts((prev) => {
-											const next = new Set(prev);
-											next.delete(postId);
-											return next;
-										});
-									}
+									await cms.discardStagedItem(postId, post.stagedId);
 									return;
 								}
-
-								if (framerUnavailable) {
-									return;
-								}
-								setLoadingPosts((prev) =>
-									new Set(prev).add(postId),
-								);
-								try {
-									const response = await fetch(
-										`/api/posts/${postId}`,
-										{ method: 'DELETE', headers: getCollectionHeader(activeCollectionId) },
-									);
-									if (response.ok) {
-										setCachedPosts((current) =>
-											current.filter(
-												(post) => post.id !== postId,
-											),
-										);
-									}
-								} catch (error) {
-									console.error(
-										'Failed to delete post',
-										error,
-									);
-								} finally {
-									setLoadingPosts((prev) => {
-										const next = new Set(prev);
-										next.delete(postId);
-										return next;
-									});
-								}
+								if (framerUnavailable) return;
+								await cms.deletePost(postId);
 							}}
 							onChatWithItem={(postId) => {
 								setSelectedRows(new Set([postId]));
@@ -1093,33 +976,7 @@ export function DashboardTableView({
 								const post = publishConfirm;
 								if (!post) return;
 								setPublishConfirm(null);
-								setLoadingPosts((prev) => new Set(prev).add(post.id));
-								try {
-									const response = await fetch(`/api/posts/${post.id}`, {
-										method: 'PUT',
-										headers: {
-											'Content-Type': 'application/json',
-											...getCollectionHeader(activeCollectionId),
-										},
-										body: JSON.stringify({
-											slug: post.slug,
-											draft: false,
-											fieldValues: post.fieldValues,
-										}),
-									});
-									if (response.ok) {
-										const { post: nextPost } = await response.json();
-										setCachedPosts((current) => upsertCachedPost(current, nextPost));
-									}
-								} catch (error) {
-									console.error('Failed to publish post', error);
-								} finally {
-									setLoadingPosts((prev) => {
-										const next = new Set(prev);
-										next.delete(post.id);
-										return next;
-									});
-								}
+								await cms.publishPost(post);
 							}}
 						>
 							Publish

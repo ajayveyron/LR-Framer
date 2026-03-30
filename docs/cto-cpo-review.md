@@ -42,7 +42,7 @@ These are genuine strengths worth preserving:
 | # | Issue | Severity | File | Status |
 |---|-------|----------|------|--------|
 | 2.1 | **`post-editor.tsx` is 2,469 lines** — contains a rich-text editor, HTML sanitizer, markdown shortcuts, diff engine, AI rewrite workflow, image uploader, and the full form layout. Any change is high-risk. | Critical | `src/components/post-editor.tsx` | ☐ |
-| 2.2 | **`dashboard-table-view.tsx` has inline `fetch()` calls** inside JSX event handlers with `console.error` only. Business logic mixed into rendering. | High | `src/components/dashboard-table-view.tsx` | ☐ |
+| 2.2 | **`dashboard-table-view.tsx` has inline `fetch()` calls** inside JSX event handlers with `console.error` only. Business logic mixed into rendering. | High | `src/components/dashboard-table-view.tsx` | ☑ |
 | 2.3 | **Race condition in AI chat** — `pendingPrompt` effect can double-fire, sending the same message twice and wasting metered tokens. | High | `src/lib/use-ai-chat-session.ts:407-424` | ☑ |
 | 2.4 | **Unsafe `(part as any)` casts** throughout the AI tool system. A single SDK update will silently break tool rendering with no compile-time warning. | High | `ai-chat-panel.tsx`, `use-ai-chat-session.ts` | ☐ |
 | 2.5 | **N+1 query in `serializePost`** — 3 `getPluginData` calls per item. 100 items = 300 round-trips to Framer API on dashboard load. | High | `src/lib/framer-core.ts:490-502` | ☐ |
@@ -62,10 +62,10 @@ These are genuine strengths worth preserving:
 | 3.1 | **No empty state** when dashboard table has zero items — just blank space with "Showing 0 of 0". Need illustration + CTA. | High | `dashboard-table-view.tsx:891` | ☑ |
 | 3.2 | **No undo for any destructive action** — deletion, publish toggle, team member removal are all immediate and permanent. | High | Multiple | ☐ |
 | 3.3 | **Publish toggle inconsistency** — PostEditor has a confirmation dialog for publishing, but the table toggle does not. Same action, different safety levels. | High | `dashboard-table-view.tsx:746` | ☑ |
-| 3.4 | **No optimistic updates** — draft toggles and deletions wait for full server round-trip before updating UI. Feels sluggish. | Medium | `dashboard-table-view.tsx` | ☐ |
+| 3.4 | **No optimistic updates** — draft toggles and deletions wait for full server round-trip before updating UI. Feels sluggish. | Medium | `dashboard-table-view.tsx` | ☑ |
 | 3.5 | **AI chat panel width is fixed pixels** (min 380px). On tablets/small laptops, it crushes the content table to ~200px. Needs breakpoint to switch to full-screen overlay. | Medium | `dashboard-table-view.tsx:51-53` | ☑ |
 | 3.6 | **Team manager uses `alert()` and `confirm()`** — native browser dialogs that break the design language and are inaccessible. | Medium | `team-manager.tsx:80,92,100` | ☑ |
-| 3.7 | **Onboarding API key not persisted** — if user closes browser mid-setup, they must re-enter the API key. | Low | `onboarding-flow.tsx:98-124` | ☐ |
+| 3.7 | **Onboarding API key not persisted** — if user closes browser mid-setup, they must re-enter the API key. | Low | `onboarding-flow.tsx:98-124` | ☑ |
 | 3.8 | **"See setup flow" CTA on homepage links to authenticated `/onboarding`** — unauthenticated users get a confusing redirect. | Low | `page.tsx:129` | ☑ |
 | 3.9 | **Agency pricing tier "Coming soon" button** has no waitlist/email capture — missed lead gen. | Low | `page.tsx:390` | ☐ |
 | 3.10 | **Cmd+K shortcut for AI chat** is bound but never visually hinted in the UI. | Low | `dashboard-table-view.tsx` | ☑ |
