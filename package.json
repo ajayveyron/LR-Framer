@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npx convex deploy && next build --webpack",
+    "build": "next build --webpack",
+    "build:full": "npx convex deploy && next build --webpack",
+    "convex:deploy": "npx convex deploy",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "test": "node --import tsx --test src/**/*.test.ts",

@@ -36,11 +36,13 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
 import {
 	Sheet,
@@ -55,6 +57,7 @@ import { ACTIVE_COLLECTION_COOKIE, getCollectionHeader } from '@/lib/product-fra
 import { normalizeStagedDates } from '@/lib/normalize-staged-dates';
 import type { FramerCollectionOption, SiteRole } from '@/lib/product-types';
 import { toggleRow, toggleAllRows, shiftClickRange } from '@/lib/selection';
+import { useCmsMutations } from '@/lib/use-cms-mutations';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 20;
@@ -423,7 +426,6 @@ function BulkActionBar({
 
 export function DashboardTableView({
 	activeCollectionId,
-	bridgeStatus,
 	collections,
 	framerStatus,
 	initialDrawerState = null,
@@ -432,18 +434,6 @@ export function DashboardTableView({
 	role,
 }: {
 	activeCollectionId: string;
-	bridgeStatus?: {
-		configured: boolean;
-		issues: Array<{ path: string; message: string }>;
-		webhookPath: string;
-		manualSyncPath: string;
-		dataSourceId: string | null;
-		statusPropertyName: string;
-		approvedStatusValue: string;
-		slugPropertyName: string;
-		framerItemIdPropertyName: string;
-		fieldMap: Record<string, string>;
-	};
 	collections: FramerCollectionOption[];
 	framerStatus: {
 		cachedAt: string | null;
@@ -463,7 +453,8 @@ export function DashboardTableView({
 	const [drawerState, setDrawerState] = useState<DrawerState | null>(
 		initialDrawerState,
 	);
-	const [loadingPosts, setLoadingPosts] = useState<Set<string>>(new Set());
+	const cms = useCmsMutations({ activeCollectionId, setCachedPosts });
+	const loadingPosts = cms.loadingPosts;
 	const [editorRevision, setEditorRevision] = useState(0);
 	const [query, setQuery] = useState('');
 	const [page, setPage] = useState(1);
@@ -481,6 +472,7 @@ export function DashboardTableView({
 	const [pendingCollectionId, setPendingCollectionId] = useState<
 		string | null
 	>(null);
+	const [publishConfirm, setPublishConfirm] = useState<BlogPostRecord | null>(null);
 	const [isCollectionTransitionPending, startCollectionTransition] =
 		useTransition();
 	const deferredQuery = useDeferredValue(query);
@@ -826,25 +818,6 @@ export function DashboardTableView({
 						</Button>
 
 						<div className='flex flex-row items-center gap-2.5 ml-auto'>
-							{/* {bridgeStatus ?
-								<Badge
-									className={cn("border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title", 'flex h-10 items-center gap-2 rounded-xl px-3 text-[12px] font-medium text-fresco-description')}
-									variant='outline'
-								>
-									<span
-										aria-hidden='true'
-										className={cn(
-											'inline-flex size-2 rounded-full',
-											bridgeStatus.configured ?
-												"bg-fresco-success shadow-[0_0_0_4px_var(--color-fresco-live-ring)]"
-											:	'bg-fresco-subtitle',
-										)}
-									/>
-									{bridgeStatus.configured ?
-										'Bridge Ready'
-									:	'Manual Mode'}
-								</Badge>
-							:	null} */}
 							<label
 								className={cn(
 									'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
@@ -881,6 +854,7 @@ export function DashboardTableView({
 							</label>
 							<Button
 								aria-label={chatOpen ? 'Close AI chat' : 'Open AI chat'}
+								aria-keyshortcuts="Meta+K"
 								className='h-10 rounded-xl'
 								onClick={() => setChatOpen((prev) => !prev)}
 								size='default'
@@ -892,6 +866,10 @@ export function DashboardTableView({
 									weight='duotone'
 								/>
 								<span>{selectedRows.size > 0 ? `Chat with ${selectedRows.size} row${selectedRows.size === 1 ? '' : 's'}` : 'AI Assistant'}</span>
+								<KbdGroup className='ml-1 hidden md:flex'>
+									<Kbd className='h-5 min-w-5 rounded-md border border-white/10 bg-black/20 px-1.5 text-[11px] text-white/50'>&thinsp;&#8984;&thinsp;</Kbd>
+									<Kbd className='h-5 min-w-5 rounded-md border border-white/10 bg-black/20 px-1.5 text-[11px] text-white/50'>K</Kbd>
+								</KbdGroup>
 							</Button>
 						</div>
 				</div>
@@ -917,6 +895,17 @@ export function DashboardTableView({
 						<div className='min-h-0 min-w-0 flex-1 overflow-auto'>
 							{isCollectionLoading ?
 								<CollectionTableSkeleton />
+							: filteredPosts.length === 0 ?
+								<div className='flex h-full flex-col items-center justify-center gap-3 p-12 text-center'>
+									<div className='text-[13px] font-medium text-fresco-title'>
+										{searchQuery ? 'No items match your search' : 'No items yet'}
+									</div>
+									<p className='max-w-xs text-[12px] text-fresco-description'>
+										{searchQuery
+											? 'Try a different query or clear your search.'
+											: 'Create your first item to get started, or use AI to generate content.'}
+									</p>
+								</div>
 							:	<BlogTable
 							activePostId={activePostId}
 							actionsDisabled={framerUnavailable}
@@ -933,194 +922,27 @@ export function DashboardTableView({
 							onToggleAll={handleToggleAll}
 							onShiftClick={handleShiftClick}
 							onDraftToggle={async (post) => {
-								// Handle staged item → push to Framer
 								if (post.staged && post.stagedId) {
 									if (framerUnavailable) return;
-									setLoadingPosts((prev) => new Set(prev).add(post.id));
-									try {
-										// Normalize date field values for Framer API compatibility
-										const normalizedFieldValues = normalizeStagedDates(post.fieldValues, metadata);
-										// Create in Framer via the posts API
-										const response = await fetch('/api/posts', {
-											method: 'POST',
-											headers: {
-												'Content-Type': 'application/json',
-												...getCollectionHeader(activeCollectionId),
-											},
-											body: JSON.stringify({
-												slug: post.slug,
-												fieldValues: normalizedFieldValues,
-											}),
-										});
-										if (response.ok) {
-											const { post: newPost } = await response.json();
-											// Remove staged item from Convex
-											await fetch(`/api/staged-items/${post.stagedId}`, { method: 'DELETE' });
-											// Replace staged item with real Framer item in the list
-											setCachedPosts((current) =>
-												current
-													.filter((p) => p.id !== post.id)
-													.concat(newPost),
-											);
-										}
-									} catch (error) {
-										console.error('Failed to push staged item to Framer', error);
-									} finally {
-										setLoadingPosts((prev) => {
-											const next = new Set(prev);
-											next.delete(post.id);
-											return next;
-										});
-									}
+									await cms.pushStagedItem(post);
 									return;
 								}
-
-								if (framerUnavailable) {
+								if (framerUnavailable) return;
+								// Publishing (draft → live) needs confirmation
+								if (post.draft) {
+									setPublishConfirm(post);
 									return;
 								}
-								setLoadingPosts((prev) =>
-									new Set(prev).add(post.id),
-								);
-								try {
-									const response = await fetch(
-										`/api/posts/${post.id}`,
-										{
-											method: 'PUT',
-											headers: {
-												'Content-Type':
-													'application/json',
-												...getCollectionHeader(activeCollectionId),
-											},
-											body: JSON.stringify({
-												slug: post.slug,
-												draft: !post.draft,
-												fieldValues: post.fieldValues,
-											}),
-										},
-									);
-									if (response.ok) {
-										const { post: nextPost } =
-											await response.json();
-										setCachedPosts((current) =>
-											upsertCachedPost(current, nextPost),
-										);
-									}
-								} catch (error) {
-									console.error(
-										'Failed to toggle draft status',
-										error,
-									);
-								} finally {
-									setLoadingPosts((prev) => {
-										const next = new Set(prev);
-										next.delete(post.id);
-										return next;
-									});
-								}
-							}}
-							onPublishStaged={async (post) => {
-								if (!post.staged || !post.stagedId || framerUnavailable) return;
-								setLoadingPosts((prev) => new Set(prev).add(post.id));
-								try {
-									const normalizedFieldValues = normalizeStagedDates(post.fieldValues, metadata);
-									// Create in Framer as draft first
-									const createRes = await fetch('/api/posts', {
-										method: 'POST',
-										headers: {
-											'Content-Type': 'application/json',
-											...getCollectionHeader(activeCollectionId),
-										},
-										body: JSON.stringify({
-											slug: post.slug,
-											fieldValues: normalizedFieldValues,
-										}),
-									});
-									if (createRes.ok) {
-										const { post: newPost } = await createRes.json();
-										// Now publish it (set draft: false)
-										const publishRes = await fetch(`/api/posts/${newPost.id}`, {
-											method: 'PUT',
-											headers: {
-												'Content-Type': 'application/json',
-												...getCollectionHeader(activeCollectionId),
-											},
-											body: JSON.stringify({
-												slug: newPost.slug,
-												draft: false,
-												fieldValues: newPost.fieldValues,
-											}),
-										});
-										const finalPost = publishRes.ok
-											? (await publishRes.json()).post as BlogPostRecord
-											: newPost;
-										// Remove staged item from Convex
-										await fetch(`/api/staged-items/${post.stagedId}`, { method: 'DELETE' });
-										setCachedPosts((current) =>
-											current
-												.filter((p) => p.id !== post.id)
-												.concat(finalPost),
-										);
-									}
-								} catch (error) {
-									console.error('Failed to push & publish staged item', error);
-								} finally {
-									setLoadingPosts((prev) => {
-										const next = new Set(prev);
-										next.delete(post.id);
-										return next;
-									});
-								}
+								await cms.toggleDraft(post);
 							}}
 							onDelete={async (postId) => {
-								// Handle staged item deletion
 								const post = cachedPosts.find((p) => p.id === postId);
 								if (post?.staged && post.stagedId) {
-									setLoadingPosts((prev) => new Set(prev).add(postId));
-									try {
-										await fetch(`/api/staged-items/${post.stagedId}`, { method: 'DELETE' });
-										setCachedPosts((current) => current.filter((p) => p.id !== postId));
-									} catch (error) {
-										console.error('Failed to discard staged item', error);
-									} finally {
-										setLoadingPosts((prev) => {
-											const next = new Set(prev);
-											next.delete(postId);
-											return next;
-										});
-									}
+									await cms.discardStagedItem(postId, post.stagedId);
 									return;
 								}
-
-								if (framerUnavailable) {
-									return;
-								}
-								setLoadingPosts((prev) =>
-									new Set(prev).add(postId),
-								);
-								try {
-									const response = await fetch(
-										`/api/posts/${postId}`,
-										{ method: 'DELETE', headers: getCollectionHeader(activeCollectionId) },
-									);
-									if (response.ok) {
-										setCachedPosts((current) =>
-											current.filter(
-												(post) => post.id !== postId,
-											),
-										);
-									}
-								} catch (error) {
-									console.error(
-										'Failed to delete post',
-										error,
-									);
-								} finally {
-									setLoadingPosts((prev) => {
-										const next = new Set(prev);
-										next.delete(postId);
-										return next;
-									});
-								}
+								if (framerUnavailable) return;
+								await cms.deletePost(postId);
 							}}
 							onChatWithItem={(postId) => {
 								setSelectedRows(new Set([postId]));
@@ -1320,6 +1142,49 @@ export function DashboardTableView({
 				onFixInsight={handleInsightFix}
 				posts={cachedPosts}
 			/>
+
+			{/* Publish confirmation dialog */}
+			<Dialog open={!!publishConfirm} onOpenChange={() => setPublishConfirm(null)}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Publish item?</DialogTitle>
+						<DialogDescription>
+							This will make &ldquo;{publishConfirm?.title || publishConfirm?.slug}&rdquo; live on your site. Changes are published immediately.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button variant='outline' onClick={() => setPublishConfirm(null)}>Cancel</Button>
+						<Button
+							onClick={async () => {
+								const post = publishConfirm;
+								if (!post) return;
+								setPublishConfirm(null);
+								await cms.publishPost(post);
+							}}
+						>
+							Publish
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Undo toast */}
+			{cms.undoPending && (
+				<div className='fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-in fade-in slide-in-from-bottom-4'>
+					<div className='flex items-center gap-3 rounded-xl border border-dash-content-border bg-fresco-panel px-4 py-3 shadow-lg'>
+						<span className='text-[13px] text-fresco-text'>{cms.undoPending.label}</span>
+						<Button
+							className='h-7 rounded-lg px-3 text-[12px]'
+							onClick={cms.undoPending.undo}
+							size='sm'
+							type='button'
+							variant='outline'
+						>
+							Undo
+						</Button>
+					</div>
+				</div>
+			)}
 		</section>
 	);
 }

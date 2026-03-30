@@ -7,6 +7,7 @@ import { requireAIConfig } from "@/lib/ai-config";
 import { hardenUntrustedTextBlock } from "@/lib/ai-guardrails";
 import { buildImagePrompt } from "@/lib/ai-image-prompt";
 import { checkQuota, trackTokenUsage, FALLBACK_IMAGE_TOKEN_COST } from "@/lib/billing";
+import { checkRateLimit, AI_IMAGE_LIMIT } from "@/lib/rate-limit";
 import { getImageSystemPrompt } from "@/lib/brand";
 import { AppError } from "@/lib/errors";
 import { logEvent, logError } from "@/lib/logger";
@@ -33,6 +34,16 @@ export async function POST(request: Request) {
     const config = requireAIConfig();
     const access = await requireDashboardApiAccess();
     const { organizationId: orgId, userId } = access;
+
+    // ── RATE LIMIT ──
+    const rl = checkRateLimit(`ai:image:${orgId}`, AI_IMAGE_LIMIT);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many image requests. Please wait a moment." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil(rl.resetMs / 1000)) } },
+      );
+    }
+
     const body = await request.json();
     const parsed = requestSchema.safeParse(body);
 
@@ -45,7 +56,7 @@ export async function POST(request: Request) {
 
     const { prompt, referenceImageUrl, context } = parsed.data;
 
-    // ── QUOTA CHECK (fail-open) ──
+    // ── QUOTA CHECK (fail-closed) ──
     if (orgId) {
       try {
         const quota = await checkQuota(orgId);
@@ -62,6 +73,10 @@ export async function POST(request: Request) {
         }
       } catch (error) {
         logError("billing.quota.check_failed", error, { organizationId: orgId });
+        return NextResponse.json(
+          { error: "Unable to verify usage quota. Please try again." },
+          { status: 503 },
+        );
       }
     }
 

@@ -22,6 +22,7 @@ import {
   Sheet,
   SheetClose,
   SheetContent,
+  SheetDescription,
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
@@ -237,6 +238,7 @@ export function DashboardSidebar({ role }: DashboardSidebarProps) {
                     <span className="select-none text-[14px] font-semibold tracking-[-0.02em] text-fresco-title">FramerBot</span>
                   </Link>
                 </SheetTitle>
+                <SheetDescription className="sr-only">Dashboard navigation menu</SheetDescription>
                 <div className="text-[12px] text-dash-nav-text">
                   {activeItem.label}
                 </div>

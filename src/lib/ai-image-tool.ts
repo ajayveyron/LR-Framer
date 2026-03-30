@@ -21,6 +21,10 @@ import { logEvent, logError } from "@/lib/logger";
 
 type RunInFramerContext = <T>(fn: () => Promise<T>) => Promise<T>;
 
+// TODO: Thread clerkOrganizationId through image job targets so that
+// setFieldValue can verify ownership at the Convex layer. Currently this
+// runs server-side within an authenticated AI chat request, so the risk
+// is limited, but the org-ownership check should be added for defense-in-depth.
 async function applyImageToStagedItemTarget(
   jobId: string,
   target: { stagedItemId: string; fieldId: string },

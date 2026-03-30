@@ -8,6 +8,7 @@ import {
   getProjectInfo,
 } from "@/lib/framer";
 import { logEvent, logError } from "@/lib/logger";
+import { mapWithConcurrency } from "@/lib/shared-utils";
 
 // ---------------------------------------------------------------------------
 // AI Context Snapshot
@@ -76,6 +77,10 @@ const SNAPSHOT_CACHE_TTL_MS = 300_000;
 const SNAPSHOT_COLLECTION_CONCURRENCY = 10;
 const SNAPSHOT_ENUM_CONCURRENCY = 10;
 
+// Bounded cache: evict oldest entries when exceeding MAX_CACHE_ENTRIES
+// to prevent unbounded memory growth in long-running processes.
+const MAX_CACHE_ENTRIES = 20;
+
 const snapshotCache = new Map<
   string,
   {
@@ -87,36 +92,16 @@ const snapshotInFlight = new Map<string, Promise<AIContextSnapshot>>();
 
 const DEFAULT_SNAPSHOT_CACHE_KEY = "__default__";
 
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  mapper: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  if (items.length === 0) {
-    return [];
+function evictExpiredCacheEntries() {
+  const now = Date.now();
+  for (const [key, entry] of snapshotCache) {
+    if (entry.expiresAt <= now) snapshotCache.delete(key);
   }
-
-  const results = new Array<R>(items.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (true) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-
-      if (currentIndex >= items.length) {
-        return;
-      }
-
-      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
-    }
+  // If still over limit, remove oldest entries
+  while (snapshotCache.size > MAX_CACHE_ENTRIES) {
+    const firstKey = snapshotCache.keys().next().value;
+    if (firstKey !== undefined) snapshotCache.delete(firstKey);
   }
-
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
-  );
-
-  return results;
 }
 
 /**
@@ -309,6 +294,7 @@ export async function getAIContextSnapshotWithRunner(
       referencesMs = Date.now() - referencesStartMs;
     }
 
+    evictExpiredCacheEntries();
     snapshotCache.set(cacheKey, {
       expiresAt: Date.now() + SNAPSHOT_CACHE_TTL_MS,
       value: snapshot,

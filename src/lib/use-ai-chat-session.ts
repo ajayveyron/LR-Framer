@@ -275,6 +275,7 @@ export function useAIChatSession({
     null,
   );
   const recoverableRetryUserIdsRef = useRef<Set<string>>(new Set());
+  const consumedPromptRef = useRef<string | null>(null);
 
   const chatTransport = useMemo(
     () =>
@@ -419,6 +420,14 @@ export function useAIChatSession({
       return;
     }
 
+    // Guard against double-fire: if this exact prompt was already consumed,
+    // skip. React Strict Mode or rapid re-renders can trigger this effect
+    // twice with the same pendingPrompt before the parent clears it.
+    if (consumedPromptRef.current === pendingPrompt) {
+      return;
+    }
+
+    consumedPromptRef.current = pendingPrompt;
     sendMessage({ text: pendingPrompt });
     onPendingPromptConsumed?.();
   }, [onPendingPromptConsumed, pendingPrompt, sendMessage, status]);

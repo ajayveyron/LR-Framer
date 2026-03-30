@@ -11,6 +11,10 @@ const isProtectedRoute = createRouteMatcher([
   "/api/ai(.*)",
   "/api/meta/fields(.*)",
   "/api/uploads(.*)",
+  "/api/billing(.*)",
+  "/api/staged-items(.*)",
+  "/api/notion(.*)",
+  "/api/dashboard(.*)",
 ]);
 
 function isClerkConfigured() {

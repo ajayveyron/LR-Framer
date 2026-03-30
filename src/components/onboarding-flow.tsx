@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 
 import { useOrganizationList } from "@clerk/nextjs";
 import { ArrowLeft } from "@phosphor-icons/react";
@@ -55,9 +55,17 @@ function StepDots({
   total: number;
 }) {
   return (
-    <div className="flex items-center justify-center gap-1.5">
+    <div
+      aria-label={`Step ${current + 1} of ${total}`}
+      aria-valuemax={total}
+      aria-valuemin={1}
+      aria-valuenow={current + 1}
+      className="flex items-center justify-center gap-1.5"
+      role="progressbar"
+    >
       {Array.from({ length: total }, (_, i) => (
         <div
+          aria-current={i === current ? "step" : undefined}
           key={i}
           className={cn(
             "h-1.5 rounded-full transition-all",
@@ -98,7 +106,20 @@ export function OnboardingFlow({
   const [projectInput, setProjectInput] = useState(
     initialOnboardingState?.projectUrl ?? initialSite?.framerProjectUrl ?? "",
   );
-  const [apiKey, setApiKey] = useState("");
+  const [apiKey, setApiKeyState] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return sessionStorage.getItem("lr:onboarding:apiKey") ?? "";
+  });
+  const setApiKey = useCallback((value: string) => {
+    setApiKeyState(value);
+    if (typeof window !== "undefined") {
+      if (value) {
+        sessionStorage.setItem("lr:onboarding:apiKey", value);
+      } else {
+        sessionStorage.removeItem("lr:onboarding:apiKey");
+      }
+    }
+  }, []);
   const [collections, setCollections] = useState<FramerCollectionOption[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState(
     initialOnboardingState?.collectionId ??
@@ -210,6 +231,8 @@ export function OnboardingFlow({
             data.error ?? "Could not finish onboarding.",
           );
         }
+        // Clear persisted API key on successful onboarding
+        sessionStorage.removeItem("lr:onboarding:apiKey");
         let destination = "/dashboard";
         try {
           if (localStorage.getItem("upgrade_intent") === "standard") {

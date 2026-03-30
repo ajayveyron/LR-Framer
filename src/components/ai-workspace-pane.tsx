@@ -100,7 +100,10 @@ export function AIWorkspacePane({
       aria-hidden={!open}
       className={cn(
         "relative shrink-0 overflow-hidden border-l border-dash-content-border bg-fresco-panel transition-[width] duration-200 ease-out",
-        !open && "pointer-events-none border-l-transparent",
+        // On small screens, switch from side-panel to full-width overlay
+        open
+          ? "max-lg:absolute max-lg:inset-0 max-lg:z-30 max-lg:w-full! max-lg:border-l-0"
+          : "pointer-events-none border-l-transparent",
         className,
       )}
       style={{ width: open ? `${width}px` : "0px" }}
