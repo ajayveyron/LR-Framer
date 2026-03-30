@@ -19,6 +19,7 @@ import { createScopedGenerateAndUploadImageTool } from "@/lib/ai-image-tool";
 import { loadAgentMemories, formatMemoriesForPrompt } from "@/lib/ai-memory";
 import { webSearchTool } from "@/lib/ai-search-tool";
 import { checkQuota, trackTokenUsage, type QuotaCheckResult } from "@/lib/billing";
+import { checkRateLimit, AI_CHAT_LIMIT } from "@/lib/rate-limit";
 import { AppError } from "@/lib/errors";
 import { createScopedFramerTools } from "@/lib/framer-tools";
 import { logEvent, logError } from "@/lib/logger";
@@ -312,6 +313,16 @@ export async function POST(request: Request) {
     const config = requireAIConfig();
     const access = await requireDashboardApiAccess();
     const { organizationId: orgId, userId } = access;
+
+    // ── RATE LIMIT ──
+    const rl = checkRateLimit(`ai:chat:${orgId}`, AI_CHAT_LIMIT);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a moment and try again." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil(rl.resetMs / 1000)) } },
+      );
+    }
+
     const body = await request.json();
     const { messages } = body;
 

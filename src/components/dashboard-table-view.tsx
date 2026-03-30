@@ -984,6 +984,24 @@ export function DashboardTableView({
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			{/* Undo toast */}
+			{cms.undoPending && (
+				<div className='fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-in fade-in slide-in-from-bottom-4'>
+					<div className='flex items-center gap-3 rounded-xl border border-dash-content-border bg-fresco-panel px-4 py-3 shadow-lg'>
+						<span className='text-[13px] text-fresco-text'>{cms.undoPending.label}</span>
+						<Button
+							className='h-7 rounded-lg px-3 text-[12px]'
+							onClick={cms.undoPending.undo}
+							size='sm'
+							type='button'
+							variant='outline'
+						>
+							Undo
+						</Button>
+					</div>
+				</div>
+			)}
 		</section>
 	);
 }

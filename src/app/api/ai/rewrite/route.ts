@@ -6,6 +6,7 @@ import { createErrorJsonResponse } from "@/lib/api";
 import { requireAIConfig } from "@/lib/ai-config";
 import { hardenUntrustedTextBlock } from "@/lib/ai-guardrails";
 import { checkQuota, trackTokenUsage } from "@/lib/billing";
+import { checkRateLimit, AI_REWRITE_LIMIT } from "@/lib/rate-limit";
 import { AppError } from "@/lib/errors";
 import { logEvent, logError } from "@/lib/logger";
 import { requireDashboardApiAccess } from "@/lib/product-access";
@@ -52,6 +53,16 @@ export async function POST(request: Request) {
     const config = requireAIConfig();
     const access = await requireDashboardApiAccess();
     const { organizationId: orgId, userId } = access;
+
+    // ── RATE LIMIT ──
+    const rl = checkRateLimit(`ai:rewrite:${orgId}`, AI_REWRITE_LIMIT);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a moment." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil(rl.resetMs / 1000)) } },
+      );
+    }
+
     const body = await request.json();
     const parsed = requestSchema.safeParse(body);
 

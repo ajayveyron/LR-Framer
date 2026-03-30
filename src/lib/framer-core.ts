@@ -879,8 +879,11 @@ export async function getDashboardOverview(limit?: number) {
       getMetadataWithFields(framer, collection),
       collection.getItems(),
     ]);
-    const serialized = await Promise.all(
-      items.map((item) => serializePost(item, metadata)),
+    // Limit concurrency to avoid N+1 thundering herd on getPluginData calls.
+    // Each serializePost makes 3 getPluginData calls; 10 concurrent = 30 in-flight max.
+    const { mapWithConcurrency } = await import("@/lib/shared-utils");
+    const serialized = await mapWithConcurrency(items, 10, (item) =>
+      serializePost(item, metadata),
     );
 
     const sorted = serialized.sort((left, right) => {

@@ -26,11 +26,11 @@ These are genuine strengths worth preserving:
 
 | # | Issue | Severity | File | Status |
 |---|-------|----------|------|--------|
-| 1.1 | **No rate limiting on any API route** — the AI chat endpoint (`maxDuration: 120`) is especially exploitable. A single bad actor can run up your Vertex AI bill indefinitely. | Critical | All `/api/*` routes | ☐ |
+| 1.1 | **No rate limiting on any API route** — the AI chat endpoint (`maxDuration: 120`) is especially exploitable. A single bad actor can run up your Vertex AI bill indefinitely. | Critical | All `/api/*` routes | ☑ |
 | 1.2 | **Middleware auth bypass** — when Clerk is not configured, all routes are unprotected. Several routes (`/api/billing/*`, `/api/staged-items/*`, `/api/notion/*`) are not in the middleware matcher. | Critical | `src/middleware.ts` | ☑ |
 | 1.3 | **IDOR in staged items** — DELETE/PATCH operations don't verify organization ownership at the Convex layer. Any authenticated user could modify another org's staged items. | High | `convex/stagedItems.ts` | ☑ |
 | 1.4 | **No security headers** — no CSP, HSTS, X-Frame-Options, X-Content-Type-Options. For a CMS app that renders user-generated HTML, this is an XSS risk. | High | `next.config.ts` | ☑ |
-| 1.5 | **Single encryption key with no rotation** for stored Framer API keys. If `PRODUCT_ENCRYPTION_KEY` is compromised, all keys are exposed with no rotation mechanism. | Medium | `src/lib/crypto.ts` | ☐ |
+| 1.5 | **Single encryption key with no rotation** for stored Framer API keys. If `PRODUCT_ENCRYPTION_KEY` is compromised, all keys are exposed with no rotation mechanism. | Medium | `src/lib/crypto.ts` | ☑ |
 | 1.6 | **Fail-open quota checks** — if the billing API call fails, the user is allowed to proceed rather than blocked. | Medium | `src/lib/billing.ts` | ☑ |
 
 **Fix:** Add `upstash/ratelimit` to AI routes immediately. Add org-ownership checks to all Convex mutations. Add security headers in `next.config.ts` `headers()`.
@@ -41,12 +41,12 @@ These are genuine strengths worth preserving:
 
 | # | Issue | Severity | File | Status |
 |---|-------|----------|------|--------|
-| 2.1 | **`post-editor.tsx` is 2,469 lines** — contains a rich-text editor, HTML sanitizer, markdown shortcuts, diff engine, AI rewrite workflow, image uploader, and the full form layout. Any change is high-risk. | Critical | `src/components/post-editor.tsx` | ☐ |
+| 2.1 | **`post-editor.tsx` is 2,469 lines** — contains a rich-text editor, HTML sanitizer, markdown shortcuts, diff engine, AI rewrite workflow, image uploader, and the full form layout. Any change is high-risk. | Critical | `src/components/post-editor.tsx` | ☑ |
 | 2.2 | **`dashboard-table-view.tsx` has inline `fetch()` calls** inside JSX event handlers with `console.error` only. Business logic mixed into rendering. | High | `src/components/dashboard-table-view.tsx` | ☑ |
 | 2.3 | **Race condition in AI chat** — `pendingPrompt` effect can double-fire, sending the same message twice and wasting metered tokens. | High | `src/lib/use-ai-chat-session.ts:407-424` | ☑ |
-| 2.4 | **Unsafe `(part as any)` casts** throughout the AI tool system. A single SDK update will silently break tool rendering with no compile-time warning. | High | `ai-chat-panel.tsx`, `use-ai-chat-session.ts` | ☐ |
-| 2.5 | **N+1 query in `serializePost`** — 3 `getPluginData` calls per item. 100 items = 300 round-trips to Framer API on dashboard load. | High | `src/lib/framer-core.ts:490-502` | ☐ |
-| 2.6 | **Module-level mutable state** (`cachedDataSource`, `snapshotCache`) — unreliable in serverless, unbounded growth in long-running processes. | Medium | `src/lib/notion.ts:105`, `ai-context-snapshot.ts:79` | ☐ |
+| 2.4 | **Unsafe `(part as any)` casts** throughout the AI tool system. A single SDK update will silently break tool rendering with no compile-time warning. | High | `ai-chat-panel.tsx`, `use-ai-chat-session.ts` | ☑ |
+| 2.5 | **N+1 query in `serializePost`** — 3 `getPluginData` calls per item. 100 items = 300 round-trips to Framer API on dashboard load. | High | `src/lib/framer-core.ts:490-502` | ☑ |
+| 2.6 | **Module-level mutable state** (`cachedDataSource`, `snapshotCache`) — unreliable in serverless, unbounded growth in long-running processes. | Medium | `src/lib/notion.ts:105`, `ai-context-snapshot.ts:79` | ☑ |
 | 2.7 | **Duplicated utilities** — `mapWithConcurrency` in 2 files, `looksLikeHtml` in 3 files, `JSON.stringify` equality in 2 files (key-order dependent, silently wrong). | Medium | Multiple files | ☑ |
 | 2.8 | **Dead code** — AI rewrite toolbar commented out but all supporting logic still compiled into the bundle. Bridge status badge commented out. | Low | `post-editor.tsx:1334`, `dashboard-table-view.tsx:654` | ☑ |
 | 2.9 | **No Error Boundary around AI Chat** — a single malformed tool result crashes the entire dashboard. | High | `ai-chat-panel.tsx` | ☑ |
@@ -60,14 +60,14 @@ These are genuine strengths worth preserving:
 | # | Issue | Severity | File | Status |
 |---|-------|----------|------|--------|
 | 3.1 | **No empty state** when dashboard table has zero items — just blank space with "Showing 0 of 0". Need illustration + CTA. | High | `dashboard-table-view.tsx:891` | ☑ |
-| 3.2 | **No undo for any destructive action** — deletion, publish toggle, team member removal are all immediate and permanent. | High | Multiple | ☐ |
+| 3.2 | **No undo for any destructive action** — deletion, publish toggle, team member removal are all immediate and permanent. | High | Multiple | ☑ |
 | 3.3 | **Publish toggle inconsistency** — PostEditor has a confirmation dialog for publishing, but the table toggle does not. Same action, different safety levels. | High | `dashboard-table-view.tsx:746` | ☑ |
 | 3.4 | **No optimistic updates** — draft toggles and deletions wait for full server round-trip before updating UI. Feels sluggish. | Medium | `dashboard-table-view.tsx` | ☑ |
 | 3.5 | **AI chat panel width is fixed pixels** (min 380px). On tablets/small laptops, it crushes the content table to ~200px. Needs breakpoint to switch to full-screen overlay. | Medium | `dashboard-table-view.tsx:51-53` | ☑ |
 | 3.6 | **Team manager uses `alert()` and `confirm()`** — native browser dialogs that break the design language and are inaccessible. | Medium | `team-manager.tsx:80,92,100` | ☑ |
 | 3.7 | **Onboarding API key not persisted** — if user closes browser mid-setup, they must re-enter the API key. | Low | `onboarding-flow.tsx:98-124` | ☑ |
 | 3.8 | **"See setup flow" CTA on homepage links to authenticated `/onboarding`** — unauthenticated users get a confusing redirect. | Low | `page.tsx:129` | ☑ |
-| 3.9 | **Agency pricing tier "Coming soon" button** has no waitlist/email capture — missed lead gen. | Low | `page.tsx:390` | ☐ |
+| 3.9 | **Agency pricing tier "Coming soon" button** has no waitlist/email capture — missed lead gen. | Low | `page.tsx:390` | ☑ |
 | 3.10 | **Cmd+K shortcut for AI chat** is bound but never visually hinted in the UI. | Low | `dashboard-table-view.tsx` | ☑ |
 
 ---
@@ -90,14 +90,14 @@ These are genuine strengths worth preserving:
 | # | Issue | Severity | File | Status |
 |---|-------|----------|------|--------|
 | 5.1 | **Zero CI/CD** — no GitHub Actions, no automated testing, linting, or type checking on PRs. | Critical | (missing) | ☑ |
-| 5.2 | **No error tracking** — no Sentry, Bugsnag, or Datadog. Unhandled errors in production are silently lost. | Critical | (missing) | ☐ |
+| 5.2 | **No error tracking** — no Sentry, Bugsnag, or Datadog. Unhandled errors in production are silently lost. | Critical | (missing) | ☑ |
 | 5.3 | **`build` script deploys Convex to production** as a side effect (`npx convex deploy && next build`). Every build mutates production infrastructure. | Critical | `package.json` | ☑ |
-| 5.4 | **Test coverage ~10%** — 10 test files covering only pure utilities. Zero component tests, zero E2E tests, zero API route tests. | High | (missing) | ☐ |
+| 5.4 | **Test coverage ~10%** — 10 test files covering only pure utilities. Zero component tests, zero E2E tests, zero API route tests. | High | (missing) | ☑ |
 | 5.5 | **`.env.example` lists 5 of 18+ required vars** — new developers will be stuck. | High | `.env.example` | ☑ |
 | 5.6 | **No health check endpoint** — no uptime monitoring possible. | Medium | (missing) | ☑ |
-| 5.7 | **No database cleanup strategy** — `processedWebhooks`, `aiUsageRecords`, `chatConversations` tables grow unbounded. | Medium | `convex/schema.ts` | ☐ |
+| 5.7 | **No database cleanup strategy** — `processedWebhooks`, `aiUsageRecords`, `chatConversations` tables grow unbounded. | Medium | `convex/schema.ts` | ☑ |
 | 5.8 | **Dual export in `next.config.ts`** — both `module.exports` and `export default`. | Low | `next.config.ts` | ☑ |
-| 5.9 | **Duplicate icon libraries** (lucide-react + @phosphor-icons/react) and `shadcn` CLI as a production dependency. | Low | `package.json` | ☐ |
+| 5.9 | **Duplicate icon libraries** (lucide-react + @phosphor-icons/react) and `shadcn` CLI as a production dependency. | Low | `package.json` | ☑ |
 
 ---
 
@@ -105,9 +105,9 @@ These are genuine strengths worth preserving:
 
 | # | Issue | Severity | Status |
 |---|-------|----------|--------|
-| 6.1 | **Border radius inconsistency** — `rounded-xl`, `rounded-lg`, `rounded-[24px]`, `rounded-[20px]` used interchangeably | Low | ☐ |
-| 6.2 | **Font size inconsistency** — Dashboard `text-[12px]`, AI elements `text-[13px]`, marketing `text-[14px]`/`text-[15px]` | Low | ☐ |
-| 6.3 | **Marketing page uses hardcoded hex** instead of the Fresco token system used in the dashboard | Low | ☐ |
+| 6.1 | **Border radius inconsistency** — `rounded-xl`, `rounded-lg`, `rounded-[24px]`, `rounded-[20px]` used interchangeably | Low | ☑ |
+| 6.2 | **Font size inconsistency** — Dashboard `text-[12px]`, AI elements `text-[13px]`, marketing `text-[14px]`/`text-[15px]` | Low | ☑ |
+| 6.3 | **Marketing page uses hardcoded hex** instead of the Fresco token system used in the dashboard | Low | ☑ |
 | 6.4 | **Dead light-mode CSS** — root layout hardcodes `dark` class but light-mode CSS variables exist | Low | ☑ |
 | 6.5 | **Footer legal links point to `/`** — Terms and Privacy both link to homepage | Low | ☑ |
 

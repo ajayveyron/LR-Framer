@@ -1,11 +1,21 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import type { BlogPostRecord } from "@/lib/cms-types";
 import { getCollectionHeader } from "@/lib/product-framer-shared";
 
 type SetCachedPosts = (updater: (current: BlogPostRecord[]) => BlogPostRecord[]) => void;
+
+/** Pending undo state for a destructive action */
+export interface UndoPending {
+  id: string;
+  label: string;
+  undo: () => void;
+  expiresAt: number;
+}
+
+const UNDO_WINDOW_MS = 5_000;
 
 function upsertPost(posts: BlogPostRecord[], next: BlogPostRecord) {
   const remaining = posts.filter((p) => p.id !== next.id);
@@ -27,6 +37,8 @@ export function useCmsMutations({
 }: UseCmsMutationsOptions) {
   const [loadingPosts, setLoadingPosts] = useState<Set<string>>(new Set());
   const [lastError, setLastError] = useState<string | null>(null);
+  const [undoPending, setUndoPending] = useState<UndoPending | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const markLoading = useCallback((id: string) => {
     setLoadingPosts((prev) => new Set(prev).add(id));
@@ -211,11 +223,13 @@ export function useCmsMutations({
     [markLoading, setCachedPosts, unmarkLoading],
   );
 
-  // ── Delete post (with optimistic update) ──
+  // ── Delete post (with optimistic update + undo window) ──
   const deletePost = useCallback(
-    async (postId: string) => {
-      markLoading(postId);
+    (postId: string) => {
       setLastError(null);
+
+      // Cancel any previous undo timer
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
 
       // Optimistic: remove from list immediately
       let removed: BlogPostRecord | undefined;
@@ -224,28 +238,44 @@ export function useCmsMutations({
         return current.filter((p) => p.id !== postId);
       });
 
-      try {
-        const response = await fetch(`/api/posts/${postId}`, {
-          method: "DELETE",
-          headers: getCollectionHeader(activeCollectionId),
-        });
-        if (!response.ok) {
-          // Revert
-          if (removed) {
-            const item = removed;
-            setCachedPosts((current) => [...current, item]);
-          }
-          setLastError("Failed to delete post");
-        }
-      } catch {
+      const revert = () => {
+        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+        undoTimerRef.current = null;
+        setUndoPending(null);
         if (removed) {
           const item = removed;
           setCachedPosts((current) => [...current, item]);
         }
-        setLastError("Failed to delete post");
-      } finally {
-        unmarkLoading(postId);
-      }
+      };
+
+      setUndoPending({
+        id: postId,
+        label: `Deleted "${removed?.title || postId}"`,
+        undo: revert,
+        expiresAt: Date.now() + UNDO_WINDOW_MS,
+      });
+
+      // After undo window, execute the actual delete
+      undoTimerRef.current = setTimeout(async () => {
+        undoTimerRef.current = null;
+        setUndoPending(null);
+        markLoading(postId);
+        try {
+          const response = await fetch(`/api/posts/${postId}`, {
+            method: "DELETE",
+            headers: getCollectionHeader(activeCollectionId),
+          });
+          if (!response.ok) {
+            revert();
+            setLastError("Failed to delete post");
+          }
+        } catch {
+          revert();
+          setLastError("Failed to delete post");
+        } finally {
+          unmarkLoading(postId);
+        }
+      }, UNDO_WINDOW_MS);
     },
     [activeCollectionId, markLoading, setCachedPosts, unmarkLoading],
   );
@@ -256,6 +286,7 @@ export function useCmsMutations({
     loadingPosts,
     lastError,
     clearError,
+    undoPending,
     pushStagedItem,
     toggleDraft,
     publishPost,
