@@ -348,7 +348,9 @@ export async function POST(request: Request) {
       orgId
         ? checkQuota(orgId).catch((error) => {
             logError("billing.quota.check_failed", error, { organizationId: orgId });
-            return { allowed: true, currentUsage: 0, allowance: 0, percentUsed: 0 } as QuotaCheckResult;
+            // Fail closed: block the request when quota check is unavailable
+            // to prevent unbounded usage during billing outages.
+            return { allowed: false, currentUsage: 0, allowance: 0, percentUsed: 100 } as QuotaCheckResult;
           })
         : Promise.resolve(null),
       loadAgentMemories(orgId, userId),

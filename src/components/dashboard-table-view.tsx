@@ -728,6 +728,17 @@ export function DashboardTableView({
 						<div className='min-h-0 min-w-0 flex-1 overflow-auto'>
 							{isCollectionLoading ?
 								<CollectionTableSkeleton />
+							: filteredPosts.length === 0 ?
+								<div className='flex h-full flex-col items-center justify-center gap-3 p-12 text-center'>
+									<div className='text-[13px] font-medium text-fresco-title'>
+										{searchQuery ? 'No items match your search' : 'No items yet'}
+									</div>
+									<p className='max-w-xs text-[12px] text-fresco-description'>
+										{searchQuery
+											? 'Try a different query or clear your search.'
+											: 'Create your first item to get started, or use AI to generate content.'}
+									</p>
+								</div>
 							:	<BlogTable
 							activePostId={activePostId}
 							actionsDisabled={framerUnavailable}

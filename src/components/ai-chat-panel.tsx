@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   X,
   WarningCircle,
@@ -1033,10 +1034,55 @@ function ChatUsageBar() {
   );
 }
 
+class AIChatErrorBoundary extends React.Component<
+  { children: React.ReactNode; onNewChat?: () => void },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; onNewChat?: () => void }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("[AIChatPanel] Render error caught by boundary:", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+          <WarningCircle className="size-10 text-fresco-subtitle" />
+          <p className="text-[13px] text-fresco-text">
+            Chat encountered an error.
+          </p>
+          <button
+            className="rounded-lg bg-fresco-tint px-4 py-2 text-[12px] font-medium text-black transition-colors hover:bg-fresco-tint/80"
+            onClick={() => {
+              this.setState({ hasError: false });
+              this.props.onNewChat?.();
+            }}
+            type="button"
+          >
+            New Chat
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 export function AIChatPanel(props: AIChatPanelProps) {
   return (
-    <PromptInputProvider>
-      <AIChatPanelContent {...props} />
-    </PromptInputProvider>
+    <AIChatErrorBoundary>
+      <PromptInputProvider>
+        <AIChatPanelContent {...props} />
+      </PromptInputProvider>
+    </AIChatErrorBoundary>
   );
 }

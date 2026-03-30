@@ -99,7 +99,7 @@ export default async function MarketingHomePage() {
           </FadeIn>
           
           <FadeIn delay={100}>
-            <h1 className="text-[#5a5a5a] sm:text-6xl md:text-5xl font-medium tracking-tight text-balance leading-[1.05]">
+            <h1 className="text-[#9a9a9a] sm:text-6xl md:text-5xl font-medium tracking-tight text-balance leading-[1.05]">
               Superpower your <br className="hidden sm:block" />
               <span className="text-[#fff]">Framer Workflows</span><br className="hidden sm:block" />
               with AI & unlimited editors

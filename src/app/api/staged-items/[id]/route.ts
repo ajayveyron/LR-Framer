@@ -15,11 +15,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireDashboardApiAccess();
+    const { organizationId } = await requireDashboardApiAccess();
     const { id } = await params;
     if (!id) throw new AppError("id is required", 400);
 
-    await fetchProductMutation(anyApi.stagedItems.remove, { id });
+    await fetchProductMutation(anyApi.stagedItems.remove, { id, clerkOrganizationId: organizationId });
 
     logEvent("info", "staged_items.removed", { stagedItemId: id });
     return NextResponse.json({ success: true });
@@ -35,7 +35,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireDashboardApiAccess();
+    const { organizationId } = await requireDashboardApiAccess();
     const { id } = await params;
     if (!id) throw new AppError("id is required", 400);
 
@@ -45,7 +45,7 @@ export async function PATCH(
     if (body.draft !== undefined) updates.draft = body.draft;
     if (body.fieldData !== undefined) updates.fieldDataJson = JSON.stringify(body.fieldData);
 
-    await fetchProductMutation(anyApi.stagedItems.update, { id, ...updates });
+    await fetchProductMutation(anyApi.stagedItems.update, { id, clerkOrganizationId: organizationId, ...updates });
 
     logEvent("info", "staged_items.updated", { stagedItemId: id });
     return NextResponse.json({ success: true });

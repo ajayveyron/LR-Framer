@@ -1456,6 +1456,8 @@ function RichTextInput({
       {rewriteStatus === "idle" && (
         <>
           <div
+            aria-label={placeholder || "Rich text editor"}
+            aria-multiline="true"
             className={editorContentClassName}
             contentEditable
             data-placeholder={placeholder}
@@ -1467,6 +1469,7 @@ function RichTextInput({
             onMouseMove={(event) => updateHoveredLink(event.target)}
             onMouseUp={syncSelectionState}
             ref={editorRef}
+            role="textbox"
             suppressContentEditableWarning
           />
           {hoveredLink ? (

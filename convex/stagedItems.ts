@@ -47,14 +47,18 @@ export const create = mutationGeneric({
 export const update = mutationGeneric({
   args: {
     id: v.id("stagedItems"),
+    clerkOrganizationId: v.string(),
     slug: v.optional(v.string()),
     draft: v.optional(v.boolean()),
     fieldDataJson: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { id, ...updates } = args;
+    const { id, clerkOrganizationId, ...updates } = args;
     const existing = await ctx.db.get(id);
     if (!existing) throw new Error("Staged item not found");
+    if (existing.clerkOrganizationId !== clerkOrganizationId) {
+      throw new Error("Staged item not found");
+    }
     await ctx.db.patch(id, { ...updates, updatedAt: Date.now() });
     return id;
   },
@@ -63,12 +67,18 @@ export const update = mutationGeneric({
 export const setFieldValue = mutationGeneric({
   args: {
     id: v.id("stagedItems"),
+    clerkOrganizationId: v.optional(v.string()),
     fieldId: v.string(),
     value: v.any(),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.get(args.id);
     if (!existing) throw new Error("Staged item not found");
+    // When clerkOrganizationId is provided, enforce ownership.
+    // TODO: Make this required once all callers pass org ID.
+    if (args.clerkOrganizationId && existing.clerkOrganizationId !== args.clerkOrganizationId) {
+      throw new Error("Staged item not found");
+    }
 
     let fieldValues: Record<string, unknown> = {};
     try {
@@ -93,10 +103,16 @@ export const setFieldValue = mutationGeneric({
 });
 
 export const remove = mutationGeneric({
-  args: { id: v.id("stagedItems") },
+  args: {
+    id: v.id("stagedItems"),
+    clerkOrganizationId: v.string(),
+  },
   handler: async (ctx, args) => {
     const existing = await ctx.db.get(args.id);
     if (!existing) return null;
+    if (existing.clerkOrganizationId !== args.clerkOrganizationId) {
+      return null;
+    }
     await ctx.db.delete(args.id);
     return args.id;
   },
@@ -105,11 +121,14 @@ export const remove = mutationGeneric({
 export const removeBatch = mutationGeneric({
   args: {
     ids: v.array(v.id("stagedItems")),
+    clerkOrganizationId: v.string(),
   },
   handler: async (ctx, args) => {
     for (const id of args.ids) {
       const existing = await ctx.db.get(id);
-      if (existing) await ctx.db.delete(id);
+      if (existing && existing.clerkOrganizationId === args.clerkOrganizationId) {
+        await ctx.db.delete(id);
+      }
     }
     return args.ids;
   },

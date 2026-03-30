@@ -52,6 +52,9 @@ export function TeamManager() {
   const [inviteRole, setInviteRole] = useState<"org:admin" | "org:member">("org:member");
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isInviting, setIsInviting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [removeMember, setRemoveMember] = useState<any | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   if (!isLoaded || !organization) {
     return <TeamManagerContentSkeleton />;
@@ -77,7 +80,7 @@ export function TeamManager() {
       setIsInviteOpen(false);
       invitations?.revalidate?.();
     } catch (err: any) {
-      alert(err.errors?.[0]?.message || "Failed to invite user");
+      setErrorMessage(err.errors?.[0]?.message || "Failed to invite user");
     } finally {
       setIsInviting(false);
     }
@@ -87,8 +90,8 @@ export function TeamManager() {
     try {
       await invitation.revoke();
       invitations?.revalidate?.();
-    } catch (err: any) {
-      alert("Failed to revoke invitation");
+    } catch {
+      setErrorMessage("Failed to revoke invitation");
     }
   };
 
@@ -96,18 +99,22 @@ export function TeamManager() {
     try {
       await membership.update({ role: newRole });
       memberships?.revalidate?.();
-    } catch (err: any) {
-      alert("Failed to update role");
+    } catch {
+      setErrorMessage("Failed to update role");
     }
   };
 
-  const handleRemove = async (membership: any) => {
-    if (!confirm(`Are you sure you want to remove ${membership.publicUserData.identifier}?`)) return;
+  const confirmRemoveMember = async () => {
+    if (!removeMember) return;
     try {
-      await membership.destroy();
+      setIsRemoving(true);
+      await removeMember.destroy();
       memberships?.revalidate?.();
-    } catch (err: any) {
-      alert("Failed to remove member");
+    } catch {
+      setErrorMessage("Failed to remove member");
+    } finally {
+      setIsRemoving(false);
+      setRemoveMember(null);
     }
   };
 
@@ -241,7 +248,7 @@ export function TeamManager() {
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm"><DotsThree className="h-4 w-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleRemove(membership)}>Remove User</DropdownMenuItem>
+                              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setRemoveMember(membership)}>Remove User</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         )}
@@ -301,6 +308,38 @@ export function TeamManager() {
           </motion.tbody>
         </table>
       </div>
+
+      {/* Error dialog */}
+      <Dialog open={!!errorMessage} onOpenChange={() => setErrorMessage(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Error</DialogTitle>
+            <DialogDescription>{errorMessage}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setErrorMessage(null)}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm remove dialog */}
+      <Dialog open={!!removeMember} onOpenChange={() => setRemoveMember(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Member</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove {removeMember?.publicUserData?.identifier}? They will lose access to this workspace.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveMember(null)} disabled={isRemoving}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmRemoveMember} disabled={isRemoving}>
+              {isRemoving && <Spinner className="mr-2 h-4 w-4 animate-spin" />}
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Invite dialog */}
       <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>

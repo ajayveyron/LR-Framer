@@ -45,7 +45,7 @@ export async function POST(request: Request) {
 
     const { prompt, referenceImageUrl, context } = parsed.data;
 
-    // ── QUOTA CHECK (fail-open) ──
+    // ── QUOTA CHECK (fail-closed) ──
     if (orgId) {
       try {
         const quota = await checkQuota(orgId);
@@ -62,6 +62,10 @@ export async function POST(request: Request) {
         }
       } catch (error) {
         logError("billing.quota.check_failed", error, { organizationId: orgId });
+        return NextResponse.json(
+          { error: "Unable to verify usage quota. Please try again." },
+          { status: 503 },
+        );
       }
     }
 
