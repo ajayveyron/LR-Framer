@@ -30,6 +30,14 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
 import {
 	Sheet,
@@ -293,6 +301,7 @@ export function DashboardTableView({
 	const [pendingCollectionId, setPendingCollectionId] = useState<
 		string | null
 	>(null);
+	const [publishConfirm, setPublishConfirm] = useState<BlogPostRecord | null>(null);
 	const [isCollectionTransitionPending, startCollectionTransition] =
 		useTransition();
 	const deferredQuery = useDeferredValue(query);
@@ -771,6 +780,13 @@ export function DashboardTableView({
 								if (framerUnavailable) {
 									return;
 								}
+
+								// Publishing (draft → live) needs confirmation
+								if (post.draft) {
+									setPublishConfirm(post);
+									return;
+								}
+
 								setLoadingPosts((prev) =>
 									new Set(prev).add(post.id),
 								);
@@ -1060,6 +1076,57 @@ export function DashboardTableView({
 				onFixInsight={handleInsightFix}
 				posts={cachedPosts}
 			/>
+
+			{/* Publish confirmation dialog */}
+			<Dialog open={!!publishConfirm} onOpenChange={() => setPublishConfirm(null)}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Publish item?</DialogTitle>
+						<DialogDescription>
+							This will make &ldquo;{publishConfirm?.title || publishConfirm?.slug}&rdquo; live on your site. Changes are published immediately.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button variant='outline' onClick={() => setPublishConfirm(null)}>Cancel</Button>
+						<Button
+							onClick={async () => {
+								const post = publishConfirm;
+								if (!post) return;
+								setPublishConfirm(null);
+								setLoadingPosts((prev) => new Set(prev).add(post.id));
+								try {
+									const response = await fetch(`/api/posts/${post.id}`, {
+										method: 'PUT',
+										headers: {
+											'Content-Type': 'application/json',
+											...getCollectionHeader(activeCollectionId),
+										},
+										body: JSON.stringify({
+											slug: post.slug,
+											draft: false,
+											fieldValues: post.fieldValues,
+										}),
+									});
+									if (response.ok) {
+										const { post: nextPost } = await response.json();
+										setCachedPosts((current) => upsertCachedPost(current, nextPost));
+									}
+								} catch (error) {
+									console.error('Failed to publish post', error);
+								} finally {
+									setLoadingPosts((prev) => {
+										const next = new Set(prev);
+										next.delete(post.id);
+										return next;
+									});
+								}
+							}}
+						>
+							Publish
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</section>
 	);
 }

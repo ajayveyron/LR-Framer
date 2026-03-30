@@ -856,6 +856,8 @@ function RichTextInput({
     left: number;
     top: number;
   } | null>(null);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkDialogUrl, setLinkDialogUrl] = useState("");
 
   // ── Inline rewrite state ──
   const [rewriteStatus, setRewriteStatus] = useState<
@@ -1118,11 +1120,13 @@ function RichTextInput({
   }
 
   function handleLink() {
-    const rawUrl = window.prompt("Enter a URL");
-    if (rawUrl === null) {
-      return;
-    }
+    saveSelection();
+    setLinkDialogUrl("");
+    setLinkDialogOpen(true);
+  }
 
+  function confirmLink(rawUrl: string) {
+    setLinkDialogOpen(false);
     const normalizedUrl = normalizeLinkUrl(rawUrl.trim());
     if (!normalizedUrl) {
       applyCommand("unlink");
@@ -2463,6 +2467,36 @@ export function PostEditor({
         }
       />
 
+      {/* Link insertion dialog — replaces window.prompt() */}
+      <Dialog open={linkDialogOpen} onOpenChange={(open) => { if (!open) setLinkDialogOpen(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Insert Link</DialogTitle>
+            <DialogDescription>Enter a URL to create a hyperlink.</DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              confirmLink(linkDialogUrl);
+            }}
+          >
+            <Input
+              autoFocus
+              className="my-4"
+              onChange={(e) => setLinkDialogUrl(e.target.value)}
+              placeholder="https://example.com"
+              type="url"
+              value={linkDialogUrl}
+            />
+            <DialogFooter>
+              <Button onClick={() => setLinkDialogOpen(false)} type="button" variant="outline">
+                Cancel
+              </Button>
+              <Button type="submit">Apply</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
