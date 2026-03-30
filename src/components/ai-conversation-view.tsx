@@ -12,6 +12,7 @@ import {
 import { Message, MessageContent } from "@/components/ai-elements/message";
 import { AIMessagePartRenderer } from "@/components/ai-message-part-renderer";
 import type { FieldNameMap, FieldTypeMap } from "@/components/ai-tool-renderers";
+import { Shimmer } from "@/components/ui/shimmer";
 import type { BulkApplyResult } from "@/lib/ai-bulk-apply";
 import type { AIChatMessage } from "@/lib/ai-chat-types";
 import type { BlogCollectionMetadata, BlogPostRecord } from "@/lib/cms-types";
@@ -36,6 +37,7 @@ interface AIConversationViewProps {
   selectedPosts: BlogPostRecord[];
   streamingIndicator?: React.ReactNode;
   metadata: BlogCollectionMetadata;
+  activeToolNames?: string[];
 }
 
 export function AIConversationView({
@@ -55,6 +57,7 @@ export function AIConversationView({
   selectedPosts,
   streamingIndicator,
   metadata,
+  activeToolNames = [],
 }: AIConversationViewProps) {
   const shouldShowTurnIndicator = useMemo(() => {
     if (!isStreaming) {
@@ -201,7 +204,11 @@ export function AIConversationView({
         {shouldShowTurnIndicator ? (
           <div className="flex items-center gap-2 py-1 text-[12px] text-fresco-subtitle">
             <CircleNotch className="size-3.5 animate-spin" weight="bold" />
-            <span>Thinking…</span>
+            <Shimmer as="span" className="text-fresco-subtitle" duration={1.8}>
+              {activeToolNames.length > 0
+                ? activeToolNames[activeToolNames.length - 1]
+                : "Thinking…"}
+            </Shimmer>
           </div>
         ) : null}
 

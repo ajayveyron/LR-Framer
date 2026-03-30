@@ -19,6 +19,11 @@ import {
 	MagnifyingGlassIcon,
 	ChatCircleIcon,
 	ArrowsClockwiseIcon,
+	TrashIcon,
+	ArrowFatUpIcon,
+	ArrowFatDownIcon,
+	XIcon,
+	CaretDownIcon,
 } from '@phosphor-icons/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,6 +35,12 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
 import {
 	Sheet,
@@ -41,6 +52,7 @@ import type { BlogCollectionMetadata, BlogPostRecord } from '@/lib/cms-types';
 import { analyzeAllPosts } from '@/lib/content-nudges';
 import { SiteInsightsPill } from '@/components/site-insights-overlay';
 import { ACTIVE_COLLECTION_COOKIE, getCollectionHeader } from '@/lib/product-framer-shared';
+import { normalizeStagedDates } from '@/lib/normalize-staged-dates';
 import type { FramerCollectionOption, SiteRole } from '@/lib/product-types';
 import { toggleRow, toggleAllRows, shiftClickRange } from '@/lib/selection';
 import { cn } from '@/lib/utils';
@@ -241,6 +253,169 @@ function CollectionTableSkeleton() {
 						</div>
 					))}
 				</div>
+			</div>
+		</div>
+	);
+}
+
+function BulkActionBar({
+	selectedCount,
+	selectedPosts,
+	role,
+	framerUnavailable,
+	activeCollectionId,
+	metadata,
+	loadingPosts,
+	setLoadingPosts,
+	setCachedPosts,
+	onClearSelection,
+}: {
+	selectedCount: number;
+	selectedPosts: BlogPostRecord[];
+	role: SiteRole;
+	framerUnavailable: boolean;
+	activeCollectionId: string;
+	metadata: BlogCollectionMetadata;
+	loadingPosts: Set<string>;
+	setLoadingPosts: React.Dispatch<React.SetStateAction<Set<string>>>;
+	setCachedPosts: React.Dispatch<React.SetStateAction<BlogPostRecord[]>>;
+	onClearSelection: () => void;
+}) {
+	const hasStaged = selectedPosts.some((p) => p.staged);
+	const allDraft = selectedPosts.every((p) => p.draft);
+	const allLive = selectedPosts.every((p) => !p.draft && !p.staged);
+	const isLoading = selectedPosts.some((p) => loadingPosts.has(p.id));
+
+	async function handleBulkStatusChange(toDraft: boolean) {
+		if (framerUnavailable || isLoading) return;
+		const targets = selectedPosts.filter((p) => !p.staged && p.draft !== toDraft);
+		if (targets.length === 0) return;
+		setLoadingPosts((prev) => {
+			const next = new Set(prev);
+			for (const p of targets) next.add(p.id);
+			return next;
+		});
+		const results: BlogPostRecord[] = [];
+		for (const post of targets) {
+			try {
+				const res = await fetch(`/api/posts/${post.id}`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json', ...getCollectionHeader(activeCollectionId) },
+					body: JSON.stringify({ slug: post.slug, draft: toDraft, fieldValues: post.fieldValues }),
+				});
+				if (res.ok) {
+					const { post: updated } = await res.json();
+					results.push(updated);
+				}
+			} catch { /* skip failed */ }
+		}
+		if (results.length > 0) {
+			setCachedPosts((current) => {
+				let next = current;
+				for (const p of results) next = upsertCachedPost(next, p);
+				return next;
+			});
+		}
+		setLoadingPosts((prev) => {
+			const next = new Set(prev);
+			for (const p of targets) next.delete(p.id);
+			return next;
+		});
+	}
+
+	async function handleBulkDelete() {
+		if (framerUnavailable || isLoading) return;
+		const msg = `Delete ${selectedCount} item${selectedCount === 1 ? '' : 's'}? This cannot be undone.`;
+		if (!window.confirm(msg)) return;
+		setLoadingPosts((prev) => {
+			const next = new Set(prev);
+			for (const p of selectedPosts) next.add(p.id);
+			return next;
+		});
+		const deleted: string[] = [];
+		for (const post of selectedPosts) {
+			try {
+				if (post.staged && post.stagedId) {
+					await fetch(`/api/staged-items/${post.stagedId}`, { method: 'DELETE' });
+				} else {
+					await fetch(`/api/posts/${post.id}`, { method: 'DELETE', headers: getCollectionHeader(activeCollectionId) });
+				}
+				deleted.push(post.id);
+			} catch { /* skip failed */ }
+		}
+		if (deleted.length > 0) {
+			const deletedSet = new Set(deleted);
+			setCachedPosts((current) => current.filter((p) => !deletedSet.has(p.id)));
+		}
+		setLoadingPosts((prev) => {
+			const next = new Set(prev);
+			for (const p of selectedPosts) next.delete(p.id);
+			return next;
+		});
+		onClearSelection();
+	}
+
+	return (
+		<div className='flex shrink-0 items-center gap-2 border-b border-dash-content-border bg-fresco-surface-muted/60 px-4 py-2'>
+			<span className='text-[12px] font-medium text-fresco-title'>
+				{selectedCount} selected
+			</span>
+			<div className='ml-auto flex items-center gap-1.5'>
+				{!hasStaged && (
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								className='h-7 gap-1.5 rounded-lg px-2.5 text-[11px]'
+								disabled={framerUnavailable || isLoading}
+								size='sm'
+								type='button'
+								variant='outline'
+							>
+								Set Status
+								<CaretDownIcon className='size-3' weight='bold' />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align='end' className='min-w-36'>
+							<DropdownMenuItem
+								disabled={allLive}
+								onSelect={() => handleBulkStatusChange(false)}
+							>
+								<ArrowFatUpIcon className='size-3.5' weight='bold' />
+								Publish
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								disabled={allDraft}
+								onSelect={() => handleBulkStatusChange(true)}
+							>
+								<ArrowFatDownIcon className='size-3.5' weight='bold' />
+								Move to Drafts
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				)}
+				{role === 'admin' && (
+					<Button
+						className='h-7 gap-1.5 rounded-lg px-2.5 text-[11px]'
+						disabled={framerUnavailable || isLoading}
+						onClick={handleBulkDelete}
+						size='sm'
+						type='button'
+						variant='destructive'
+					>
+						<TrashIcon className='size-3.5' weight='bold' />
+						Delete
+					</Button>
+				)}
+				<Button
+					aria-label='Clear selection'
+					className='size-7 rounded-lg'
+					onClick={onClearSelection}
+					size='icon-sm'
+					type='button'
+					variant='ghost'
+				>
+					<XIcon className='size-3.5' weight='bold' />
+				</Button>
 			</div>
 		</div>
 	);
@@ -725,6 +900,20 @@ export function DashboardTableView({
 			<div className='flex min-h-0 min-w-0 flex-1 overflow-hidden'>
 				<div className='min-w-0 flex-1 overflow-hidden'>
 					<div className='flex h-full min-h-0 min-w-0 flex-col shadow-[inset_0_1px_0_var(--color-fresco-frame-overlay)] md:border md:border-dash-content-border'>
+						{selectedRows.size > 0 && !isCollectionLoading && (
+							<BulkActionBar
+								selectedCount={selectedRows.size}
+								selectedPosts={selectedPosts}
+								role={role}
+								framerUnavailable={framerUnavailable}
+								activeCollectionId={activeCollectionId}
+								metadata={metadata}
+								loadingPosts={loadingPosts}
+								setLoadingPosts={setLoadingPosts}
+								setCachedPosts={setCachedPosts}
+								onClearSelection={handleClearSelection}
+							/>
+						)}
 						<div className='min-h-0 min-w-0 flex-1 overflow-auto'>
 							{isCollectionLoading ?
 								<CollectionTableSkeleton />
@@ -749,6 +938,8 @@ export function DashboardTableView({
 									if (framerUnavailable) return;
 									setLoadingPosts((prev) => new Set(prev).add(post.id));
 									try {
+										// Normalize date field values for Framer API compatibility
+										const normalizedFieldValues = normalizeStagedDates(post.fieldValues, metadata);
 										// Create in Framer via the posts API
 										const response = await fetch('/api/posts', {
 											method: 'POST',
@@ -758,7 +949,7 @@ export function DashboardTableView({
 											},
 											body: JSON.stringify({
 												slug: post.slug,
-												fieldValues: post.fieldValues,
+												fieldValues: normalizedFieldValues,
 											}),
 										});
 										if (response.ok) {
@@ -819,6 +1010,59 @@ export function DashboardTableView({
 										'Failed to toggle draft status',
 										error,
 									);
+								} finally {
+									setLoadingPosts((prev) => {
+										const next = new Set(prev);
+										next.delete(post.id);
+										return next;
+									});
+								}
+							}}
+							onPublishStaged={async (post) => {
+								if (!post.staged || !post.stagedId || framerUnavailable) return;
+								setLoadingPosts((prev) => new Set(prev).add(post.id));
+								try {
+									const normalizedFieldValues = normalizeStagedDates(post.fieldValues, metadata);
+									// Create in Framer as draft first
+									const createRes = await fetch('/api/posts', {
+										method: 'POST',
+										headers: {
+											'Content-Type': 'application/json',
+											...getCollectionHeader(activeCollectionId),
+										},
+										body: JSON.stringify({
+											slug: post.slug,
+											fieldValues: normalizedFieldValues,
+										}),
+									});
+									if (createRes.ok) {
+										const { post: newPost } = await createRes.json();
+										// Now publish it (set draft: false)
+										const publishRes = await fetch(`/api/posts/${newPost.id}`, {
+											method: 'PUT',
+											headers: {
+												'Content-Type': 'application/json',
+												...getCollectionHeader(activeCollectionId),
+											},
+											body: JSON.stringify({
+												slug: newPost.slug,
+												draft: false,
+												fieldValues: newPost.fieldValues,
+											}),
+										});
+										const finalPost = publishRes.ok
+											? (await publishRes.json()).post as BlogPostRecord
+											: newPost;
+										// Remove staged item from Convex
+										await fetch(`/api/staged-items/${post.stagedId}`, { method: 'DELETE' });
+										setCachedPosts((current) =>
+											current
+												.filter((p) => p.id !== post.id)
+												.concat(finalPost),
+										);
+									}
+								} catch (error) {
+									console.error('Failed to push & publish staged item', error);
 								} finally {
 									setLoadingPosts((prev) => {
 										const next = new Set(prev);

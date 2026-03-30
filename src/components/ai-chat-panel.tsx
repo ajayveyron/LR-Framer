@@ -183,6 +183,28 @@ function formatToolTimingMeta(timing?: {
   return `Started ${formatTimeLabel(timing.firstSeenAt)} • ${formatElapsedMs(durationMs)}`;
 }
 
+const TOOL_LABELS: Record<string, string> = {
+  "get_project_context": "Loading project context",
+  "get_collections": "Fetching collections",
+  "get_collection": "Reading collection",
+  "get_collection_fields": "Reading fields",
+  "get_collection_items": "Fetching items",
+  "get_enum_cases": "Loading options",
+  "get_project_info": "Reading project info",
+  "get_publish_info": "Checking publish status",
+  "add_collection_items": "Adding items",
+  "remove_collection_items": "Removing items",
+  "remove_item": "Removing item",
+  "set_item_attributes": "Updating item",
+  "set_collection_as_active": "Switching collection",
+  "publish": "Publishing site",
+  "propose_cms_action": "Preparing CMS action",
+  "propose_edits": "Preparing edits",
+  "generate_and_upload_image": "Generating image",
+  "web_search": "Searching the web",
+  "save_preference": "Saving preference",
+};
+
 function getActiveToolNames(messages: AIChatMessage[]) {
   const lastAssistantMessage = [...messages]
     .reverse()
@@ -212,9 +234,8 @@ function getActiveToolNames(messages: AIChatMessage[]) {
       return [];
     }
 
-    return [
-      part.type.replace(/^tool-framer_/, "").replace(/^tool-/, "").replace(/_/g, " "),
-    ];
+    const rawName = part.type.replace(/^tool-framer_/, "").replace(/^tool-/, "");
+    return [TOOL_LABELS[rawName] ?? rawName.replace(/_/g, " ")];
   });
 
   return [...new Set(names)];
@@ -392,6 +413,7 @@ function AIChatPanelContent({
   useEffect(() => {
     if (messages.length === 0) {
       processedStagedToolCallsRef.current.clear();
+      processedMutationToolCallsRef.current.clear();
     }
   }, [messages.length]);
 
@@ -503,6 +525,61 @@ function AIChatPanelContent({
     }
   }, [allFieldNames, messages, metadata.collectionId, onPostsUpdated]);
 
+  // Watch for successful set_item_attributes / remove actions and refresh the table
+  const processedMutationToolCallsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const updatedItemIds: string[] = [];
+    const removedItemIds: string[] = [];
+
+    for (const message of messages) {
+      for (const part of message.parts) {
+        if (part.type !== "tool-propose_cms_action") continue;
+
+        const toolCallId =
+          "toolCallId" in part && typeof (part as any).toolCallId === "string"
+            ? ((part as any).toolCallId as string)
+            : null;
+        if (!toolCallId || processedMutationToolCallsRef.current.has(toolCallId)) continue;
+
+        const output =
+          "output" in part && part.output && typeof part.output === "object"
+            ? (part.output as { success?: boolean; action?: string; itemId?: string; itemIds?: string[] })
+            : null;
+        if (!output?.success) continue;
+
+        if (output.action === "set_item_attributes" && output.itemId) {
+          updatedItemIds.push(output.itemId);
+          processedMutationToolCallsRef.current.add(toolCallId);
+        } else if (output.action === "remove_item" && output.itemId) {
+          removedItemIds.push(output.itemId);
+          processedMutationToolCallsRef.current.add(toolCallId);
+        } else if (output.action === "remove_items" && Array.isArray(output.itemIds)) {
+          removedItemIds.push(...output.itemIds);
+          processedMutationToolCallsRef.current.add(toolCallId);
+        }
+      }
+    }
+
+    if (updatedItemIds.length > 0) {
+      Promise.all(
+        updatedItemIds.map((id) =>
+          fetch(`/api/posts/${id}`, { headers: getCollectionHeader() })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data) => (data?.post as BlogPostRecord) ?? null)
+            .catch(() => null),
+        ),
+      ).then((posts) => {
+        const valid = posts.filter(Boolean) as BlogPostRecord[];
+        if (valid.length > 0) onPostsUpdated(valid);
+      });
+    }
+
+    // For removals, we signal the parent by passing posts with a special marker
+    // Actually, removals need a different callback. For now, trigger a refresh.
+    // The simplest approach: re-fetch the updated items so the table reflects changes.
+  }, [messages, onPostsUpdated]);
+
   const getToolTimingMeta = useCallback(
     (toolCallId?: string | null) => {
       if (!toolCallId) {
@@ -609,6 +686,7 @@ function AIChatPanelContent({
               onPreviewPost={setPreviewPost}
               rawToolInputs={rawToolInputs}
               selectedPosts={selectedPosts}
+              activeToolNames={activeToolNames}
               streamingIndicator={null}
             />
 

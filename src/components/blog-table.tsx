@@ -39,6 +39,7 @@ type BlogTableProps = {
   role: SiteRole;
   loadingPosts?: Set<string>;
   onDraftToggle?: (post: BlogPostRecord) => void;
+  onPublishStaged?: (post: BlogPostRecord) => void;
   onDelete?: (postId: string) => void;
   selectedRows?: Set<string>;
   onToggleRow?: (rowId: string) => void;
@@ -307,6 +308,7 @@ export function BlogTable({
   role,
   loadingPosts,
   onDraftToggle,
+  onPublishStaged,
   onDelete,
   selectedRows,
   onToggleRow,
@@ -432,14 +434,14 @@ export function BlogTable({
                   <ContextMenuTrigger asChild>
                     <motion.tr
                       variants={{
-                        hidden: { opacity: 0, filter: "blur(4px)" },
-                        visible: { opacity: 1, filter: "blur(0px)" },
+                        hidden: { opacity: 0 },
+                        visible: { opacity: 1 },
                       }}
                       layout
                       initial="hidden"
                       animate="visible"
-                      exit={{ opacity: 0, filter: "blur(4px)" }}
-                      transition={{ duration: 0.2 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15 }}
                       aria-label={`Edit ${post.title}`}
                       className={cn(
                         "bg-transparent hover:bg-dash-row-hover data-[active=true]:bg-dash-row-active data-[selected=true]:bg-dash-row-selected", "group cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fresco-tint-dimmed focus-visible:ring-inset",
@@ -601,7 +603,15 @@ export function BlogTable({
                             onDraftToggle?.(post);
                           }}
                         >
-                          Push to Framer
+                          Push as Draft
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          disabled={actionsDisabled}
+                          onSelect={() => {
+                            onPublishStaged?.(post);
+                          }}
+                        >
+                          Push &amp; Publish
                         </ContextMenuItem>
                         <ContextMenuSeparator />
                         <ContextMenuItem

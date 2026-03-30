@@ -342,7 +342,7 @@ const streamdownComponents = {
 export const MessageResponse = memo(
   ({ className, ...props }: MessageResponseProps) => (
     <Streamdown
-      animated={{ animation: "blurIn", duration: 200, easing: "ease-out" }}
+      // animated={{ animation: "fadeIn", duration: 200, easing: "ease-out" }}
       className={cn(
         // [TUNE] Markdown rendered response — overall sizing & child spacing
         "size-full text-[13px] [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",

@@ -796,3 +796,39 @@ Replaced the custom field-value preview with the real `PostEditor` component. Wh
 **Why:** Users reported the thinking UI shimmer/disclosure never appeared despite `thinkingLevel: "low"` being configured. The reasoning data was being generated server-side but silently dropped before reaching the client. Image generation was failing with a 404 because the preview model was retired.
 
 **Scope:** `src/app/api/ai/chat/route.ts` (added `sendReasoning: true`), `src/lib/env.ts` (updated `GEMINI_IMAGE_MODEL` constant).
+
+## 2026-03-30 — Dashboard UX batch fix: blur, shimmer, cursor, dates, bulk actions, realtime
+
+**What changed:**
+1. Removed `filter: "blur(4px)"` from table row enter/exit animations in `blog-table.tsx` — replaced with simple opacity fade.
+2. Upgraded the AI thinking indicator in `ai-conversation-view.tsx` to use the `Shimmer` component and show active tool names (e.g. "get collection fields") instead of static "Thinking…" text.
+3. Fixed cursor visibility in `chip-input.tsx` by switching from `caret-fresco-title` to `caret-current` which inherits the text color.
+4. Fixed the "Date must be a valid date and time" error when pushing staged items to Framer — AI-generated dates arrive as full ISO strings but the post schema expects `YYYY-MM-DD` or `YYYY-MM-DDTHH:mm`. Created `normalize-staged-dates.ts` helper with tests.
+5. Added `BulkActionBar` component in `dashboard-table-view.tsx` — shows Publish, Move to Drafts, and Delete controls when multiple rows are selected.
+6. Added a `useEffect` in `ai-chat-panel.tsx` that watches for successful `set_item_attributes` tool outputs and re-fetches the updated posts to reflect AI changes in the table in real-time.
+
+**Why:** User reported multiple UX issues: blur animation was distracting, no visual feedback during agent turns, cursor invisible in chat input, date validation failing on staged item push, no bulk actions for multi-select, and AI edits not reflecting in the table.
+
+**Scope:** `blog-table.tsx`, `ai-conversation-view.tsx`, `chip-input.tsx`, `dashboard-table-view.tsx`, `ai-chat-panel.tsx`, new `normalize-staged-dates.ts` + test.
+
+## 2026-03-30 — Bulk status dropdown, thinking labels, staged item publish awareness
+
+**What changed:**
+1. Converted the bulk action bar's separate Publish/Move to Drafts buttons into a single "Set Status" dropdown menu using the existing shadcn DropdownMenu component.
+2. Added a `TOOL_LABELS` map in `ai-chat-panel.tsx` that translates raw tool names into human-readable labels (e.g. "get_collection_fields" → "Reading fields", "propose_cms_action" → "Preparing CMS action"). The shimmer indicator now shows these labels during agent turns.
+3. Added a "STAGED ITEMS" section to the AI system prompt explaining that `add_items` stages locally (not in Framer), staged IDs start with "staged:", and `set_item_attributes` cannot target staged items. The AI now correctly tells users to push staged items from the dashboard instead of falsely claiming they're published.
+
+**Why:** User reported the bulk buttons should be a dropdown, the thinking indicator was too generic, and the AI was lying about publishing staged items (it would call set_item_attributes on staged: IDs which silently failed).
+
+**Scope:** `dashboard-table-view.tsx` (dropdown), `ai-chat-panel.tsx` (tool labels), `src/app/api/ai/chat/route.ts` (system prompt).
+
+## 2026-03-30 — Staged items: push as draft OR publish live
+
+**What changed:**
+1. The staged item context menu now shows two options: "Push as Draft" (existing behavior, creates in Framer as draft) and "Push & Publish" (creates in Framer then immediately sets draft: false to publish live).
+2. Added `onPublishStaged` callback to `BlogTable` and wired it in `dashboard-table-view.tsx` — it creates the item via POST /api/posts, then immediately PUTs with draft: false.
+3. Updated the AI system prompt to accurately describe both push options so the agent doesn't mislead users about what "publish" means for staged items.
+
+**Why:** User pointed out that staged items can be pushed as draft OR live, but the previous implementation only had a single "Push to Framer" option that always created as draft.
+
+**Scope:** `blog-table.tsx` (context menu + prop), `dashboard-table-view.tsx` (handler), `src/app/api/ai/chat/route.ts` (system prompt).
