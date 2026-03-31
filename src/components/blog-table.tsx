@@ -553,21 +553,6 @@ export function BlogTable({
                                     )}
                                   />
                                 </span>
-                                {nudges?.has(post.id) && onNudgeClick && (
-                                  <button
-                                    aria-label={`AI suggestions for ${post.title}`}
-                                    className="ml-1.5 inline-flex shrink-0 items-center justify-center rounded-md p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      const nudge = nudges.get(post.id);
-                                      if (nudge) onNudgeClick(post.id, nudge.prompt);
-                                    }}
-                                    title={nudges.get(post.id)!.issues.join(" · ")}
-                                    type="button"
-                                  >
-                                    <Sparkle className="size-3.5" weight="duotone" />
-                                  </button>
-                                )}
                                 <span className="max-w-full overflow-hidden whitespace-nowrap align-bottom">
                                   {post.title}
                                 </span>
@@ -583,6 +568,21 @@ export function BlogTable({
                                     type="button"
                                   >
                                     <ChatCircle className="size-4" weight="duotone" />
+                                  </button>
+                                )}
+                                {nudges?.has(post.id) && onNudgeClick && (
+                                  <button
+                                    aria-label={`AI suggestions for ${post.title}`}
+                                    className="ml-1.5 inline-flex shrink-0 items-center justify-center rounded-md p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      const nudge = nudges.get(post.id);
+                                      if (nudge) onNudgeClick(post.id, nudge.prompt);
+                                    }}
+                                    title={nudges.get(post.id)!.issues.join(" · ")}
+                                    type="button"
+                                  >
+                                    <Sparkle className="size-3.5" weight="duotone" />
                                   </button>
                                 )}
                               </div>
