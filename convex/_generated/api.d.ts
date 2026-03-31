@@ -11,6 +11,9 @@
 import type * as agentMemory from "../agentMemory.js";
 import type * as billing from "../billing.js";
 import type * as chat from "../chat.js";
+import type * as cleanup from "../cleanup.js";
+import type * as cleanupQueries from "../cleanupQueries.js";
+import type * as crons from "../crons.js";
 import type * as product from "../product.js";
 import type * as stagedItems from "../stagedItems.js";
 
@@ -24,6 +27,9 @@ declare const fullApi: ApiFromModules<{
   agentMemory: typeof agentMemory;
   billing: typeof billing;
   chat: typeof chat;
+  cleanup: typeof cleanup;
+  cleanupQueries: typeof cleanupQueries;
+  crons: typeof crons;
   product: typeof product;
   stagedItems: typeof stagedItems;
 }>;

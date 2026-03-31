@@ -21,8 +21,9 @@ export function AgencyWaitlist() {
         e.preventDefault();
         if (!email.trim()) return;
         // Fire-and-forget — no backend needed yet, just capture in analytics
-        if (typeof window !== "undefined" && window.plausible) {
-          window.plausible("Agency Waitlist", { props: { email } });
+        const w = window as unknown as { plausible?: (event: string, opts: { props: Record<string, string> }) => void };
+        if (typeof window !== "undefined" && w.plausible) {
+          w.plausible("Agency Waitlist", { props: { email } });
         }
         setStatus("submitted");
       }}

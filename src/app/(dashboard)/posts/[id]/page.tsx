@@ -8,5 +8,5 @@ export default async function EditPostPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  redirect(`/dashboard/posts/${id}`);
+  redirect(`/dashboard?action=edit&id=${encodeURIComponent(id)}`);
 }

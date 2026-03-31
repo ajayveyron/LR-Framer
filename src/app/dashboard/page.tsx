@@ -8,10 +8,25 @@ import { loadStagedItems } from "@/lib/staged-items";
 
 export const dynamic = "force-dynamic";
 
+function parseInitialDrawerState(params: {
+  action?: string;
+  id?: string;
+}): { mode: "create" } | { mode: "edit"; postId: string } | null {
+  if (params.action === "create") {
+    return { mode: "create" };
+  }
+  if (params.action === "edit" && params.id) {
+    return { mode: "edit", postId: params.id };
+  }
+  return null;
+}
+
 async function DashboardContent({
   collectionId,
+  initialDrawerState,
 }: {
   collectionId?: string;
+  initialDrawerState: { mode: "create" } | { mode: "edit"; postId: string } | null;
 }) {
   const screen = await loadDashboardScreen(collectionId);
   if (screen.kind === "framer_unavailable") {
@@ -31,7 +46,7 @@ async function DashboardContent({
       metadata={screen.metadata}
       posts={[...stagedItems, ...screen.posts]}
       role={screen.access.role}
-      initialDrawerState={null}
+      initialDrawerState={initialDrawerState}
     />
   );
 }
@@ -39,13 +54,14 @@ async function DashboardContent({
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ collectionId?: string }>;
+  searchParams: Promise<{ collectionId?: string; action?: string; id?: string }>;
 }) {
-  const { collectionId } = await searchParams;
+  const { collectionId, action, id } = await searchParams;
+  const initialDrawerState = parseInitialDrawerState({ action, id });
 
   return (
     <Suspense fallback={<DashboardTableSkeleton />}>
-      <DashboardContent collectionId={collectionId} />
+      <DashboardContent collectionId={collectionId} initialDrawerState={initialDrawerState} />
     </Suspense>
   );
 }

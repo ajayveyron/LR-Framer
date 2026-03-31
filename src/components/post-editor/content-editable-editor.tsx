@@ -258,6 +258,13 @@ export function RichTextInput({
     };
   }, []);
 
+  function saveSelection() {
+    const selection = document.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      selectionRef.current = selection.getRangeAt(0).cloneRange();
+    }
+  }
+
   function restoreSelection() {
     const editor = editorRef.current;
     const selection = document.getSelection();

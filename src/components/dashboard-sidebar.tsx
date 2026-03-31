@@ -45,8 +45,7 @@ const contributorItems: NavItem[] = [
     href: "/dashboard",
     icon: Rows,
     label: "Content",
-    matches: (pathname) =>
-      pathname === "/dashboard" || pathname.startsWith("/dashboard/posts/"),
+    matches: (pathname) => pathname === "/dashboard",
   },
   {
     href: "/dashboard/billing",
@@ -67,8 +66,7 @@ const adminItems: NavItem[] = [
     href: "/dashboard",
     icon: Rows,
     label: "Content",
-    matches: (pathname) =>
-      pathname === "/dashboard" || pathname.startsWith("/dashboard/posts/"),
+    matches: (pathname) => pathname === "/dashboard",
   },
   {
     href: "/dashboard/billing",

@@ -20,8 +20,8 @@ const UNDO_WINDOW_MS = 5_000;
 function upsertPost(posts: BlogPostRecord[], next: BlogPostRecord) {
   const remaining = posts.filter((p) => p.id !== next.id);
   return [...remaining, next].sort((a, b) => {
-    const aDate = a.updatedAt ?? a.createdAt ?? "";
-    const bDate = b.updatedAt ?? b.createdAt ?? "";
+    const aDate = a.lastUpdated ?? a.createdAt ?? "";
+    const bDate = b.lastUpdated ?? b.createdAt ?? "";
     return bDate > aDate ? 1 : bDate < aDate ? -1 : 0;
   });
 }
@@ -284,6 +284,7 @@ export function useCmsMutations({
 
   return {
     loadingPosts,
+    setLoadingPosts,
     lastError,
     clearError,
     undoPending,

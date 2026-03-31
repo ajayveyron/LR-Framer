@@ -149,19 +149,18 @@ export async function loadDashboardScreen(requestedCollectionId?: string) {
           syncedAt: Date.now(),
         };
 
-        try {
-          await fetchProductMutation(anyApi.product.saveFramerDashboardSnapshot, {
-            clerkOrganizationId: access.organizationId,
-            snapshotJson: serializeDashboardSnapshot(nextSnapshot),
-            syncedAt: nextSnapshot.syncedAt,
-          });
-        } catch (error) {
+        // Fire-and-forget: don't block the page render waiting for snapshot persistence
+        fetchProductMutation(anyApi.product.saveFramerDashboardSnapshot, {
+          clerkOrganizationId: access.organizationId,
+          snapshotJson: serializeDashboardSnapshot(nextSnapshot),
+          syncedAt: nextSnapshot.syncedAt,
+        }).catch((error) => {
           logError("dashboard.snapshot.save_failed", error, {
             clerkOrganizationId: access.organizationId,
             collectionId: activeCollection.id,
             postCount: overview.posts.length,
           });
-        }
+        });
 
         return {
           access,

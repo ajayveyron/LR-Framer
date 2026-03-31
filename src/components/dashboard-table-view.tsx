@@ -43,6 +43,12 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
 import {
 	Sheet,
@@ -167,28 +173,31 @@ function upsertCachedPost(posts: BlogPostRecord[], nextPost: BlogPostRecord) {
 	return sortPostsByRecency([...remaining, nextPost]);
 }
 
-function getDrawerPath(drawerState: DrawerState | null) {
+function getDrawerUrl(drawerState: DrawerState | null) {
 	if (!drawerState) {
 		return '/dashboard';
 	}
 
 	if (drawerState.mode === 'create') {
-		return '/dashboard/posts/new';
+		return '/dashboard?action=create';
 	}
 
-	return `/dashboard/posts/${drawerState.postId}`;
+	return `/dashboard?action=edit&id=${encodeURIComponent(drawerState.postId)}`;
 }
 
-function parseDrawerState(pathname: string): DrawerState | null {
-	if (pathname === '/dashboard/posts/new') {
+function parseDrawerState(search: string): DrawerState | null {
+	const params = new URLSearchParams(search);
+	const action = params.get('action');
+
+	if (action === 'create') {
 		return { mode: 'create' };
 	}
 
-	if (pathname.startsWith('/dashboard/posts/')) {
-		return {
-			mode: 'edit',
-			postId: pathname.slice('/dashboard/posts/'.length),
-		};
+	if (action === 'edit') {
+		const id = params.get('id');
+		if (id) {
+			return { mode: 'edit', postId: id };
+		}
 	}
 
 	return null;
@@ -284,7 +293,6 @@ function BulkActionBar({
 	setCachedPosts: React.Dispatch<React.SetStateAction<BlogPostRecord[]>>;
 	onClearSelection: () => void;
 }) {
-	const hasStaged = selectedPosts.some((p) => p.staged);
 	const allDraft = selectedPosts.every((p) => p.draft);
 	const allLive = selectedPosts.every((p) => !p.draft && !p.staged);
 	const isLoading = selectedPosts.some((p) => loadingPosts.has(p.id));
@@ -364,38 +372,36 @@ function BulkActionBar({
 				{selectedCount} selected
 			</span>
 			<div className='ml-auto flex items-center gap-1.5'>
-				{!hasStaged && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								className='h-7 gap-1.5 rounded-lg px-2.5 text-[11px]'
-								disabled={framerUnavailable || isLoading}
-								size='sm'
-								type='button'
-								variant='outline'
-							>
-								Set Status
-								<CaretDownIcon className='size-3' weight='bold' />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align='end' className='min-w-36'>
-							<DropdownMenuItem
-								disabled={allLive}
-								onSelect={() => handleBulkStatusChange(false)}
-							>
-								<ArrowFatUpIcon className='size-3.5' weight='bold' />
-								Publish
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								disabled={allDraft}
-								onSelect={() => handleBulkStatusChange(true)}
-							>
-								<ArrowFatDownIcon className='size-3.5' weight='bold' />
-								Move to Drafts
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				)}
+				<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						className='h-7 gap-1.5 rounded-lg px-2.5 text-[11px]'
+						disabled={framerUnavailable || isLoading}
+						size='sm'
+						type='button'
+						variant='outline'
+					>
+						Set Status
+						<CaretDownIcon className='size-3' weight='bold' />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align='end' className='min-w-36'>
+					<DropdownMenuItem
+						disabled={allLive}
+						onSelect={() => handleBulkStatusChange(false)}
+					>
+						<ArrowFatUpIcon className='size-3.5' weight='bold' />
+						Publish
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						disabled={allDraft}
+						onSelect={() => handleBulkStatusChange(true)}
+					>
+						<ArrowFatDownIcon className='size-3.5' weight='bold' />
+						Move to Drafts
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
 				{role === 'admin' && (
 					<Button
 						className='h-7 gap-1.5 rounded-lg px-2.5 text-[11px]'
@@ -454,7 +460,7 @@ export function DashboardTableView({
 		initialDrawerState,
 	);
 	const cms = useCmsMutations({ activeCollectionId, setCachedPosts });
-	const loadingPosts = cms.loadingPosts;
+	const { loadingPosts, setLoadingPosts } = cms;
 	const [editorRevision, setEditorRevision] = useState(0);
 	const [query, setQuery] = useState('');
 	const [page, setPage] = useState(1);
@@ -477,9 +483,25 @@ export function DashboardTableView({
 		useTransition();
 	const deferredQuery = useDeferredValue(query);
 
+	// Clean up non-drawer search params (e.g. collectionId) after hydration,
+	// but preserve drawer-related params (action, id).
 	useEffect(() => {
-		if (window.location.search) {
-			window.history.replaceState(null, '', window.location.pathname);
+		const params = new URLSearchParams(window.location.search);
+		const hasNonDrawerParams = Array.from(params.keys()).some(
+			(key) => key !== 'action' && key !== 'id',
+		);
+		if (hasNonDrawerParams) {
+			const action = params.get('action');
+			const id = params.get('id');
+			const clean = new URLSearchParams();
+			if (action) clean.set('action', action);
+			if (id) clean.set('id', id);
+			const qs = clean.toString();
+			window.history.replaceState(
+				null,
+				'',
+				qs ? `${window.location.pathname}?${qs}` : window.location.pathname,
+			);
 		}
 	}, []);
 
@@ -517,7 +539,7 @@ export function DashboardTableView({
 
 	useEffect(() => {
 		const handlePopState = () => {
-			setDrawerState(parseDrawerState(window.location.pathname));
+			setDrawerState(parseDrawerState(window.location.search));
 		};
 
 		window.addEventListener('popstate', handlePopState);
@@ -571,14 +593,14 @@ export function DashboardTableView({
 			return;
 		}
 
-		const nextPath = getDrawerPath(nextDrawerState);
-		if (window.location.pathname === nextPath) {
+		const nextUrl = getDrawerUrl(nextDrawerState);
+		if (window.location.pathname + window.location.search === nextUrl) {
 			return;
 		}
 
 		window.history[
 			historyMode === 'replace' ? 'replaceState' : 'pushState'
-		](null, '', nextPath);
+		](null, '', nextUrl);
 	}
 
 	function handleOpenCreate() {
@@ -898,10 +920,10 @@ export function DashboardTableView({
 							: filteredPosts.length === 0 ?
 								<div className='flex h-full flex-col items-center justify-center gap-3 p-12 text-center'>
 									<div className='text-[13px] font-medium text-fresco-title'>
-										{searchQuery ? 'No items match your search' : 'No items yet'}
+										{deferredQuery ? 'No items match your search' : 'No items yet'}
 									</div>
 									<p className='max-w-xs text-[12px] text-fresco-description'>
-										{searchQuery
+										{deferredQuery
 											? 'Try a different query or clear your search.'
 											: 'Create your first item to get started, or use AI to generate content.'}
 									</p>
