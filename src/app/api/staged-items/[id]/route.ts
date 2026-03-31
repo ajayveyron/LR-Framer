@@ -41,7 +41,16 @@ export async function PATCH(
 
     const body = await request.json();
     const updates: Record<string, unknown> = {};
-    if (body.slug !== undefined) updates.slug = body.slug;
+    if (body.slug !== undefined) {
+      const trimmedSlug = String(body.slug).trim();
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(trimmedSlug)) {
+        throw new AppError(
+          "Invalid slug format. Use lowercase letters, numbers, and hyphens only.",
+          400,
+        );
+      }
+      updates.slug = trimmedSlug;
+    }
     if (body.draft !== undefined) updates.draft = body.draft;
     if (body.fieldData !== undefined) updates.fieldDataJson = JSON.stringify(body.fieldData);
 

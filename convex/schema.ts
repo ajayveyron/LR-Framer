@@ -150,5 +150,10 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_org_collection", ["clerkOrganizationId", "collectionId"])
+    .index("by_org_collection_slug", [
+      "clerkOrganizationId",
+      "collectionId",
+      "slug",
+    ])
     .index("by_org", ["clerkOrganizationId"]),
 });

@@ -66,7 +66,9 @@ import { toggleRow, toggleAllRows, shiftClickRange } from '@/lib/selection';
 import { useCmsMutations } from '@/lib/use-cms-mutations';
 import { cn } from '@/lib/utils';
 
-const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+const PAGE_SIZE_STORAGE_KEY = 'lr:dashboard:page-size';
 const AI_CHAT_OPEN_STORAGE_KEY = 'lr:dashboard:ai-chat-open';
 const AI_CHAT_WIDTH_STORAGE_KEY = 'lr:dashboard:ai-chat-width';
 const DEFAULT_AI_CHAT_WIDTH = 460;
@@ -295,7 +297,9 @@ function BulkActionBar({
 }) {
 	const allDraft = selectedPosts.every((p) => p.draft);
 	const allLive = selectedPosts.every((p) => !p.draft && !p.staged);
+	const allStaged = selectedPosts.every((p) => p.staged);
 	const isLoading = selectedPosts.some((p) => loadingPosts.has(p.id));
+	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
 	async function handleBulkStatusChange(toDraft: boolean) {
 		if (framerUnavailable || isLoading) return;
@@ -336,24 +340,27 @@ function BulkActionBar({
 
 	async function handleBulkDelete() {
 		if (framerUnavailable || isLoading) return;
-		const msg = `Delete ${selectedCount} item${selectedCount === 1 ? '' : 's'}? This cannot be undone.`;
-		if (!window.confirm(msg)) return;
+		const targets = role === 'admin' ? selectedPosts : selectedPosts.filter((p) => p.staged);
+		if (targets.length === 0) return;
+		setDeleteConfirmOpen(false);
 		setLoadingPosts((prev) => {
 			const next = new Set(prev);
-			for (const p of selectedPosts) next.add(p.id);
+			for (const p of targets) next.add(p.id);
 			return next;
 		});
-		const deleted: string[] = [];
-		for (const post of selectedPosts) {
-			try {
+		const results = await Promise.allSettled(
+			targets.map(async (post) => {
 				if (post.staged && post.stagedId) {
 					await fetch(`/api/staged-items/${post.stagedId}`, { method: 'DELETE' });
 				} else {
 					await fetch(`/api/posts/${post.id}`, { method: 'DELETE', headers: getCollectionHeader(activeCollectionId) });
 				}
-				deleted.push(post.id);
-			} catch { /* skip failed */ }
-		}
+				return post.id;
+			}),
+		);
+		const deleted = results
+			.filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+			.map((r) => r.value);
 		if (deleted.length > 0) {
 			const deletedSet = new Set(deleted);
 			setCachedPosts((current) => current.filter((p) => !deletedSet.has(p.id)));
@@ -367,6 +374,7 @@ function BulkActionBar({
 	}
 
 	return (
+		<>
 		<div className='flex shrink-0 items-center gap-2 border-b border-dash-content-border bg-fresco-surface-muted/60 px-4 py-2'>
 			<span className='text-[12px] font-medium text-fresco-title'>
 				{selectedCount} selected
@@ -402,11 +410,11 @@ function BulkActionBar({
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
-				{role === 'admin' && (
+				{(role === 'admin' || allStaged) && (
 					<Button
 						className='h-7 gap-1.5 rounded-lg px-2.5 text-[11px]'
 						disabled={framerUnavailable || isLoading}
-						onClick={handleBulkDelete}
+						onClick={() => setDeleteConfirmOpen(true)}
 						size='sm'
 						type='button'
 						variant='destructive'
@@ -427,6 +435,22 @@ function BulkActionBar({
 				</Button>
 			</div>
 		</div>
+
+		<Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Delete {selectedCount} item{selectedCount === 1 ? '' : 's'}?</DialogTitle>
+					<DialogDescription>
+						This action cannot be undone. The selected item{selectedCount === 1 ? ' will' : 's will'} be permanently deleted.
+					</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<Button variant='outline' onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+					<Button variant='destructive' onClick={handleBulkDelete}>Delete</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+		</>
 	);
 }
 
@@ -464,6 +488,12 @@ export function DashboardTableView({
 	const [editorRevision, setEditorRevision] = useState(0);
 	const [query, setQuery] = useState('');
 	const [page, setPage] = useState(1);
+	const [pageSize, setPageSize] = useState(() => {
+		if (typeof window === 'undefined') return DEFAULT_PAGE_SIZE;
+		const stored = localStorage.getItem(PAGE_SIZE_STORAGE_KEY);
+		const parsed = stored ? Number(stored) : NaN;
+		return (PAGE_SIZE_OPTIONS as readonly number[]).includes(parsed) ? parsed : DEFAULT_PAGE_SIZE;
+	});
 	const [activeCollectionSelection, setActiveCollectionSelection] =
 		useState(activeCollectionId);
 	const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -658,12 +688,12 @@ export function DashboardTableView({
 				)
 				.map((entry) => entry.post)
 		:	cachedPosts;
-	const totalPages = Math.max(1, Math.ceil(filteredPosts.length / PAGE_SIZE));
+	const totalPages = Math.max(1, Math.ceil(filteredPosts.length / pageSize));
 	const currentPage = Math.min(totalPages, Math.max(1, page));
-	const startIndex = (currentPage - 1) * PAGE_SIZE;
+	const startIndex = (currentPage - 1) * pageSize;
 	const visiblePosts = filteredPosts.slice(
 		startIndex,
-		startIndex + PAGE_SIZE,
+		startIndex + pageSize,
 	);
 	const visiblePostIds = visiblePosts.map((post) => post.id);
 
@@ -976,13 +1006,44 @@ export function DashboardTableView({
 
 						<div className='shrink-0 border-t border-dash-content-border px-5 py-3'>
 							<div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
-								<div className='text-[12px] text-fresco-description'>
-									{isCollectionLoading ?
-										'Loading collection…'
-									: filteredPosts.length === 0 ?
-										'Showing 0 of 0'
-									:	`Showing ${startIndex + 1}-${startIndex + visiblePosts.length} of ${filteredPosts.length}`
-									}
+								<div className='flex items-center gap-3'>
+									<span className='text-[12px] text-fresco-description'>
+										{isCollectionLoading ?
+											'Loading collection…'
+										: filteredPosts.length === 0 ?
+											'Showing 0 of 0'
+										:	`Showing ${startIndex + 1}-${startIndex + visiblePosts.length} of ${filteredPosts.length}`
+										}
+									</span>
+									{!isCollectionLoading && (
+										<Select
+											onValueChange={(value) => {
+												const newSize = Number(value);
+												setPageSize(newSize);
+												setPage(1);
+												localStorage.setItem(PAGE_SIZE_STORAGE_KEY, value);
+											}}
+											value={String(pageSize)}
+										>
+											<SelectTrigger
+												aria-label='Rows per page'
+												className={cn(
+													'border border-dash-control-border bg-dash-control-bg text-dash-nav-text shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] hover:not-disabled:bg-dash-control-hover hover:not-disabled:text-fresco-title focus-visible:not-disabled:bg-dash-control-hover focus-visible:not-disabled:text-fresco-title',
+													'min-w-20 rounded-xl text-[12px] font-medium text-fresco-text',
+												)}
+												size='sm'
+											>
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent className='border border-dash-control-border bg-[#141415] text-fresco-text shadow-2xl'>
+												{PAGE_SIZE_OPTIONS.map((size) => (
+													<SelectItem key={size} value={String(size)}>
+														{size} rows
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									)}
 								</div>
 
 								{!isCollectionLoading && totalPages > 1 ?

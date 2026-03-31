@@ -1,6 +1,19 @@
 import { mutationGeneric, queryGeneric } from "convex/server";
 import { v } from "convex/values";
 
+const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function validateSlugFormat(slug: string) {
+  if (!slug || !slug.trim()) {
+    throw new Error("Slug is required.");
+  }
+  if (!SLUG_REGEX.test(slug)) {
+    throw new Error(
+      "Invalid slug format. Use lowercase letters, numbers, and hyphens only.",
+    );
+  }
+}
+
 export const listByCollection = queryGeneric({
   args: {
     clerkOrganizationId: v.string(),
@@ -29,6 +42,25 @@ export const create = mutationGeneric({
     source: v.union(v.literal("ai"), v.literal("manual")),
   },
   handler: async (ctx, args) => {
+    validateSlugFormat(args.slug);
+
+    // Check for duplicate slug within the same org + collection
+    const existing = await ctx.db
+      .query("stagedItems")
+      .withIndex("by_org_collection_slug", (q: any) =>
+        q
+          .eq("clerkOrganizationId", args.clerkOrganizationId)
+          .eq("collectionId", args.collectionId)
+          .eq("slug", args.slug),
+      )
+      .first();
+
+    if (existing) {
+      throw new Error(
+        `Slug "${args.slug}" is already in use by another staged item.`,
+      );
+    }
+
     const now = Date.now();
     return ctx.db.insert("stagedItems", {
       clerkOrganizationId: args.clerkOrganizationId,
@@ -59,6 +91,31 @@ export const update = mutationGeneric({
     if (existing.clerkOrganizationId !== clerkOrganizationId) {
       throw new Error("Staged item not found");
     }
+
+    // Validate slug if it's being updated
+    if (updates.slug !== undefined) {
+      validateSlugFormat(updates.slug);
+
+      // Check for duplicate slug if slug is changing
+      if (updates.slug !== existing.slug) {
+        const duplicate = await ctx.db
+          .query("stagedItems")
+          .withIndex("by_org_collection_slug", (q: any) =>
+            q
+              .eq("clerkOrganizationId", existing.clerkOrganizationId)
+              .eq("collectionId", existing.collectionId)
+              .eq("slug", updates.slug!),
+          )
+          .first();
+
+        if (duplicate && duplicate._id !== id) {
+          throw new Error(
+            `Slug "${updates.slug}" is already in use by another staged item.`,
+          );
+        }
+      }
+    }
+
     await ctx.db.patch(id, { ...updates, updatedAt: Date.now() });
     return id;
   },

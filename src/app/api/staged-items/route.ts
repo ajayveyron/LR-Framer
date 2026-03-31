@@ -50,10 +50,18 @@ export async function POST(request: Request) {
       throw new AppError("collectionId and slug are required", 400);
     }
 
+    const trimmedSlug = slug.trim();
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(trimmedSlug)) {
+      throw new AppError(
+        "Invalid slug format. Use lowercase letters, numbers, and hyphens only.",
+        400,
+      );
+    }
+
     const id = await fetchProductMutation(anyApi.stagedItems.create, {
       clerkOrganizationId: access.organizationId,
       collectionId,
-      slug,
+      slug: trimmedSlug,
       draft: draft ?? true,
       fieldDataJson: JSON.stringify(fieldData ?? {}),
       createdByUserId: access.userId,
