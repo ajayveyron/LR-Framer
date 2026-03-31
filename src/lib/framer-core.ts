@@ -249,6 +249,7 @@ function indexCollectionItems(items: CollectionItem[]) {
 
 const FRAMER_MAX_RETRIES = 2;
 const FRAMER_RETRY_BASE_MS = 500;
+const FRAMER_PER_CALL_TIMEOUT_MS = 30_000;
 
 function isTransientConnectionError(error: unknown): boolean {
   if (isRetryableError(error)) return true;
@@ -269,11 +270,20 @@ async function withFramerProject<T>(callback: (framer: Framer) => Promise<T>) {
 
   for (let attempt = 0; attempt <= FRAMER_MAX_RETRIES; attempt++) {
     try {
-      return await withConnection(
-        runtimeContext.projectId,
-        async (framer) => callback(framer),
-        runtimeContext.apiKey,
-      );
+      const result = await Promise.race([
+        withConnection(
+          runtimeContext.projectId,
+          async (framer) => callback(framer),
+          runtimeContext.apiKey,
+        ),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new AppError("Framer API call timed out. Please try again.", 504)),
+            FRAMER_PER_CALL_TIMEOUT_MS,
+          ),
+        ),
+      ]);
+      return result;
     } catch (error) {
       lastError = error;
 
@@ -553,12 +563,17 @@ function normalizeDateInput(value: DashboardFieldValue, withTime?: boolean) {
     return null;
   }
 
-  if (!withTime) {
+  // Already in full ISO format — pass through
+  if (value.endsWith("Z")) {
     return value;
   }
 
-  if (value.endsWith("Z")) {
-    return value;
+  // Framer requires full ISO 8601 format: YYYY-MM-DDTHH:mm:ss.sssZ
+  // For date-only values like "2025-09-09", convert to midnight UTC.
+  // For date+time values like "2025-09-09T14:30", convert to full ISO.
+  if (!withTime) {
+    // Date-only: treat as midnight UTC
+    return `${value}T00:00:00.000Z`;
   }
 
   return new Date(value).toISOString();

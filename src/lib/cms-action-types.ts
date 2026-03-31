@@ -75,6 +75,15 @@ export interface CmsActionPublish {
   action: "publish";
 }
 
+export interface CmsActionPushStagedItems {
+  action: "push_staged_items";
+  collectionId: string;
+  /** Staged item IDs (the raw Convex IDs, NOT the "staged:" prefixed ones) */
+  stagedItemIds: string[];
+  /** Whether to push as draft (true) or publish live (false) */
+  draft: boolean;
+}
+
 export type CmsAction =
   | CmsActionAddItems
   | CmsActionRemoveItems
@@ -84,7 +93,8 @@ export type CmsAction =
   | CmsActionUpdateEnumCase
   | CmsActionRemoveEnumCase
   | CmsActionSetEnumCaseOrder
-  | CmsActionPublish;
+  | CmsActionPublish
+  | CmsActionPushStagedItems;
 
 // ---------------------------------------------------------------------------
 // The shape the AI tool returns (and the client receives)
@@ -110,6 +120,7 @@ export function getActionSeverity(action: CmsAction): ActionSeverity {
     case "remove_enum_case":
       return "destructive";
     case "publish":
+    case "push_staged_items":
       return "warning";
     default:
       return "safe";
@@ -137,5 +148,10 @@ export function getActionLabel(action: CmsAction): string {
       return "Reorder enum cases";
     case "publish":
       return "Publish site";
+    case "push_staged_items": {
+      const count = action.stagedItemIds.length;
+      const target = action.draft ? "draft" : "live";
+      return `Push ${count} staged item${count === 1 ? "" : "s"} as ${target}`;
+    }
   }
 }

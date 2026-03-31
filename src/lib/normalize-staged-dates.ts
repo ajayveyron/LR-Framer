@@ -2,12 +2,11 @@ import type { BlogCollectionMetadata, DashboardFieldValue } from "@/lib/cms-type
 
 /**
  * Normalize date field values in a staged item's fieldValues so they match
- * the format expected by the post schema validation:
- * - Date-only fields: YYYY-MM-DD
- * - Date+time fields: YYYY-MM-DDTHH:mm
+ * Framer's required ISO 8601 format: YYYY-MM-DDTHH:mm:ss.sssZ
  *
- * AI-generated dates often arrive as full ISO strings (e.g. "2025-03-15T10:30:00.000Z")
- * which fail the strict regex in post-schema.ts.
+ * AI-generated dates may arrive in various formats (e.g. "2025-03-15",
+ * "2025-03-15T10:30", "March 15, 2025"). This normalizer converts them all
+ * to the full ISO string that Framer CMS expects.
  */
 export function normalizeStagedDates(
   fieldValues: Record<string, DashboardFieldValue>,
@@ -24,16 +23,18 @@ export function normalizeStagedDates(
     const d = new Date(raw);
     if (Number.isNaN(d.valueOf())) continue;
 
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-
+    // Framer requires full ISO 8601: YYYY-MM-DDTHH:mm:ss.sssZ
     if (field.displayTime) {
-      const hh = String(d.getHours()).padStart(2, "0");
-      const min = String(d.getMinutes()).padStart(2, "0");
-      result[field.id] = `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+      // For date+time fields, already-valid ISO strings pass through;
+      // everything else gets converted.
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(raw)) continue;
+      result[field.id] = d.toISOString();
     } else {
-      result[field.id] = `${yyyy}-${mm}-${dd}`;
+      // Date-only: always normalize to midnight UTC regardless of input
+      const yyyy = d.getUTCFullYear();
+      const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(d.getUTCDate()).padStart(2, "0");
+      result[field.id] = `${yyyy}-${mm}-${dd}T00:00:00.000Z`;
     }
   }
 

@@ -188,13 +188,13 @@ export const ToolCallRow = ({
   return (
     <div
       className={cn(
-        "group/tool relative",
+        "relative",
         toneClass.row,
         className
       )}
       {...props}
     >
-      <details className="relative z-10">
+      <details className="group/tool relative z-10">
         <summary
           className={cn(
             "flex list-none items-center gap-2 py-1 text-left outline-none marker:hidden [&::-webkit-details-marker]:hidden",

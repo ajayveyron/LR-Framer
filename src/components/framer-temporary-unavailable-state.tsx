@@ -1,9 +1,13 @@
 "use client";
 
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { SpinnerGap, Warning } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
 import { TRANSIENT_FRAMER_EDITOR_MESSAGE } from "@/lib/framer-copy";
+
+type RetryState = "idle" | "retrying" | "failed";
 
 export function FramerTemporaryUnavailableState({
   onRetry,
@@ -11,6 +15,36 @@ export function FramerTemporaryUnavailableState({
   onRetry?: () => void;
 }) {
   const router = useRouter();
+  const [retryState, setRetryState] = useState<RetryState>("idle");
+  const failTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleRetry = useCallback(() => {
+    if (retryState === "retrying") return;
+
+    if (failTimerRef.current) {
+      clearTimeout(failTimerRef.current);
+      failTimerRef.current = null;
+    }
+
+    setRetryState("retrying");
+
+    if (onRetry) {
+      onRetry();
+    } else {
+      router.refresh();
+    }
+
+    // If the component is still mounted after a delay, the retry failed.
+    const timeout = setTimeout(() => {
+      setRetryState("failed");
+      failTimerRef.current = setTimeout(() => {
+        setRetryState("idle");
+        failTimerRef.current = null;
+      }, 3000);
+    }, 4000);
+
+    failTimerRef.current = timeout;
+  }, [retryState, router, onRetry]);
 
   return (
     <section className="min-w-0 overflow-x-clip">
@@ -30,10 +64,23 @@ export function FramerTemporaryUnavailableState({
           </p>
           <div className="flex flex-wrap gap-3">
             <Button
-              onClick={() => onRetry?.() ?? router.refresh()}
+              disabled={retryState === "retrying"}
+              onClick={handleRetry}
               type="button"
             >
-              Retry Framer connection
+              {retryState === "retrying" && (
+                <>
+                  <SpinnerGap className="size-4 animate-spin" />
+                  Retrying&hellip;
+                </>
+              )}
+              {retryState === "failed" && (
+                <>
+                  <Warning className="size-4" />
+                  Connection failed
+                </>
+              )}
+              {retryState === "idle" && "Retry Framer connection"}
             </Button>
             <Button
               onClick={() => router.push("/onboarding")}

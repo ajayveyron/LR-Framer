@@ -13,6 +13,8 @@ import { useRouter } from 'next/navigation';
 import { AIChatPanel } from '@/components/ai-chat-panel';
 import { AIWorkspacePane } from '@/components/ai-workspace-pane';
 import { BlogTable } from '@/components/blog-table';
+import { FramerStatusBanner } from '@/components/framer-status-banner';
+import { useNotify } from '@/components/notification-provider';
 import { PostEditor } from '@/components/post-editor';
 import {
 	PlusIcon,
@@ -475,7 +477,9 @@ export function DashboardTableView({
 	role: SiteRole;
 }) {
 	const router = useRouter();
-	const framerUnavailable = framerStatus.state !== 'available';
+	const notify = useNotify();
+	const [liveFramerStatus, setLiveFramerStatus] = useState(framerStatus);
+	const framerUnavailable = liveFramerStatus.state !== 'available';
 	const columnOptions = buildColumnOptions(metadata);
 	const [cachedPosts, setCachedPosts] = useState(() =>
 		sortPostsByRecency(posts),
@@ -483,7 +487,16 @@ export function DashboardTableView({
 	const [drawerState, setDrawerState] = useState<DrawerState | null>(
 		initialDrawerState,
 	);
-	const cms = useCmsMutations({ activeCollectionId, setCachedPosts });
+
+	const handleFramerUnavailable = useCallback(() => {
+		setLiveFramerStatus({ cachedAt: null, state: 'stale' as const });
+	}, []);
+
+	const handleCmsError = useCallback((message: string) => {
+		notify.error(message);
+	}, [notify]);
+
+	const cms = useCmsMutations({ activeCollectionId, onError: handleCmsError, onFramerUnavailable: handleFramerUnavailable, setCachedPosts });
 	const { loadingPosts, setLoadingPosts } = cms;
 	const [editorRevision, setEditorRevision] = useState(0);
 	const [query, setQuery] = useState('');
@@ -538,6 +551,10 @@ export function DashboardTableView({
 	useEffect(() => {
 		setCachedPosts(sortPostsByRecency(posts));
 	}, [posts]);
+
+	useEffect(() => {
+		setLiveFramerStatus(framerStatus);
+	}, [framerStatus]);
 
 	useEffect(() => {
 		setActiveCollectionSelection(activeCollectionId);
@@ -787,6 +804,12 @@ export function DashboardTableView({
 
 	return (
 		<section className='relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden'>
+			{liveFramerStatus.state !== 'available' && (
+				<FramerStatusBanner
+					cachedAt={liveFramerStatus.cachedAt}
+					state={liveFramerStatus.state}
+				/>
+			)}
 			<div
 				className={cn(
 					'bg-dash-topbar backdrop-blur-[14px]',
@@ -1171,6 +1194,7 @@ export function DashboardTableView({
 								metadata={metadata}
 								mode='create'
 								onClose={handleCloseDrawer}
+								onFramerUnavailable={handleFramerUnavailable}
 								onPostSaved={handlePostSaved}
 								post={null}
 							/>
@@ -1182,6 +1206,7 @@ export function DashboardTableView({
 								metadata={metadata}
 								mode='edit'
 								onClose={handleCloseDrawer}
+								onFramerUnavailable={handleFramerUnavailable}
 								onPostSaved={handlePostSaved}
 								post={activePost}
 								onChatWithItem={() => {

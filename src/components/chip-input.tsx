@@ -246,7 +246,7 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
       <div
         ref={editableRef}
         className={cn(
-          "relative min-h-16 max-h-48 overflow-y-auto bg-transparent px-3 py-2.5 text-sm leading-relaxed text-fresco-title outline-none",
+          "relative min-h-16 max-h-48 overflow-y-auto bg-transparent px-3 py-2.5 text-sm leading-relaxed text-fresco-title caret-fresco-title outline-none",
           disabled && "pointer-events-none opacity-50",
           className,
         )}
@@ -261,7 +261,7 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
             data-chip-prefix-editable="true"
             contentEditable={!disabled}
             suppressContentEditableWarning
-            className="inline min-h-[1.5em] min-w-[2px] whitespace-pre-wrap break-words caret-current outline-none"
+            className="inline min-h-[1.5em] min-w-[2px] whitespace-pre-wrap break-words caret-fresco-title outline-none"
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
@@ -307,7 +307,7 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
           data-chip-suffix-editable="true"
           contentEditable={!disabled}
           suppressContentEditableWarning
-          className="inline whitespace-pre-wrap break-words caret-current outline-none [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-fresco-subtitle [&:empty]:before:pointer-events-none"
+          className="inline whitespace-pre-wrap break-words caret-fresco-title outline-none [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-fresco-subtitle [&:empty]:before:pointer-events-none"
           data-placeholder={
             showPlaceholder
               ? chips.length > 0

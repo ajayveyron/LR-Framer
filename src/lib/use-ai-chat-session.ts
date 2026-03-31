@@ -30,6 +30,30 @@ import type { BlogPostRecord } from "@/lib/cms-types";
 
 const AI_CHAT_SESSION_STORAGE_KEY = "lr:dashboard:ai-chat-session";
 
+export type StreamLifecycle = {
+  startedAt: number | null;
+  currentStep: number;
+  completedSteps: number;
+  lastChunkAt: number | null;
+  lastChunkType: string | null;
+  activeToolName: string | null;
+  toolInputErrors: Array<{
+    toolCallId: string;
+    toolName: string | null;
+    ts: string;
+  }>;
+};
+
+const INITIAL_STREAM_LIFECYCLE: StreamLifecycle = {
+  startedAt: null,
+  currentStep: 0,
+  completedSteps: 0,
+  lastChunkAt: null,
+  lastChunkType: null,
+  activeToolName: null,
+  toolInputErrors: [],
+};
+
 type PersistedChatSession = {
   id: string;
   messages: AIChatMessage[];
@@ -42,6 +66,8 @@ type AIChatBodyData = {
     slug: string;
     title: string;
     fieldValues: Record<string, unknown>;
+    staged?: boolean;
+    stagedId?: string;
   }>;
   fieldDefinitions: Array<{
     id: string;
@@ -262,10 +288,14 @@ export function useAIChatSession({
         firstSeenElapsedMs: number;
         lastSeenElapsedMs: number;
         finishedElapsedMs?: number;
+        finishedReason?: "output-available" | "output-error" | "input-error" | "output-denied";
         toolName?: string | null;
       }
     >
   >({});
+  const [streamLifecycle, setStreamLifecycle] = useState<StreamLifecycle>(
+    INITIAL_STREAM_LIFECYCLE,
+  );
   const [messageContexts, setMessageContexts] = useState<
     Record<string, Array<{ id: string; title: string }>>
   >({});
@@ -337,9 +367,56 @@ export function useAIChatSession({
         }),
       );
 
+      // Update stream lifecycle on every debug event
+      const now = Date.now();
+      setStreamLifecycle((current) => {
+        const next = { ...current };
+        if (next.startedAt === null) {
+          next.startedAt = now;
+        }
+        next.lastChunkAt = now;
+        next.lastChunkType = event.chunkType;
+
+        if (event.chunkType === "start-step") {
+          next.currentStep = current.currentStep + 1;
+        } else if (event.chunkType === "finish-step") {
+          next.completedSteps = current.completedSteps + 1;
+        } else if (event.chunkType === "tool-input-start" && event.toolName) {
+          next.activeToolName = event.toolName;
+        } else if (
+          event.chunkType === "tool-output-available" ||
+          event.chunkType === "tool-output-error" ||
+          event.chunkType === "tool-output-denied"
+        ) {
+          next.activeToolName = null;
+        } else if (event.chunkType === "tool-input-error") {
+          next.activeToolName = null;
+          next.toolInputErrors = [
+            ...current.toolInputErrors,
+            {
+              toolCallId: event.toolCallId ?? "",
+              toolName: event.toolName ?? null,
+              ts: event.ts,
+            },
+          ];
+        }
+        return next;
+      });
+
       if (!event.toolCallId) {
         return;
       }
+
+      const finishedReason =
+        event.chunkType === "tool-output-available"
+          ? ("output-available" as const)
+          : event.chunkType === "tool-output-error"
+            ? ("output-error" as const)
+            : event.chunkType === "tool-output-denied"
+              ? ("output-denied" as const)
+              : event.chunkType === "tool-input-error"
+                ? ("input-error" as const)
+                : undefined;
 
       setToolTimingByCallId((current) => {
         const existing = current[event.toolCallId!];
@@ -357,6 +434,7 @@ export function useAIChatSession({
               event.chunkType === "tool-input-error"
                 ? event.elapsedMs
                 : existing?.finishedElapsedMs,
+            finishedReason: finishedReason ?? existing?.finishedReason,
             toolName: existing?.toolName ?? event.toolName ?? null,
           },
         };
@@ -485,6 +563,7 @@ export function useAIChatSession({
   const handleSendWithContext = useCallback(
     (message: { text: string }) => {
       recoverableRetryUserIdsRef.current.clear();
+      setStreamLifecycle(INITIAL_STREAM_LIFECYCLE);
 
       if (selectedPosts.length > 0) {
         pendingContextRef.current = selectedPosts.map((post) => ({
@@ -533,6 +612,7 @@ export function useAIChatSession({
     setRawToolInputs({});
     setToolTimingByCallId({});
     setMessageContexts({});
+    setStreamLifecycle(INITIAL_STREAM_LIFECYCLE);
     recoverableRetryUserIdsRef.current.clear();
     clearPersistedChatSession();
   }, [chatKey, clearError, messages, setMessages, textInput]);
@@ -560,6 +640,7 @@ export function useAIChatSession({
       setRawToolInputs({});
       setToolTimingByCallId({});
       setMessageContexts({});
+      setStreamLifecycle(INITIAL_STREAM_LIFECYCLE);
       return;
     }
 
@@ -588,6 +669,7 @@ export function useAIChatSession({
       setRawToolInputs({});
       setToolTimingByCallId({});
       setMessageContexts({});
+      setStreamLifecycle(INITIAL_STREAM_LIFECYCLE);
       recoverableRetryUserIdsRef.current.clear();
     },
     [chatKey, clearError, messages, setMessages, textInput],
@@ -610,6 +692,7 @@ export function useAIChatSession({
     showHistory,
     status,
     stop,
+    streamLifecycle,
     toolTimingByCallId,
     totalTokens,
   };

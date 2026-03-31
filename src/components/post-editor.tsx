@@ -46,7 +46,7 @@ import type {
   DashboardFieldDefinition,
   DashboardFieldValue,
 } from "@/lib/cms-types";
-import { TRANSIENT_FRAMER_EDITOR_MESSAGE } from "@/lib/framer-copy";
+import { isTransientFramerMessage, TRANSIENT_FRAMER_EDITOR_MESSAGE } from "@/lib/framer-copy";
 
 import { cn } from "@/lib/utils";
 import { extractImageJobId } from "@/lib/ai-image-placeholders";
@@ -453,6 +453,7 @@ export function PostEditor({
   metadata,
   mode,
   onClose,
+  onFramerUnavailable,
   onPostSaved,
   post,
   onChatWithItem,
@@ -462,6 +463,7 @@ export function PostEditor({
   metadata: BlogCollectionMetadata;
   mode: "create" | "edit";
   onClose: () => void;
+  onFramerUnavailable?: () => void;
   onPostSaved: (post: BlogPostRecord, mode: "create" | "edit") => void;
   post: BlogPostRecord | null;
   onChatWithItem?: () => void;
@@ -645,6 +647,9 @@ export function PostEditor({
 
       if (!response.ok) {
         const message = data.error ?? "Save failed.";
+        if (typeof data.error === "string" && isTransientFramerMessage(data.error)) {
+          onFramerUnavailable?.();
+        }
         for (const fieldError of data.fieldErrors ?? []) {
           if (
             fieldError.path === "slug" ||

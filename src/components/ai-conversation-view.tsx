@@ -1,21 +1,56 @@
 "use client";
 
-import { CircleNotch, GlobeSimple, Rows, Sparkle } from "@phosphor-icons/react";
-import { useMemo } from "react";
+import { GlobeSimple, Rows, Sparkle, CircleNotch, Copy, Check } from "@phosphor-icons/react";
+import { useCallback, useMemo, useState } from "react";
 
+import { AgentActivityIndicator } from "@/components/agent-activity-indicator";
 import {
   Conversation,
   ConversationContent,
   ConversationEmptyState,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
-import { Message, MessageContent } from "@/components/ai-elements/message";
+import { Message, MessageContent, MessageAction } from "@/components/ai-elements/message";
 import { AIMessagePartRenderer } from "@/components/ai-message-part-renderer";
 import type { FieldNameMap, FieldTypeMap } from "@/components/ai-tool-renderers";
-import { Shimmer } from "@/components/ui/shimmer";
 import type { BulkApplyResult } from "@/lib/ai-bulk-apply";
 import type { AIChatMessage } from "@/lib/ai-chat-types";
 import type { BlogCollectionMetadata, BlogPostRecord } from "@/lib/cms-types";
+import type { StreamLifecycle } from "@/lib/use-ai-chat-session";
+
+function getMessageText(parts: AIChatMessage["parts"]): string {
+  return parts
+    .filter((part): part is typeof part & { type: "text"; text: string } => part.type === "text" && "text" in part)
+    .map((part) => part.text)
+    .join("\n\n")
+    .trim();
+}
+
+function CopyMessageButton({ message }: { message: AIChatMessage }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    const text = getMessageText(message.parts);
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }, [message.parts]);
+
+  const text = getMessageText(message.parts);
+  if (!text) return null;
+
+  const Icon = copied ? Check : Copy;
+
+  return (
+    <div className="flex opacity-0 transition-opacity group-hover:opacity-100 group-[.is-user]:justify-end">
+      <MessageAction tooltip={copied ? "Copied" : "Copy"} onClick={handleCopy}>
+        <Icon className="size-3.5" weight={copied ? "bold" : "regular"} />
+      </MessageAction>
+    </div>
+  );
+}
 
 interface AIConversationViewProps {
   addToolApprovalResponse: (response: {
@@ -27,6 +62,7 @@ interface AIConversationViewProps {
   emptyDescription?: string;
   emptyTitle?: string;
   errorContent?: React.ReactNode;
+  getToolFinishReason?: (toolCallId?: string | null) => string | null;
   getToolTimingMeta: (toolCallId?: string | null) => string | null;
   handleApplied: (result: BulkApplyResult) => void;
   isStreaming: boolean;
@@ -38,6 +74,7 @@ interface AIConversationViewProps {
   streamingIndicator?: React.ReactNode;
   metadata: BlogCollectionMetadata;
   activeToolNames?: string[];
+  streamLifecycle?: StreamLifecycle;
 }
 
 export function AIConversationView({
@@ -47,6 +84,7 @@ export function AIConversationView({
   emptyDescription = "Ask me anything about this CMS, the active Framer collection, or the rows you've selected.",
   emptyTitle = "How can I help?",
   errorContent,
+  getToolFinishReason,
   getToolTimingMeta,
   handleApplied,
   isStreaming,
@@ -58,6 +96,7 @@ export function AIConversationView({
   streamingIndicator,
   metadata,
   activeToolNames = [],
+  streamLifecycle,
 }: AIConversationViewProps) {
   const shouldShowTurnIndicator = useMemo(() => {
     if (!isStreaming) {
@@ -69,22 +108,32 @@ export function AIConversationView({
       return true;
     }
 
-    return !lastMessage.parts.some((part) => {
-      if (part.type === "text" && part.text.trim().length > 0) {
-        return true;
+    // Hide indicator only when the assistant is actively streaming text or
+    // reasoning — those parts already have their own visual feedback (cursor /
+    // shimmer). For everything else (no content yet, between tool calls, after
+    // tool calls but before text) keep the indicator visible so the user always
+    // knows the agent is still working.
+    const lastPart = lastMessage.parts[lastMessage.parts.length - 1];
+
+    if (lastPart) {
+      // Actively streaming text → MessageResponse shows its own cursor
+      if (lastPart.type === "text" && lastPart.text.trim().length > 0) {
+        return false;
       }
 
-      if (part.type === "reasoning") {
-        const reasoningPart = part as { text?: string };
-        return (reasoningPart.text ?? "").trim().length > 0;
+      // Actively streaming reasoning → ChainOfThought already shimmer-animates
+      if (lastPart.type === "reasoning") {
+        const reasoningPart = lastPart as { state?: string; text?: string };
+        if (
+          reasoningPart.state !== "complete" &&
+          (reasoningPart.text ?? "").trim().length > 0
+        ) {
+          return false;
+        }
       }
+    }
 
-      if (part.type.startsWith("tool-")) {
-        return true;
-      }
-
-      return false;
-    });
+    return true;
   }, [isStreaming, messages]);
 
   return (
@@ -182,6 +231,7 @@ export function AIConversationView({
                     addToolApprovalResponse={addToolApprovalResponse}
                     allFieldNames={allFieldNames}
                     allFieldTypes={allFieldTypes}
+                    getToolFinishReason={getToolFinishReason}
                     getToolTimingMeta={getToolTimingMeta}
                     handleApplied={handleApplied}
                     isLastMessage={isLastMessage}
@@ -197,18 +247,25 @@ export function AIConversationView({
                   />
                 ))}
               </MessageContent>
+              <CopyMessageButton message={message} />
             </Message>
           );
         })}
 
-        {shouldShowTurnIndicator ? (
+        {shouldShowTurnIndicator && streamLifecycle ? (
+          <AgentActivityIndicator
+            activeToolNames={activeToolNames}
+            isStreaming={isStreaming}
+            streamLifecycle={streamLifecycle}
+          />
+        ) : shouldShowTurnIndicator ? (
           <div className="flex items-center gap-2 py-1 text-[12px] text-fresco-subtitle">
             <CircleNotch className="size-3.5 animate-spin" weight="bold" />
-            <Shimmer as="span" className="text-fresco-subtitle" duration={1.8}>
+            <span className="text-fresco-subtitle">
               {activeToolNames.length > 0
                 ? activeToolNames[activeToolNames.length - 1]
                 : "Thinking…"}
-            </Shimmer>
+            </span>
           </div>
         ) : null}
 

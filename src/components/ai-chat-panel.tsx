@@ -66,7 +66,7 @@ import type { BlogCollectionMetadata, BlogPostRecord } from "@/lib/cms-types";
 import type { BulkApplyResult } from "@/lib/ai-bulk-apply";
 import { getCollectionHeader } from "@/lib/product-framer-shared";
 import { PostEditor } from "@/components/post-editor";
-import { useAIChatSession } from "@/lib/use-ai-chat-session";
+import { useAIChatSession, type StreamLifecycle } from "@/lib/use-ai-chat-session";
 import { AIConversationView } from "@/components/ai-conversation-view";
 
 interface AIChatPanelProps {
@@ -325,10 +325,11 @@ function AIChatPanelContent({
         slug: p.slug,
         title: p.title,
         fieldValues: p.fieldValues,
+        ...(p.staged ? { staged: true, stagedId: p.stagedId } : {}),
       })),
       fieldDefinitions: metadata.fields
         .filter((f) => f.supported)
-        .map((f) => ({ id: f.id, name: f.name, type: f.type })),
+        .map((f) => ({ id: f.id, name: f.name, type: f.type, ...(f.displayTime ? { displayTime: true } : {}) })),
       activeCollectionId: metadata.collectionId,
       activeCollectionName: metadata.collectionName,
     }),
@@ -356,6 +357,7 @@ function AIChatPanelContent({
     showHistory,
     status,
     stop,
+    streamLifecycle,
     toolTimingByCallId,
     totalTokens,
   } = useAIChatSession({
@@ -366,6 +368,26 @@ function AIChatPanelContent({
     selectedPosts,
     textInput,
   });
+
+  // ── Server-side cache warmup ──
+  // Fire a lightweight request as soon as the chat mounts so context snapshot,
+  // memories, and quota are cached before the user sends their first message.
+  const warmupFiredRef = useRef(false);
+  useEffect(() => {
+    if (warmupFiredRef.current) return;
+    warmupFiredRef.current = true;
+
+    fetch("/api/ai/warmup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        activeCollectionId: metadata.collectionId,
+        activeCollectionName: metadata.collectionName,
+      }),
+    }).catch(() => {
+      // Warmup is best-effort — ignore failures
+    });
+  }, [metadata.collectionId, metadata.collectionName]);
 
   // Map field IDs → human-readable names for rich tool output rendering
   // Scans all messages for framer_get_collection_fields outputs to cover any collection
@@ -606,6 +628,14 @@ function AIChatPanelContent({
     [toolTimingByCallId],
   );
 
+  const getToolFinishReason = useCallback(
+    (toolCallId?: string | null) => {
+      if (!toolCallId) return null;
+      return toolTimingByCallId[toolCallId]?.finishedReason ?? null;
+    },
+    [toolTimingByCallId],
+  );
+
   const chatPanelContent = (
     <>
       {/* Chat content — clipped so the preview drawer can overflow to the left */}
@@ -667,6 +697,7 @@ function AIChatPanelContent({
               addToolApprovalResponse={addToolApprovalResponse}
               allFieldNames={allFieldNames}
               allFieldTypes={allFieldTypes}
+              getToolFinishReason={getToolFinishReason}
               errorContent={
                 error && !isStreaming && !isRecoverableAIError(error.message) ? (
                   <QuotaOrError
@@ -688,6 +719,7 @@ function AIChatPanelContent({
               rawToolInputs={rawToolInputs}
               selectedPosts={selectedPosts}
               activeToolNames={activeToolNames}
+              streamLifecycle={streamLifecycle}
               streamingIndicator={null}
             />
 
@@ -699,6 +731,7 @@ function AIChatPanelContent({
                 messageCount={messages.length}
                 isStreaming={isStreaming}
                 activeToolNames={activeToolNames}
+                streamLifecycle={streamLifecycle}
                 sendMessage={handleSendWithContext}
                 stop={stop}
                 onClearSelection={onClearSelection}
@@ -786,6 +819,7 @@ function ChatInputOrQuotaGate({
   messageCount,
   isStreaming,
   activeToolNames,
+  streamLifecycle,
   sendMessage,
   stop,
   onClearSelection,
@@ -795,6 +829,7 @@ function ChatInputOrQuotaGate({
   messageCount: number;
   isStreaming: boolean;
   activeToolNames: string[];
+  streamLifecycle: StreamLifecycle;
   sendMessage: (msg: { text: string }) => void;
   stop: () => void;
   onClearSelection?: () => void;
@@ -857,6 +892,7 @@ function ChatInputOrQuotaGate({
       <ChipInputPromptArea
         selectedPosts={selectedPosts}
         isStreaming={isStreaming}
+        streamLifecycle={streamLifecycle}
         sendMessage={sendMessage}
         stop={stop}
         onClearSelection={onClearSelection}
@@ -873,12 +909,14 @@ function ChatInputOrQuotaGate({
 function ChipInputPromptArea({
   selectedPosts,
   isStreaming,
+  streamLifecycle,
   sendMessage,
   stop,
   onClearSelection,
 }: {
   selectedPosts: BlogPostRecord[];
   isStreaming: boolean;
+  streamLifecycle?: StreamLifecycle;
   sendMessage: (msg: { text: string }) => void;
   stop: () => void;
   onClearSelection?: () => void;
@@ -985,6 +1023,11 @@ function ChipInputPromptArea({
       <PromptInputFooter>
         <DirectAttachButton />
         <div className="flex-1" />
+        {isStreaming && streamLifecycle?.startedAt ? (
+          <span className="shrink-0 text-[10px] tabular-nums text-fresco-subtitle/70">
+            {formatElapsedMs(Date.now() - streamLifecycle.startedAt)}
+          </span>
+        ) : null}
         {isStreaming ? (
           <Button
             aria-label="Stop generating"

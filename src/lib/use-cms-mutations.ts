@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 
 import type { BlogPostRecord } from "@/lib/cms-types";
+import { isTransientFramerMessage } from "@/lib/framer-copy";
 import { getCollectionHeader } from "@/lib/product-framer-shared";
 
 type SetCachedPosts = (updater: (current: BlogPostRecord[]) => BlogPostRecord[]) => void;
@@ -28,11 +29,36 @@ function upsertPost(posts: BlogPostRecord[], next: BlogPostRecord) {
 
 interface UseCmsMutationsOptions {
   activeCollectionId: string;
+  onError?: (message: string) => void;
+  onFramerUnavailable?: () => void;
   setCachedPosts: SetCachedPosts;
+}
+
+/** Parse the error message from a failed API response */
+async function parseResponseError(response: Response, fallback: string): Promise<string> {
+  try {
+    const data = await response.clone().json();
+    return typeof data.error === "string" ? data.error : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/** Check if a fetch response is a transient Framer 503 */
+async function isTransientFramerResponse(response: Response): Promise<boolean> {
+  if (response.status !== 503) return false;
+  try {
+    const data = await response.clone().json();
+    return typeof data.error === "string" && isTransientFramerMessage(data.error);
+  } catch {
+    return false;
+  }
 }
 
 export function useCmsMutations({
   activeCollectionId,
+  onError,
+  onFramerUnavailable,
   setCachedPosts,
 }: UseCmsMutationsOptions) {
   const [loadingPosts, setLoadingPosts] = useState<Set<string>>(new Set());
@@ -77,15 +103,22 @@ export function useCmsMutations({
             current.filter((p) => p.id !== post.id).concat(newPost),
           );
         } else {
-          setLastError("Failed to push staged item to Framer");
+          if (await isTransientFramerResponse(response)) {
+            onFramerUnavailable?.();
+          }
+          const message = await parseResponseError(response, "Failed to push staged item to Framer");
+          setLastError(message);
+          onError?.(message);
         }
       } catch {
-        setLastError("Failed to push staged item to Framer");
+        const message = "Failed to push staged item to Framer";
+        setLastError(message);
+        onError?.(message);
       } finally {
         unmarkLoading(post.id);
       }
     },
-    [activeCollectionId, markLoading, setCachedPosts, unmarkLoading],
+    [activeCollectionId, markLoading, onError, onFramerUnavailable, setCachedPosts, unmarkLoading],
   );
 
   // ── Toggle draft (with optimistic update) ──
@@ -119,13 +152,18 @@ export function useCmsMutations({
           const { post: nextPost } = await response.json();
           setCachedPosts((current) => upsertPost(current, nextPost));
         } else {
+          if (await isTransientFramerResponse(response)) {
+            onFramerUnavailable?.();
+          }
           // Revert optimistic update
           setCachedPosts((current) =>
             current.map((p) =>
               p.id === post.id ? { ...p, draft: previousDraft } : p,
             ),
           );
-          setLastError("Failed to toggle draft status");
+          const message = await parseResponseError(response, "Failed to toggle draft status");
+          setLastError(message);
+          onError?.(message);
         }
       } catch {
         // Revert optimistic update
@@ -134,12 +172,14 @@ export function useCmsMutations({
             p.id === post.id ? { ...p, draft: previousDraft } : p,
           ),
         );
-        setLastError("Failed to toggle draft status");
+        const message = "Failed to toggle draft status";
+        setLastError(message);
+        onError?.(message);
       } finally {
         unmarkLoading(post.id);
       }
     },
-    [activeCollectionId, markLoading, setCachedPosts, unmarkLoading],
+    [activeCollectionId, markLoading, onError, onFramerUnavailable, setCachedPosts, unmarkLoading],
   );
 
   // ── Publish (draft → live, with optimistic update) ──
@@ -172,13 +212,18 @@ export function useCmsMutations({
           const { post: nextPost } = await response.json();
           setCachedPosts((current) => upsertPost(current, nextPost));
         } else {
+          if (await isTransientFramerResponse(response)) {
+            onFramerUnavailable?.();
+          }
           // Revert
           setCachedPosts((current) =>
             current.map((p) =>
               p.id === post.id ? { ...p, draft: true } : p,
             ),
           );
-          setLastError("Failed to publish post");
+          const message = await parseResponseError(response, "Failed to publish post");
+          setLastError(message);
+          onError?.(message);
         }
       } catch {
         setCachedPosts((current) =>
@@ -186,12 +231,14 @@ export function useCmsMutations({
             p.id === post.id ? { ...p, draft: true } : p,
           ),
         );
-        setLastError("Failed to publish post");
+        const message = "Failed to publish post";
+        setLastError(message);
+        onError?.(message);
       } finally {
         unmarkLoading(post.id);
       }
     },
-    [activeCollectionId, markLoading, setCachedPosts, unmarkLoading],
+    [activeCollectionId, markLoading, onError, onFramerUnavailable, setCachedPosts, unmarkLoading],
   );
 
   // ── Discard staged item ──
@@ -215,12 +262,14 @@ export function useCmsMutations({
           const item = removed;
           setCachedPosts((current) => [...current, item]);
         }
-        setLastError("Failed to discard staged item");
+        const message = "Failed to discard staged item";
+        setLastError(message);
+        onError?.(message);
       } finally {
         unmarkLoading(postId);
       }
     },
-    [markLoading, setCachedPosts, unmarkLoading],
+    [markLoading, onError, setCachedPosts, unmarkLoading],
   );
 
   // ── Delete post (with optimistic update + undo window) ──
@@ -266,18 +315,25 @@ export function useCmsMutations({
             headers: getCollectionHeader(activeCollectionId),
           });
           if (!response.ok) {
+            if (await isTransientFramerResponse(response)) {
+              onFramerUnavailable?.();
+            }
             revert();
-            setLastError("Failed to delete post");
+            const message = await parseResponseError(response, "Failed to delete post");
+            setLastError(message);
+            onError?.(message);
           }
         } catch {
           revert();
-          setLastError("Failed to delete post");
+          const message = "Failed to delete post";
+          setLastError(message);
+          onError?.(message);
         } finally {
           unmarkLoading(postId);
         }
       }, UNDO_WINDOW_MS);
     },
-    [activeCollectionId, markLoading, setCachedPosts, unmarkLoading],
+    [activeCollectionId, markLoading, onError, onFramerUnavailable, setCachedPosts, unmarkLoading],
   );
 
   const clearError = useCallback(() => setLastError(null), []);

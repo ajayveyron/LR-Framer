@@ -30,7 +30,7 @@ import {
 } from "@/lib/framer";
 import { logEvent, logError } from "@/lib/logger";
 import { normalizeFieldData } from "@/lib/normalize-field-data";
-import { fetchProductMutation } from "@/lib/convex";
+import { fetchProductMutation, fetchProductQuery } from "@/lib/convex";
 
 const MAX_TOOL_RESULT_BYTES = 500_000;
 
@@ -137,6 +137,15 @@ const cmsActionPayloadSchema = z.discriminatedUnion("action", [
     caseIds: z.array(z.string()).describe("Case IDs in the desired order"),
   }),
   z.object({ action: z.literal("publish") }),
+  z.object({
+    action: z.literal("push_staged_items"),
+    collectionId: z.string().describe("The ID of the collection the staged items belong to"),
+    stagedItemIds: z.array(z.string()).describe(
+      "Raw Convex staged item IDs (NOT the 'staged:' prefixed ones). " +
+      "Get these from the dashboard data — each staged post has a stagedId field.",
+    ),
+    draft: z.boolean().describe("true = push as draft, false = push and publish live"),
+  }),
 ]);
 
 function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContext?: { organizationId: string; userId: string }) {
@@ -420,6 +429,55 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContex
       ),
   });
 
+  const listStagedItems = tool({
+    description:
+      "List staged items waiting to be pushed to Framer for a given collection. " +
+      "Staged items exist only in the local platform database — they are NOT yet in Framer. " +
+      "Returns each item's stagedId (needed for push_staged_items), slug, draft status, and field data.",
+    inputSchema: z.object({
+      collectionId: z.string().describe("The ID of the collection to list staged items for"),
+    }),
+    execute: async ({ collectionId }) => {
+      if (!stagingContext) {
+        return { items: [], error: "Staging context unavailable." };
+      }
+      try {
+        const items = (await fetchProductQuery(
+          anyApi.stagedItems.listByCollection,
+          {
+            clerkOrganizationId: stagingContext.organizationId,
+            collectionId,
+          },
+        )) as Array<{
+          _id: string;
+          slug: string;
+          draft: boolean;
+          fieldDataJson: string;
+          createdAt: number;
+        }>;
+        logEvent("info", "ai.tool.list_staged_items.called", { collectionId, count: items.length });
+        return {
+          items: items.map((item) => {
+            let fieldValues: Record<string, unknown> = {};
+            try { fieldValues = JSON.parse(item.fieldDataJson); } catch { /* empty */ }
+            return {
+              stagedId: item._id,
+              id: `staged:${item._id}`,
+              slug: item.slug,
+              draft: item.draft,
+              fieldValues,
+              createdAt: new Date(item.createdAt).toISOString(),
+            };
+          }),
+        };
+      } catch (err) {
+        logError("ai.tool.list_staged_items.failed", err, { collectionId });
+        const message = err instanceof Error ? err.message : "Unknown error";
+        return { items: [], error: message };
+      }
+    },
+  });
+
   const proposeCmsAction = tool({
     description:
       "Propose a CMS write operation that requires user confirmation before executing. " +
@@ -498,7 +556,8 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContex
                         continue;
                       }
                     }
-                    fieldValues[key] = entry.value;
+                    // Preserve the full {type, value, ...} entry so push can send it to Framer as-is
+                    fieldValues[key] = entry;
                   }
                 }
                 try {
@@ -631,6 +690,105 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContex
               ? runInFramerContext(() => publishSite())
               : publishSite());
             break;
+          case "push_staged_items": {
+            if (!stagingContext) {
+              return { success: false, action: payload.action, error: "Staging context unavailable." };
+            }
+
+            // Fetch all staged items for this collection, then look up requested ones by ID
+            const allStaged = (await fetchProductQuery(
+              anyApi.stagedItems.listByCollection,
+              {
+                clerkOrganizationId: stagingContext.organizationId,
+                collectionId: payload.collectionId,
+              },
+            )) as Array<{
+              _id: string;
+              slug: string;
+              draft: boolean;
+              fieldDataJson: string;
+            }>;
+            const stagedMap = new Map(allStaged.map((item) => [item._id, item]));
+
+            const pushed: Array<{ slug: string; draft: boolean }> = [];
+            const errors: string[] = [];
+            const MAX_CONSECUTIVE_ERRORS = 3;
+            let consecutiveErrors = 0;
+            for (const stagedId of payload.stagedItemIds) {
+              if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                errors.push(
+                  `Aborting: ${MAX_CONSECUTIVE_ERRORS} consecutive failures — likely a schema or type mismatch affecting all items. ${payload.stagedItemIds.length - pushed.length - errors.length} items skipped.`,
+                );
+                break;
+              }
+              try {
+                const item = stagedMap.get(stagedId);
+                if (!item) {
+                  errors.push(`Staged item ${stagedId} not found`);
+                  continue;
+                }
+                let fieldData: Record<string, unknown> = {};
+                try { fieldData = JSON.parse(item.fieldDataJson); } catch { /* empty */ }
+
+                // Build the item payload for Framer.
+                // Staged items now store the full {type, value, ...} entry per field.
+                // Fall back to naive inference for legacy staged items that only stored raw values.
+                const framerFieldData: Record<string, { type: string; value: unknown;[k: string]: unknown }> = {};
+                for (const [key, entry] of Object.entries(fieldData)) {
+                  if (
+                    entry != null &&
+                    typeof entry === "object" &&
+                    !Array.isArray(entry) &&
+                    "type" in entry &&
+                    "value" in entry &&
+                    typeof (entry as Record<string, unknown>).type === "string"
+                  ) {
+                    // New format: full Framer field entry preserved from staging
+                    framerFieldData[key] = entry as { type: string; value: unknown };
+                  } else {
+                    // Legacy fallback: infer type from JS runtime type
+                    framerFieldData[key] = { type: typeof entry === "string" ? "string" : "string", value: entry };
+                  }
+                }
+
+                // Push to Framer
+                const addFn = () => addCollectionItems(payload.collectionId, [{
+                  slug: item.slug,
+                  draft: payload.draft,
+                  fieldData: framerFieldData,
+                }]);
+                await (runInFramerContext ? runInFramerContext(addFn) : addFn());
+
+                // Remove the staged item from Convex
+                await fetchProductMutation(
+                  anyApi.stagedItems.remove,
+                  { id: stagedId, clerkOrganizationId: stagingContext.organizationId },
+                );
+                pushed.push({ slug: item.slug, draft: payload.draft });
+                consecutiveErrors = 0;
+              } catch (err) {
+                consecutiveErrors++;
+                const msg = err instanceof Error ? err.message : "Unknown error";
+                errors.push(`Failed to push staged item ${stagedId}: ${msg}`);
+                logError("ai.cms_action.push_staged_item_failed", err, { stagedId });
+              }
+            }
+            logEvent("info", "ai.cms_action.push_staged", {
+              action: payload.action,
+              durationMs: Date.now() - startMs,
+              pushedCount: pushed.length,
+              errorCount: errors.length,
+            });
+            if (pushed.length === 0 && errors.length > 0) {
+              return { success: false, action: payload.action, error: errors.join("; ") };
+            }
+            return {
+              success: true,
+              action: payload.action,
+              pushed,
+              ...(errors.length > 0 ? { partialErrors: errors } : {}),
+            };
+          }
         }
 
         // Invalidate snapshot cache for enum mutations
@@ -674,6 +832,7 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContex
     framer_set_enum_case_order: framerSetEnumCaseOrder,
     framer_set_item_attributes: framerSetItemAttributes,
     framer_update_enum_case: framerUpdateEnumCase,
+    list_staged_items: listStagedItems,
     propose_cms_action: proposeCmsAction,
   } as const;
 }

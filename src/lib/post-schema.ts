@@ -96,11 +96,18 @@ function buildNumberSchema(field: DashboardFieldDefinition) {
 }
 
 function isValidDateValue(value: string, displayTime?: boolean) {
+  // Accept Framer's full ISO 8601 format (YYYY-MM-DDTHH:mm:ss.sssZ) for any date field
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
+    return !Number.isNaN(new Date(value).valueOf());
+  }
+
   if (displayTime) {
+    // Also accept the short datetime-local format from HTML inputs
     return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) &&
       !Number.isNaN(new Date(value).valueOf());
   }
 
+  // Also accept the short date-only format from HTML inputs
   return /^\d{4}-\d{2}-\d{2}$/.test(value) &&
     !Number.isNaN(new Date(`${value}T00:00:00.000Z`).valueOf());
 }

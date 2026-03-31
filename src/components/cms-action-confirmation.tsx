@@ -96,6 +96,7 @@ export function buildSyntheticPost(
 
   if (item.fieldData) {
     for (const [key, entry] of Object.entries(item.fieldData)) {
+      if (!entry) continue;
       fieldValues[key] = entry.value as DashboardFieldValue;
       if ((fieldNames?.[key] ?? key).toLowerCase().includes("title") && typeof entry.value === "string") {
         title = entry.value;
@@ -126,6 +127,7 @@ export function buildSyntheticPostFromUpdate(
 
   if (action.fieldData) {
     for (const [key, entry] of Object.entries(action.fieldData)) {
+      if (!entry) continue;
       fieldValues[key] = entry.value as DashboardFieldValue;
       if ((fieldNames?.[key] ?? key).toLowerCase().includes("title") && typeof entry.value === "string") {
         title = entry.value;
@@ -163,18 +165,18 @@ function AddItemRow({
 }) {
   const fieldEntries = item.fieldData ? Object.entries(item.fieldData) : [];
   const titleField = fieldEntries.find(
-    ([key]) => (fieldNames?.[key] ?? key).toLowerCase().includes("title") &&
-      typeof item.fieldData?.[key]?.value === "string",
+    ([key, entry]) => entry != null && (fieldNames?.[key] ?? key).toLowerCase().includes("title") &&
+      typeof entry.value === "string",
   );
-  const displayTitle = titleField ? String(titleField[1].value) : item.slug;
+  const displayTitle = titleField?.[1] ? String(titleField[1].value) : item.slug;
 
   const summaryFields = fieldEntries
-    .filter(([key]) => key !== titleField?.[0])
+    .filter(([key, entry]) => entry != null && key !== titleField?.[0])
     .slice(0, 2);
   const summaryText = summaryFields
     .map(([key, entry]) => {
       const label = fieldNames?.[key] ?? key;
-      const val = entry.value;
+      const val = entry?.value;
       const short = typeof val === "string" && val.length > 30 ? val.slice(0, 30) + "…" : String(val ?? "");
       return `${label}: ${short}`;
     })
@@ -337,6 +339,17 @@ function SimpleActionDetail({ action }: { action: CmsAction }) {
           </span>
         </div>
       );
+    case "push_staged_items": {
+      const count = action.stagedItemIds.length;
+      const target = action.draft ? "drafts" : "live";
+      return (
+        <div className="flex items-center gap-2 px-3 py-2.5">
+          <span className="text-[12px] text-fresco-description">
+            {count} staged item{count === 1 ? "" : "s"} will be pushed to Framer as {target}
+          </span>
+        </div>
+      );
+    }
     default:
       return null;
   }
@@ -480,7 +493,9 @@ export function CmsActionConfirmation({
       ? proposal.payload.items.length
       : proposal.payload.action === "remove_items"
         ? proposal.payload.itemIds.length
-        : 1;
+        : proposal.payload.action === "push_staged_items"
+          ? proposal.payload.stagedItemIds.length
+          : 1;
 
   const supportsPreview =
     onPreviewItem &&

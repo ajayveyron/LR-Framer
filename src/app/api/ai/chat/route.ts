@@ -98,10 +98,13 @@ const bodyDataSchema = z.object({
       slug: z.string(),
       title: z.string(),
       fieldValues: z.record(z.string(), z.unknown()),
+      staged: z.boolean().optional(),
+      stagedId: z.string().optional(),
     }),
   ),
   fieldDefinitions: z.array(
     z.object({
+      displayTime: z.boolean().optional(),
       id: z.string(),
       name: z.string(),
       type: z.string(),
@@ -116,9 +119,13 @@ function buildSystemPrompt(
   fields: z.infer<typeof bodyDataSchema>["fieldDefinitions"],
   activeCollection?: { id: string; name: string },
   memoryBlock?: string,
+  snapshotBlock?: string,
 ) {
   const fieldList = fields
-    .map((f) => `- ${f.name} (id: ${f.id}, type: ${f.type})`)
+    .map((f) => {
+      const extras = f.type === "date" && f.displayTime ? ", includesTime: true" : "";
+      return `- ${f.name} (id: ${f.id}, type: ${f.type}${extras})`;
+    })
     .join("\n");
 
   const collectionBlock = activeCollection
@@ -135,7 +142,8 @@ function buildSystemPrompt(
             const vals = Object.entries(r.fieldValues)
               .map(([k, v]) => `  ${fieldNameMap.get(k) ?? k} (${k}): ${JSON.stringify(v)}`)
               .join("\n");
-            return `Row "${r.title}" (id: ${r.id}, slug: ${r.slug}):\n${vals}`;
+            const stagedTag = r.staged ? ` [STAGED, stagedId: ${r.stagedId}]` : "";
+            return `Row "${r.title}" (id: ${r.id}, slug: ${r.slug})${stagedTag}:\n${vals}`;
           })
           .join("\n\n")}\n\nWhen the user says "this post", "this item", "the selected post", or refers to content without specifying which item, they mean the selected row(s) above. Act on them immediately using the data you already have.`
       : "No rows are currently selected. The user can still ask about the project, collections, publishing, or any Framer CMS operation.";
@@ -148,11 +156,11 @@ Available fields in the active collection:
 ${fieldList}
 
 ${selectionBlock}
-${memoryBlock ? `\n${memoryBlock}\n` : ""}
+${memoryBlock ? `\n${memoryBlock}\n` : ""}${snapshotBlock ? `\n${snapshotBlock}\n` : ""}
 
-- You have a get_project_context tool that fetches the Framer project snapshot (all collections, fields, enum cases, plus reference options for the active collection).
-- Once you have the context, use it for the rest of the conversation. Do NOT call it again unless you need to refresh after a mutation.
-- The context gives you collection IDs, field IDs, enum cases, and the active collection's reference options — everything you need to avoid redundant framer_get_collections / framer_get_collection_fields calls.
+- The full project context (all collections, fields, enum cases, reference options) is PRE-LOADED below. Use it immediately — do NOT call get_project_context at the start of the conversation.
+- Only call get_project_context if you need to REFRESH the data after performing a mutation that changed collections, fields, or items.
+- The pre-loaded context gives you collection IDs, field IDs, enum cases, and the active collection's reference options — everything you need to avoid redundant framer_get_collections / framer_get_collection_fields calls.
 
 PRESENTATION RULE — never show internal IDs to the user:
 - When referring to collections, fields, items, or enum cases in your responses, use their human-readable names only (e.g. "Blogs", "Title", "Author").
@@ -179,7 +187,7 @@ CMS MUTATION RULES:
   - For formattedText fields, generate proper HTML content.
   - For enum fields (e.g. Category), pick the most appropriate option from the enum cases in the project context. NEVER leave an enum field empty.
   - For collectionReference fields (e.g. Person/Author), look up the correct item ID from the referenced collection's items in the project context and set it. NEVER leave a collectionReference field empty — if the user doesn't specify an author, pick the most commonly used one from existing items.
-  - For date fields, use the current date.
+  - For date fields, use the current date. Format MUST be a full ISO 8601 string ending with "Z": "YYYY-MM-DDTHH:mm:ss.sssZ". For date-only fields (no time component), use midnight UTC e.g. "2025-09-09T00:00:00.000Z". For date+time fields, include the actual time e.g. "2025-09-09T14:30:00.000Z". ALWAYS include the full timestamp with seconds, milliseconds, and the "Z" timezone suffix — Framer requires this exact format.
   - For image fields, ALWAYS generate a new unique thumbnail using generate_and_upload_image with referenceImageUrls from sibling items. NEVER copy an existing item's image URL — every new item must have its own freshly generated image.
   - When an image is still generating in the background, set the image field value to __image_job__:{jobId} inside propose_cms_action so the system can fill it automatically when ready.
   - For string fields (e.g. Description), generate appropriate content that matches the style and length of existing items.
@@ -267,8 +275,10 @@ After you call propose_cms_action, the user sees Approve/Reject buttons. Once th
 
 STAGED ITEMS — understand the staging workflow:
 - When you create new items via propose_cms_action with add_items, they are STAGED locally in the platform database — they do NOT go directly to Framer CMS.
-- Staged items have IDs that start with "staged:" (e.g. "staged:abc123"). These IDs do NOT exist in Framer.
-- You CANNOT use set_item_attributes on staged items — they don't exist in Framer yet. If the user asks to publish or update a staged item, tell them to use the dashboard table context menu (right-click the row) which offers "Push as Draft" (creates in Framer as a draft) or "Push & Publish" (creates in Framer and immediately publishes it live).
+- Staged items have IDs that start with "staged:" (e.g. "staged:abc123"). These IDs do NOT exist in Framer. Each staged item also has a stagedId field (e.g. "abc123") which is the raw Convex ID.
+- You CANNOT use set_item_attributes on staged items — they don't exist in Framer yet.
+- To DISCOVER staged items, call list_staged_items with the collectionId. This returns all staged items waiting to be pushed, including their stagedId, slug, draft status, and field data. Do NOT use framer_get_collection_items for this — that only returns items already in Framer.
+- To PUSH staged items to Framer, use propose_cms_action with action: "push_staged_items". Provide the collectionId, an array of stagedItemIds (the raw Convex IDs from the stagedId field, NOT the "staged:" prefixed ones), and draft: true (push as draft) or draft: false (push and publish live). The user will see a confirmation card before the push executes.
 - You CAN use set_item_attributes on real Framer items (IDs that do NOT start with "staged:").
 - When the user says "publish" they might mean: (a) push staged items to Framer (as draft or live), (b) change an existing Framer draft to live, or (c) deploy the site. Clarify if ambiguous.
 - To publish the SITE (deploy), use propose_cms_action with action: "publish".
@@ -288,7 +298,7 @@ FIELD DATA RULES — correct types for propose_cms_action fieldData:
 - If you cannot determine a required enum or collectionReference value with confidence, stop and ask the user instead of proposing an incomplete item.
 
 EFFICIENCY RULES — minimize tool calls and token usage:
-- After calling get_project_context on the first turn, you have the full project snapshot. Use that data directly instead of calling framer_get_project_info, framer_get_collections, framer_get_collection_fields, or framer_get_enum_cases. Only call these tools if you need to REFRESH the data after a mutation.
+- The full project snapshot is pre-loaded in your system prompt. Use that data directly instead of calling framer_get_project_info, framer_get_collections, framer_get_collection_fields, or framer_get_enum_cases. Only call these tools if you need to REFRESH the data after a mutation.
 - When the user asks about items in a collection, call framer_get_collection_items ONCE with the collection ID from the snapshot. Do NOT enumerate all collections and fetch items from each one.
 - If the user asks to "find 1 item" or "find a few items" matching some criteria, fetch items from the active collection ONCE, scan the results yourself, and act on what you find. Do not make redundant calls.
 - Prefer fewer, targeted tool calls over many exploratory ones.
@@ -362,9 +372,12 @@ export async function POST(request: Request) {
       runWithFramerRuntimeContext(baseContext, fn);
 
     // ── PARALLEL PREFETCH ──
-    // Run quota check and memory load concurrently.
-    // Snapshot is now a tool the agent calls visibly — no blocking prefetch.
-    const [quotaResult, memories] = await Promise.all([
+    // Run quota check, memory load, and context snapshot concurrently.
+    const cacheKey = access.site.framerProjectId
+      ? `framer-project:${access.site.framerProjectId}:focus:${activeCollection?.id ?? "none"}`
+      : `org:${access.organizationId}:focus:${activeCollection?.id ?? "none"}`;
+
+    const [quotaResult, memories, contextSnapshot] = await Promise.all([
       orgId
         ? checkQuota(orgId).catch((error) => {
             logError("billing.quota.check_failed", error, { organizationId: orgId });
@@ -374,6 +387,13 @@ export async function POST(request: Request) {
           })
         : Promise.resolve(null),
       loadAgentMemories(orgId, userId),
+      getAIContextSnapshotWithRunner(runInFramerContext, {
+        cacheKey,
+        focusCollectionId: activeCollection?.id,
+      }).catch((error) => {
+        logError("ai.context_snapshot.prefetch_failed", error);
+        return null;
+      }),
     ]);
 
     // ── QUOTA GATE ──
@@ -389,8 +409,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Snapshot is no longer pre-fetched — it's a tool the agent calls visibly.
     const memoryBlock = formatMemoriesForPrompt(memories);
+    const snapshotBlock = contextSnapshot ? formatSnapshotForPrompt(contextSnapshot) : "";
     const framerTools = createScopedFramerTools(runInFramerContext, {
       organizationId: orgId,
       userId,
@@ -407,7 +427,7 @@ export async function POST(request: Request) {
       model: config.textModel,
     });
 
-    const systemPrompt = buildSystemPrompt(selectedRows, fieldDefinitions, activeCollection, memoryBlock);
+    const systemPrompt = buildSystemPrompt(selectedRows, fieldDefinitions, activeCollection, memoryBlock, snapshotBlock);
 
     logEvent("info", "ai.chat.system_prompt", {
       systemPromptLength: systemPrompt.length,
@@ -445,14 +465,10 @@ export async function POST(request: Request) {
         ...framerTools,
         get_project_context: tool({
           description:
-            "Fetch the Framer project snapshot — project info, all collections, their fields, enum cases, and the active collection's reference options. " +
-            "Call this ONCE at the start of every new conversation to load context. " +
-            "The result gives you collection IDs, field IDs, enum options — everything you need to avoid redundant tool calls.",
+            "Refresh the Framer project snapshot — project info, all collections, their fields, enum cases, and the active collection's reference options. " +
+            "Context is already pre-loaded in the system prompt. Only call this to REFRESH after you've made mutations that changed collections, fields, or items.",
           inputSchema: z.object({}),
           execute: async () => {
-            const cacheKey = access.site.framerProjectId
-              ? `framer-project:${access.site.framerProjectId}:focus:${activeCollection?.id ?? "none"}`
-              : `org:${access.organizationId}:focus:${activeCollection?.id ?? "none"}`;
             const snapshot = await getAIContextSnapshotWithRunner(runInFramerContext, {
               cacheKey,
               focusCollectionId: activeCollection?.id,

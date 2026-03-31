@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowClockwise,
   CheckCircle,
   Database,
   DownloadSimple,
@@ -145,26 +146,54 @@ function PartialCmsProposalPreview({
     })
     .filter((item) => item.title || item.descriptionText || item.bodyPreview);
 
+  // Estimate item counts from raw text for progress display
+  const estimatedFromRaw = rawInputText ? estimateItemCount(rawInputText) : 0;
+  const displayCount = items.length || estimatedFromRaw;
+  const estimatedTotal = estimateTotalFromDescription(description);
+
+  const progressLabel =
+    action === "add_items"
+      ? estimatedTotal && displayCount > 0
+        ? `Assembling item ${displayCount} of ~${estimatedTotal}`
+        : displayCount > 0
+          ? `Assembling ${displayCount} draft${displayCount === 1 ? "" : "s"}`
+          : "Assembling drafts"
+      : "Assembling CMS action";
+
   const summary =
     description ??
     (action === "add_items"
-      ? `Streaming ${items.length} draft item${items.length === 1 ? "" : "s"} into the CMS proposal.`
+      ? `Streaming ${displayCount || ""} draft item${displayCount === 1 ? "" : "s"} into the CMS proposal.`
       : "Streaming the CMS action payload.");
+
+  const showProgress = action === "add_items" && estimatedTotal && estimatedTotal > 0 && displayCount > 0;
+  const progressPercent = showProgress
+    ? Math.min(100, (displayCount / estimatedTotal!) * 100)
+    : 0;
 
   return (
     <ToolCallRow
       elevated
       icon={<Database className="size-3.5" weight="fill" />}
-      label={
-        action === "add_items"
-          ? `Assembling ${items.length || ""} draft${items.length === 1 ? "" : "s"}`
-          : "Assembling CMS action"
-      }
+      label={progressLabel}
       status="Streaming"
       summary={summary}
       tone="accent"
       shimmer
     >
+      {showProgress ? (
+        <div className="mb-2 flex items-center gap-2">
+          <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-fresco-divider/40">
+            <div
+              className="h-full rounded-full bg-fresco-tint transition-all duration-300"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+          <span className="shrink-0 text-[10px] tabular-nums text-fresco-subtitle">
+            {displayCount}/{estimatedTotal}
+          </span>
+        </div>
+      ) : null}
       {visibleItems.length > 0 ? (
         <div className="overflow-hidden rounded-xl border border-fresco-divider/60">
           {visibleItems.slice(0, 10).map((item, index) => (
@@ -212,6 +241,28 @@ function PartialCmsProposalPreview({
       ) : null}
     </ToolCallRow>
   );
+}
+
+function ToolInputErrorBanner() {
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-fresco-warning/30 bg-fresco-warning-callout-bg px-3 py-2 text-[12px] text-fresco-warning-callout-text">
+      <ArrowClockwise className="size-3.5 shrink-0 animate-spin" weight="bold" />
+      <span>
+        Encountered a formatting issue. Retrying with corrected data...
+      </span>
+    </div>
+  );
+}
+
+function estimateItemCount(rawText: string): number {
+  const matches = rawText.match(/"slug"\s*:/g);
+  return matches ? matches.length : 0;
+}
+
+function estimateTotalFromDescription(description: string | null): number | null {
+  if (!description) return null;
+  const match = description.match(/(\d+)\s*(?:items?|posts?|drafts?|entries?|days?)/i);
+  return match ? parseInt(match[1], 10) : null;
 }
 
 function FramerToolGlyph({ className }: { className?: string }) {
@@ -384,6 +435,7 @@ interface AIMessagePartRendererProps {
   }) => void;
   allFieldNames: FieldNameMap;
   allFieldTypes: FieldTypeMap;
+  getToolFinishReason?: (toolCallId?: string | null) => string | null;
   getToolTimingMeta: (toolCallId?: string | null) => string | null;
   handleApplied: (result: BulkApplyResult) => void;
   isLastMessage: boolean;
@@ -401,6 +453,7 @@ export function AIMessagePartRenderer({
   addToolApprovalResponse,
   allFieldNames,
   allFieldTypes,
+  getToolFinishReason,
   getToolTimingMeta,
   handleApplied,
   isLastMessage,
@@ -491,7 +544,16 @@ export function AIMessagePartRenderer({
   }
 
   if (part.type === "tool-propose_cms_action") {
+    // If this is NOT the latest CMS action, check if it was an input-error (retry case)
     if (partIndex !== lastCmsActionIdx) {
+      const toolCallId =
+        "toolCallId" in part && typeof (part as any).toolCallId === "string"
+          ? ((part as any).toolCallId as string)
+          : null;
+      const reason = getToolFinishReason?.(toolCallId);
+      if (reason === "input-error") {
+        return <ToolInputErrorBanner />;
+      }
       return null;
     }
 

@@ -22,18 +22,21 @@ function makeMetadata(
   };
 }
 
+const ISO_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
 describe("normalizeStagedDates", () => {
-  it("normalizes full ISO string to YYYY-MM-DD for date-only fields", () => {
+  it("keeps full ISO string as-is for date-only fields", () => {
     const metadata = makeMetadata([{ id: "d1", type: "date" }]);
     const result = normalizeStagedDates(
       { d1: "2025-03-15T10:30:00.000Z" },
       metadata,
     );
-    // Date-only: should strip time portion
-    assert.match(result.d1 as string, /^\d{4}-\d{2}-\d{2}$/);
+    // Date-only: should normalize to midnight UTC in Framer ISO format
+    assert.match(result.d1 as string, ISO_REGEX);
+    assert.equal(result.d1, "2025-03-15T00:00:00.000Z");
   });
 
-  it("normalizes full ISO string to YYYY-MM-DDTHH:mm for date+time fields", () => {
+  it("normalizes full ISO string to Framer ISO format for date+time fields", () => {
     const metadata = makeMetadata([
       { id: "d1", type: "date", displayTime: true },
     ]);
@@ -41,21 +44,32 @@ describe("normalizeStagedDates", () => {
       { d1: "2025-03-15T10:30:00.000Z" },
       metadata,
     );
-    assert.match(result.d1 as string, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    assert.match(result.d1 as string, ISO_REGEX);
+    assert.equal(result.d1, "2025-03-15T10:30:00.000Z");
   });
 
-  it("leaves already-valid date-only values unchanged", () => {
+  it("normalizes short date-only values to Framer ISO format", () => {
     const metadata = makeMetadata([{ id: "d1", type: "date" }]);
     const result = normalizeStagedDates({ d1: "2025-03-15" }, metadata);
-    assert.equal(result.d1, "2025-03-15");
+    assert.match(result.d1 as string, ISO_REGEX);
+    assert.equal(result.d1, "2025-03-15T00:00:00.000Z");
   });
 
-  it("leaves already-valid date+time values unchanged", () => {
+  it("normalizes short date+time values to Framer ISO format", () => {
     const metadata = makeMetadata([
       { id: "d1", type: "date", displayTime: true },
     ]);
     const result = normalizeStagedDates({ d1: "2025-03-15T10:30" }, metadata);
-    assert.equal(result.d1, "2025-03-15T10:30");
+    assert.match(result.d1 as string, ISO_REGEX);
+  });
+
+  it("leaves already-valid Framer ISO values unchanged", () => {
+    const metadata = makeMetadata([{ id: "d1", type: "date" }]);
+    const result = normalizeStagedDates(
+      { d1: "2025-03-15T00:00:00.000Z" },
+      metadata,
+    );
+    assert.equal(result.d1, "2025-03-15T00:00:00.000Z");
   });
 
   it("does not touch non-date fields", () => {
@@ -82,12 +96,12 @@ describe("normalizeStagedDates", () => {
     assert.equal(result.d1, "not-a-date");
   });
 
-  it("handles epoch-style date strings", () => {
+  it("normalizes natural language date strings to Framer ISO format", () => {
     const metadata = makeMetadata([{ id: "d1", type: "date" }]);
     const result = normalizeStagedDates(
       { d1: "March 15, 2025" },
       metadata,
     );
-    assert.match(result.d1 as string, /^\d{4}-\d{2}-\d{2}$/);
+    assert.match(result.d1 as string, ISO_REGEX);
   });
 });

@@ -11,7 +11,7 @@ import {
   serializeDashboardSnapshot,
 } from "@/lib/dashboard-snapshot";
 import { isTransientFramerError } from "@/lib/framer-errors";
-import { fetchProductMutation, fetchProductQuery } from "@/lib/convex";
+import { fetchProductMutation } from "@/lib/convex";
 import { logError } from "@/lib/logger";
 import {
   getDashboardAccess,
@@ -78,42 +78,6 @@ async function loadDashboardFallbackSnapshot(
   );
 }
 
-export async function loadDashboardFramerStatus(site: ProductSite) {
-  return runWithFramerRuntimeContext(
-    getSiteFramerRuntimeContext(site, {
-      collectionId: site.framerCollectionId ?? undefined,
-      collectionName: site.framerCollectionName ?? undefined,
-    }),
-    async () => {
-      try {
-        await getProjectInfo();
-
-        return {
-          cachedAt: null,
-          state: "available" as const,
-        };
-      } catch (error) {
-        if (!isTransientFramerError(error)) {
-          throw error;
-        }
-
-        const fallbackSnapshot = await loadDashboardFallbackSnapshot(site);
-        if (fallbackSnapshot) {
-          return {
-            cachedAt: new Date(fallbackSnapshot.cachedAt).toISOString(),
-            state: "stale" as const,
-          };
-        }
-
-        return {
-          cachedAt: null,
-          state: "unavailable" as const,
-        };
-      }
-    },
-  );
-}
-
 export async function loadDashboardScreen(requestedCollectionId?: string) {
   const access = await getDashboardAccess();
   if (access.kind === "config_error") {
@@ -121,6 +85,63 @@ export async function loadDashboardScreen(requestedCollectionId?: string) {
   }
 
   const persistedSnapshot = parseDashboardSnapshot(access.site);
+
+  // Lightweight ping: if Framer is down, skip the heavy data fetch entirely
+  // and fall through to the cached-snapshot / unavailable path.
+  try {
+    await runWithFramerRuntimeContext(
+      getSiteFramerRuntimeContext(access.site, {
+        collectionId: access.site.framerCollectionId ?? undefined,
+        collectionName: access.site.framerCollectionName ?? undefined,
+      }),
+      () => getProjectInfo(),
+    );
+  } catch (pingError) {
+    if (isTransientFramerError(pingError)) {
+      logError("dashboard.load.retryableFramerError", pingError, {
+        clerkOrganizationId: access.organizationId,
+        clerkUserId: access.userId,
+        framerProjectId: access.site.framerProjectId,
+      });
+
+      const fallbackSnapshot = await loadDashboardFallbackSnapshot(
+        access.site,
+        requestedCollectionId,
+      );
+
+      if (fallbackSnapshot) {
+        return {
+          access,
+          activeCollection: fallbackSnapshot.activeCollection,
+          collections: fallbackSnapshot.collections,
+          framerStatus: {
+            cachedAt: new Date(fallbackSnapshot.cachedAt).toISOString(),
+            state: "stale" as const,
+          },
+          initialColumns: getDefaultColumns(fallbackSnapshot.overview.metadata),
+          kind: "ready" as const,
+          metadata: fallbackSnapshot.overview.metadata,
+          posts: fallbackSnapshot.overview.posts,
+        };
+      }
+
+      return {
+        access,
+        activeCollection: {
+          id: access.site.framerCollectionId ?? "unavailable",
+          name: access.site.framerCollectionName ?? "Unavailable",
+        },
+        collections: [],
+        framerStatus: {
+          cachedAt: null,
+          state: "unavailable" as const,
+        },
+        kind: "framer_unavailable" as const,
+      };
+    }
+
+    throw pingError;
+  }
 
   try {
     const { activeCollection, collections } = await resolveCurrentSiteCollection(
