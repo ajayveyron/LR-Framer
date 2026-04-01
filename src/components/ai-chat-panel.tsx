@@ -954,14 +954,11 @@ function ChipInputPromptArea({
   );
 
   const handleSubmit = useCallback(() => {
+    if (isStreaming) return;
     const form = wrapperRef.current?.closest("form");
     if (!form) return;
-    const submitBtn = form.querySelector(
-      'button[type="submit"]',
-    ) as HTMLButtonElement | null;
-    if (submitBtn?.disabled) return;
     form.requestSubmit();
-  }, []);
+  }, [isStreaming]);
 
   const handlePaste = useCallback(
     (e: ClipboardEvent<HTMLDivElement>) => {
@@ -995,6 +992,7 @@ function ChipInputPromptArea({
         if (!message.text.trim()) return;
         sendMessage({ text: message.text });
         chipInputRef.current?.clear();
+        controller.textInput.clear();
       }}
     >
       <AttachmentPreviewStrip />

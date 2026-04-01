@@ -47,7 +47,6 @@ function formatElapsed(ms: number): string {
 }
 
 type Phase =
-  | "connecting"
   | "thinking"
   | "executing-tool"
   | "assembling-payload"
@@ -67,11 +66,6 @@ function detectPhase(
     }
   }
 
-  // Connecting: no chunks received yet
-  if (lifecycle.startedAt === null || lifecycle.lastChunkType === null) {
-    return "connecting";
-  }
-
   // Assembling payload: active tool is propose_cms_action
   if (lifecycle.activeToolName === "propose_cms_action") {
     return "assembling-payload";
@@ -86,7 +80,8 @@ function detectPhase(
     return "executing-tool";
   }
 
-  // Default: thinking
+  // Default: thinking (includes the "connecting" phase — no user-meaningful
+  // distinction between waiting for the server to start and the model thinking)
   return "thinking";
 }
 
@@ -97,8 +92,6 @@ function getPhaseLabel(
   silenceMs: number,
 ): string {
   switch (phase) {
-    case "connecting":
-      return "Connecting...";
     case "recovering":
       return "Formatting issue, retrying...";
     case "assembling-payload": {
@@ -135,8 +128,6 @@ function getPhaseLabel(
 
 function getPhaseIcon(phase: Phase) {
   switch (phase) {
-    case "connecting":
-      return <CircleNotch className="size-3.5 animate-spin" weight="bold" />;
     case "recovering":
       return (
         <ArrowClockwise className="size-3.5 animate-spin" weight="bold" />

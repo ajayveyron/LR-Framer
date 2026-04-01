@@ -264,7 +264,7 @@ function isTransientConnectionError(error: unknown): boolean {
   );
 }
 
-async function withFramerProject<T>(callback: (framer: Framer) => Promise<T>) {
+export async function withFramerProject<T>(callback: (framer: Framer) => Promise<T>) {
   const runtimeContext = getFramerRuntimeContext();
   let lastError: unknown;
 

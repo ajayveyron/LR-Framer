@@ -271,10 +271,13 @@ function buildGenerateAndUploadImageTool(runInFramerContext?: RunInFramerContext
     description:
       "Generate an image from a text prompt using AI, then upload it to Framer as an asset. " +
       "This tool returns IMMEDIATELY with a jobId while the image generates in the background. " +
-      "The user will see a live progress indicator and the image will appear automatically when ready. " +
-      "You do NOT need to wait for the image — continue with your next task (writing content, proposing CMS actions, etc.). " +
-      "When you need to use the image in propose_cms_action, put __image_job__:{jobId} into the image field value. " +
-      "The system will replace that placeholder with the uploaded asset automatically once the job finishes. " +
+      "The user sees a live progress indicator with a preview. Once the image is ready, " +
+      "the user must APPROVE or REJECT it before you can use it. " +
+      "After the user approves, the tool result is updated with the final image URL. " +
+      "Use that URL directly in propose_cms_action fieldData — do NOT use __image_job__ placeholders for single items. " +
+      "For BATCH operations (5+ items), you may still use __image_job__:{jobId} placeholders to avoid blocking. " +
+      "ALWAYS inspect existing images from sibling items in the collection and pass them as referenceImageUrls " +
+      "so the generated image matches the collection's visual style. " +
       "Accepts referenceImageUrls (array of up to 3 sibling item image URLs) to match the collection's visual style, " +
       "or referenceImageUrl (single URL) for a user-uploaded reference.",
     inputSchema: z.object({
@@ -298,8 +301,15 @@ function buildGenerateAndUploadImageTool(runInFramerContext?: RunInFramerContext
         .describe(
           "URLs of up to 3 reference images from sibling collection items to guide the visual style. The model will analyze all of them to match the collection's aesthetic.",
         ),
+      batchMode: z
+        .boolean()
+        .optional()
+        .describe(
+          "Set to true when generating images for 5+ items in a batch. In batch mode, images auto-apply via __image_job__ placeholders without waiting for individual approval.",
+        ),
     }),
-    execute: async ({ prompt, context, referenceImageUrl, referenceImageUrls }) => {
+    needsApproval: true,
+    execute: async ({ prompt, context, referenceImageUrl, referenceImageUrls, batchMode }) => {
       const config = getAIConfig();
 
       if (!config) {
@@ -319,6 +329,7 @@ function buildGenerateAndUploadImageTool(runInFramerContext?: RunInFramerContext
         referenceImageUrl: referenceImageUrl ?? null,
         referenceImageUrls: referenceImageUrls ?? [],
         referenceImageCount: (referenceImageUrls?.length ?? 0) + (referenceImageUrl ? 1 : 0),
+        batchMode: batchMode ?? false,
       });
 
       // Create the job and fire off generation — don't await
@@ -337,9 +348,12 @@ function buildGenerateAndUploadImageTool(runInFramerContext?: RunInFramerContext
         async: true,
         jobId,
         prompt,
-        message:
-          "Image generation started in the background. The user will see it appear automatically. " +
-          "Continue with your next task — do NOT wait for this to complete.",
+        batchMode: batchMode ?? false,
+        message: batchMode
+          ? "Image generation started in the background. " +
+            "Continue with your next task — use __image_job__:" + jobId + " as a placeholder."
+          : "Image generation started. The user will preview and approve/reject the image. " +
+            "Wait for their decision before using the image URL in CMS actions.",
       };
     },
   });

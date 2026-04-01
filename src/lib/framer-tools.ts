@@ -28,6 +28,8 @@ import {
   setEnumCaseOrder,
   updateEnumCase,
 } from "@/lib/framer";
+import { executeBulkScript, type StagingAPI } from "@/lib/bulk-script-sandbox";
+import { withFramerProject } from "@/lib/framer-core";
 import { logEvent, logError } from "@/lib/logger";
 import { normalizeFieldData } from "@/lib/normalize-field-data";
 import { fetchProductMutation, fetchProductQuery } from "@/lib/convex";
@@ -211,7 +213,10 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContex
 
   const framerGetCollectionItems = tool({
     description:
-      "Get all items (rows) in a CMS collection. Returns each item's ID, slug, draft status, and field data.",
+      "Get all items (rows) in a CMS collection. Returns each item's ID, slug, draft status, and field data. " +
+      "The project snapshot is pre-loaded in your system prompt — only call this to inspect item content " +
+      "(e.g. to match existing patterns before creating new items, or to find reference image URLs from siblings). " +
+      "Call ONCE per collection, then use the results directly.",
     inputSchema: z.object({
       collectionId: z.string().describe("The ID of the collection"),
     }),
@@ -433,7 +438,10 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContex
     description:
       "List staged items waiting to be pushed to Framer for a given collection. " +
       "Staged items exist only in the local platform database — they are NOT yet in Framer. " +
-      "Returns each item's stagedId (needed for push_staged_items), slug, draft status, and field data.",
+      "Returns each item's stagedId (needed for push_staged_items), slug, draft status, and field data. " +
+      "Do NOT use framer_get_collection_items for this — that only returns items already in Framer. " +
+      "To push staged items to Framer, use propose_cms_action with push_staged_items action, " +
+      "providing stagedItemIds (raw Convex IDs, NOT 'staged:' prefixed), and draft: true or false.",
     inputSchema: z.object({
       collectionId: z.string().describe("The ID of the collection to list staged items for"),
     }),
@@ -482,8 +490,28 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContex
     description:
       "Propose a CMS write operation that requires user confirmation before executing. " +
       "Use this for ALL mutations: adding/removing/updating items, enum cases, and publishing. " +
-      "The user will see a confirmation card and must approve before the action runs. " +
-      "After approval, the action executes and you receive the result — use it to inform the user.",
+      "The user sees a confirmation card and must approve before the action runs. " +
+      "After approval, the action executes and you receive the result.\n\n" +
+      "FIELD DATA RULES — every fieldData entry must be { type, value } with correct types:\n" +
+      "- string, link, color, date, enum: value = string or null. Date must be ISO 8601 with 'Z' suffix.\n" +
+      "- formattedText: value = HTML string or null.\n" +
+      "- number: value = number or null. boolean: value = true/false or null.\n" +
+      "- image: value = URL string or null (NOT an object).\n" +
+      "- collectionReference: value = ITEM ID from the referenced collection (NOT slug/name). Look up IDs first.\n" +
+      "- multiCollectionReference: value = array of item IDs.\n" +
+      "- enum: value = CASE ID (NOT display name). Use cases from the project context.\n" +
+      "- REQUIRED enum/collectionReference fields: never omit. Ask the user if unsure.\n\n" +
+      "DRAFT RULE: When creating new items with add_items, ALWAYS set draft: true unless the user explicitly asks to publish.\n\n" +
+      "COMPLETENESS RULE: Populate ALL available fields. Use field definitions from the system prompt. " +
+      "For formattedText: proper HTML. For enum: pick appropriate case. For collectionReference: look up item ID. " +
+      "For date: use current date in ISO 8601. For image: generate via generate_and_upload_image.\n\n" +
+      "STAGED ITEMS: add_items stages items locally (IDs start with 'staged:'). They don't exist in Framer yet. " +
+      "Use push_staged_items to move them to Framer. Cannot use set_item_attributes on staged items.\n\n" +
+      "CONTENT QUALITY: Before creating items, inspect 3+ existing items to match style, tone, length. " +
+      "Blog posts should match existing length (typically 800-1500 words). Never create stubs. " +
+      "Check for duplicates before creating.\n\n" +
+      "RESULT HANDLING: success+staged = items are staged locally, not in Framer. " +
+      "If rejected, acknowledge gracefully. If failed, read error, fix, and retry.",
     inputSchema: z.object({
       description: z
         .string()
@@ -632,6 +660,50 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContex
             };
           }
           case "set_item_attributes": {
+            // Snapshot current state for undo
+            let previousState: {
+              slug?: string;
+              draft?: boolean;
+              fieldData?: Record<string, { type: string; value: unknown }>;
+            } | undefined;
+            try {
+              const rawItems = await (runInFramerContext
+                ? runInFramerContext(() => getCollectionItems(payload.collectionId))
+                : getCollectionItems(payload.collectionId));
+              const itemsArray = (rawItems as unknown as {
+                items: Array<{
+                  id: string;
+                  slug?: string;
+                  draft?: boolean;
+                  fieldData?: Record<string, { type: string; value: unknown }>;
+                }>;
+              }).items ?? (rawItems as unknown as Array<{
+                id: string;
+                slug?: string;
+                draft?: boolean;
+                fieldData?: Record<string, { type: string; value: unknown }>;
+              }>);
+              const currentItem = (Array.isArray(itemsArray) ? itemsArray : []).find(
+                (i) => i.id === payload.itemId,
+              );
+              if (currentItem) {
+                previousState = {};
+                if (payload.slug !== undefined) previousState.slug = currentItem.slug;
+                if (payload.draft !== undefined) previousState.draft = currentItem.draft;
+                if (payload.fieldData) {
+                  const prevFieldData: Record<string, { type: string; value: unknown }> = {};
+                  for (const fieldId of Object.keys(payload.fieldData)) {
+                    if (currentItem.fieldData?.[fieldId]) {
+                      prevFieldData[fieldId] = currentItem.fieldData[fieldId];
+                    }
+                  }
+                  previousState.fieldData = prevFieldData;
+                }
+              }
+            } catch {
+              // Non-critical — proceed without undo snapshot
+            }
+
             const attrs: Record<string, unknown> = {};
             if (payload.slug !== undefined) attrs.slug = payload.slug;
             if (payload.draft !== undefined) attrs.draft = payload.draft;
@@ -653,7 +725,13 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContex
               durationMs: Date.now() - startMs,
               itemId: payload.itemId,
             });
-            return { success: true, action: payload.action, itemId: payload.itemId };
+            return {
+              success: true,
+              action: payload.action,
+              itemId: payload.itemId,
+              collectionId: payload.collectionId,
+              ...(previousState ? { previousState } : {}),
+            };
           }
           case "remove_items":
             result = await (runInFramerContext
@@ -814,6 +892,269 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContex
     },
   });
 
+  // Shared execution logic for bulk scripts
+  async function executeBulkScriptInFramer(
+    script: string,
+    collectionId?: string,
+    label = "ai.bulk_script",
+  ) {
+    const startMs = Date.now();
+
+    // Validate collection access if specified
+    if (collectionId) {
+      const collections = await (runInFramerContext
+        ? runInFramerContext(() => getAllCollections())
+        : getAllCollections());
+      const allowed = new Set(
+        collections
+          .filter((c) => c.managedBy === "user")
+          .map((c) => c.id),
+      );
+      if (!allowed.has(collectionId)) {
+        return {
+          success: false,
+          logs: [] as string[],
+          error: "Invalid collection for the current site.",
+          durationMs: Date.now() - startMs,
+        };
+      }
+    }
+
+    // Execute inside withFramerProject to get an authenticated Framer instance
+    const executeFn = async () =>
+      withFramerProject(async (framer) => {
+        // Pre-fetch collections list for all scripts
+        const allCollections = await framer.getCollections();
+
+        let collection: unknown = undefined;
+        let fields: unknown[] | undefined;
+        if (collectionId) {
+          const col = allCollections.find((c: { id: string }) => c.id === collectionId) ?? null;
+          if (!col) {
+            return {
+              success: false as const,
+              logs: [] as string[],
+              error: `Collection "${collectionId}" not found.`,
+              durationMs: Date.now() - startMs,
+            };
+          }
+          collection = col;
+          // Pre-fetch fields for the target collection
+          fields = await (col as { getFields: () => Promise<unknown[]> }).getFields();
+        }
+        // Build staging API if context is available
+        let staging: StagingAPI | undefined;
+        if (stagingContext) {
+          staging = {
+            list: async (cId: string) => {
+              const items = (await fetchProductQuery(
+                anyApi.stagedItems.listByCollection,
+                {
+                  clerkOrganizationId: stagingContext.organizationId,
+                  collectionId: cId,
+                },
+              )) as Array<{
+                _id: string;
+                slug: string;
+                draft: boolean;
+                fieldDataJson: string;
+                createdAt: number;
+              }>;
+              return items.map((item) => {
+                let fieldData: Record<string, unknown> = {};
+                try { fieldData = JSON.parse(item.fieldDataJson); } catch { /* empty */ }
+                return {
+                  stagedId: item._id,
+                  slug: item.slug,
+                  draft: item.draft,
+                  fieldData,
+                  createdAt: new Date(item.createdAt).toISOString(),
+                };
+              });
+            },
+            create: async (params: {
+              collectionId: string;
+              slug: string;
+              draft: boolean;
+              fieldData: Record<string, unknown>;
+            }) => {
+              const id = await fetchProductMutation(
+                anyApi.stagedItems.create,
+                {
+                  clerkOrganizationId: stagingContext.organizationId,
+                  collectionId: params.collectionId,
+                  slug: params.slug,
+                  draft: params.draft,
+                  fieldDataJson: JSON.stringify(params.fieldData),
+                  createdByUserId: stagingContext.userId,
+                  source: "ai" as const,
+                },
+              );
+              return String(id);
+            },
+            remove: async (stagedId: string) => {
+              await fetchProductMutation(
+                anyApi.stagedItems.remove,
+                {
+                  id: stagedId,
+                  clerkOrganizationId: stagingContext.organizationId,
+                },
+              );
+            },
+          };
+        }
+
+        return executeBulkScript(script, {
+          framer,
+          collection,
+          fields,
+          collections: allCollections,
+          staging,
+        });
+      });
+
+    const result = runInFramerContext
+      ? await runInFramerContext(executeFn)
+      : await executeFn();
+
+    logEvent("info", `${label}.completed`, {
+      success: result.success,
+      durationMs: result.durationMs,
+      logCount: result.logs.length,
+    });
+
+    return result;
+  }
+
+  const BULK_SCRIPT_SDK_DOCS =
+    "The script gets pre-authenticated SDK instances and helpers. " +
+    "Available globals: framer, collection, fields, collections, staging, console, " +
+    "sleep, batch, slugify, mapWithConcurrency, Promise, JSON, Date, Math, setTimeout. " +
+    "Use console.log() for output. Always include try/catch error handling. " +
+    "Framer SDK: framer.getCollections(), framer.getCollection(id), collection.getItems(), " +
+    "collection.getFields(), collection.addItems([{slug, draft, fieldData}]), collection.removeItems([ids]), " +
+    "item.setAttributes({slug?, draft?, fieldData?}), item.remove(). " +
+    "Pre-fetched data: `fields` = field definitions array (if collectionId provided), " +
+    "`collections` = all collections list. " +
+    "Helpers: sleep(ms) for delays, batch(items, size, fn) for chunked processing, slugify(text) for slug generation. " +
+    "Staging API: staging.list(collectionId), staging.create({collectionId, slug, draft, fieldData}), staging.remove(stagedId).";
+
+  const proposeBulkScript = tool({
+    description:
+      "Propose a JavaScript script that runs in a sandboxed environment against the Framer CMS SDK and staging APIs. " +
+      "Use this for complex operations: conditional updates, bulk changes (10+ items), cross-collection work, " +
+      "data transformations, staged item management, or any task that would need more than " +
+      "5 sequential propose_cms_action calls. " +
+      "RESTRICTIONS: no require, fs, process, fetch, child_process. 2-minute timeout. Result truncated at 100KB. " +
+      "Always include try/catch error handling. Use console.log() for progress reporting. " +
+      BULK_SCRIPT_SDK_DOCS,
+    inputSchema: z.object({
+      description: z
+        .string()
+        .describe("Plain-English summary of what this script does and why"),
+      script: z
+        .string()
+        .describe("JavaScript code to execute in the sandbox"),
+      collectionId: z
+        .string()
+        .optional()
+        .describe("Optional collection ID to pre-fetch as the `collection` global"),
+    }),
+    needsApproval: true,
+    execute: async ({ description, script, collectionId }) => {
+      logEvent("info", "ai.bulk_script.proposed", {
+        description,
+        scriptLength: script.length,
+        collectionId,
+      });
+
+      try {
+        return await executeBulkScriptInFramer(script, collectionId);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        logError("ai.bulk_script.failed", err, { description });
+        return {
+          success: false,
+          logs: [],
+          error: message,
+          durationMs: 0,
+        };
+      }
+    },
+  });
+
+  let bulkScriptRetryCount = 0;
+  const MAX_BULK_SCRIPT_RETRIES = 3;
+
+  const retryBulkScript = tool({
+    description:
+      "Retry a script after a previous propose_script failed. " +
+      "ONLY use this to fix and re-run a script that the user already approved via propose_script. " +
+      "Do NOT use this as a first attempt — always use propose_script first so the user can review. " +
+      "Maximum 3 automatic retries before asking the user to re-approve. " +
+      BULK_SCRIPT_SDK_DOCS,
+    inputSchema: z.object({
+      description: z
+        .string()
+        .describe("What you changed in this retry and why"),
+      script: z
+        .string()
+        .describe("The fixed JavaScript code"),
+      collectionId: z
+        .string()
+        .optional()
+        .describe("Optional collection ID to pre-fetch as the `collection` global"),
+    }),
+    execute: async ({ description, script, collectionId }) => {
+      bulkScriptRetryCount++;
+
+      if (bulkScriptRetryCount > MAX_BULK_SCRIPT_RETRIES) {
+        bulkScriptRetryCount = 0;
+        return {
+          success: false,
+          logs: [],
+          error: `Exhausted ${MAX_BULK_SCRIPT_RETRIES} automatic retries. Use propose_bulk_script to let the user review and approve a new attempt.`,
+          durationMs: 0,
+          retriesExhausted: true,
+        };
+      }
+
+      logEvent("info", "ai.bulk_script.retry", {
+        description,
+        attempt: bulkScriptRetryCount,
+        scriptLength: script.length,
+        collectionId,
+      });
+
+      try {
+        const result = await executeBulkScriptInFramer(
+          script,
+          collectionId,
+          "ai.bulk_script.retry",
+        );
+
+        // Reset counter on success
+        if (result.success) {
+          bulkScriptRetryCount = 0;
+        }
+
+        return result;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        logError("ai.bulk_script.retry.failed", err, {
+          description,
+          attempt: bulkScriptRetryCount,
+        });
+        return {
+          success: false,
+          logs: [],
+          error: message,
+          durationMs: 0,
+        };
+      }
+    },
+  });
+
   return {
     framer_add_collection_items: framerAddCollectionItems,
     framer_add_enum_case: framerAddEnumCase,
@@ -833,7 +1174,9 @@ function buildFramerTools(runInFramerContext?: RunInFramerContext, stagingContex
     framer_set_item_attributes: framerSetItemAttributes,
     framer_update_enum_case: framerUpdateEnumCase,
     list_staged_items: listStagedItems,
+    propose_script: proposeBulkScript,
     propose_cms_action: proposeCmsAction,
+    retry_script: retryBulkScript,
   } as const;
 }
 

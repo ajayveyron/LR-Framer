@@ -708,10 +708,10 @@ export const PromptInput = ({
     ? controller.attachments.openFileDialog
     : openFileDialogLocal;
 
+  // Only clear attachments on submit — referenced sources persist across messages
   const clear = useCallback(() => {
     clearAttachments();
-    clearReferencedSources();
-  }, [clearAttachments, clearReferencedSources]);
+  }, [clearAttachments]);
 
   // Let provider know about our hidden file input so external menus can call openFileDialog()
   useEffect(() => {
@@ -853,14 +853,9 @@ export const PromptInput = ({
             return (formData.get("message") as string) || "";
           })();
 
-      // Reset form immediately after capturing text to avoid race condition
-      // where user input during async blob conversion would be lost
-      if (!usingProvider) {
-        form.reset();
-      }
-
       try {
-        // Convert blob URLs to data URLs asynchronously
+        // Convert blob URLs to data URLs before clearing — revoking blob URLs
+        // while the fetch is in-flight would cause the conversion to fail.
         const convertedFiles: FileUIPart[] = await Promise.all(
           files.map(async ({ id: _id, ...item }) => {
             if (item.url?.startsWith("blob:")) {
@@ -881,6 +876,9 @@ export const PromptInput = ({
         if (result instanceof Promise) {
           try {
             await result;
+            if (!usingProvider) {
+              form.reset();
+            }
             clear();
             if (usingProvider) {
               controller.textInput.clear();
@@ -890,6 +888,9 @@ export const PromptInput = ({
           }
         } else {
           // Sync function completed without throwing, clear inputs
+          if (!usingProvider) {
+            form.reset();
+          }
           clear();
           if (usingProvider) {
             controller.textInput.clear();
@@ -1038,7 +1039,10 @@ export const PromptInputTextarea = ({
     [attachments]
   );
 
-  const handleCompositionEnd = useCallback(() => setIsComposing(false), []);
+  const handleCompositionEnd = useCallback(
+    () => requestAnimationFrame(() => setIsComposing(false)),
+    []
+  );
   const handleCompositionStart = useCallback(() => setIsComposing(true), []);
 
   const controlledProps = controller

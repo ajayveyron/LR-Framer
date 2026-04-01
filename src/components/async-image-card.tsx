@@ -7,22 +7,37 @@ import {
   Warning,
   Copy,
   Check,
+  CheckCircle,
+  XCircle,
 } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import { ToolCallRow } from "@/components/ai-elements/tool";
+import { Button } from "@/components/ui/button";
 import { useImageJob } from "@/lib/use-image-job";
 
 interface AsyncImageCardProps {
   jobId: string;
   prompt: string;
+  batchMode?: boolean;
+  onApprove?: () => void;
+  onReject?: () => void;
+  approvalState?: "pending" | "approved" | "rejected";
 }
 
 /**
  * Renders a live-updating card for a background image generation job.
  * Polls the job status and transitions through pending → running → completed/failed.
+ * When not in batch mode, shows approve/reject buttons for user confirmation.
  */
-export function AsyncImageCard({ jobId, prompt }: AsyncImageCardProps) {
+export function AsyncImageCard({
+  jobId,
+  prompt,
+  batchMode,
+  onApprove,
+  onReject,
+  approvalState,
+}: AsyncImageCardProps) {
   const job = useImageJob(jobId);
   const [copied, setCopied] = useState(false);
   const [downloadName] = useState(() => `ai-image-${Date.now()}.png`);
@@ -37,10 +52,22 @@ export function AsyncImageCard({ jobId, prompt }: AsyncImageCardProps) {
   const status = job?.status ?? "pending";
 
   if (status === "completed" && job?.url) {
-    const summary =
-      (job.appliedTargetCount ?? 0) > 0
-        ? `Image generated and applied to ${job.appliedTargetCount} staged draft${job.appliedTargetCount === 1 ? "" : "s"}.`
-        : "Image generated and uploaded.";
+    const isApproved = approvalState === "approved";
+    const isRejected = approvalState === "rejected";
+    const needsApproval = !batchMode && !isApproved && !isRejected && onApprove && onReject;
+
+    const summary = isRejected
+      ? "Image rejected."
+      : isApproved
+        ? "Image approved and ready to use."
+        : batchMode
+          ? (job.appliedTargetCount ?? 0) > 0
+            ? `Image generated and applied to ${job.appliedTargetCount} staged draft${job.appliedTargetCount === 1 ? "" : "s"}.`
+            : "Image generated and uploaded."
+          : "Image generated — awaiting your approval.";
+
+    const tone = isRejected ? "warning" : isApproved || batchMode ? "success" : "accent";
+    const statusLabel = isRejected ? "Rejected" : isApproved || batchMode ? "Done" : "Review";
 
     return (
       <ToolCallRow
@@ -73,9 +100,9 @@ export function AsyncImageCard({ jobId, prompt }: AsyncImageCardProps) {
         }
         icon={<ImageSquare className="size-3.5" weight="fill" />}
         label="Generate image"
-        status="Done"
+        status={statusLabel}
         summary={summary}
-        tone="success"
+        tone={tone}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -83,6 +110,28 @@ export function AsyncImageCard({ jobId, prompt }: AsyncImageCardProps) {
           className="max-h-64 rounded-xl border border-fresco-divider object-contain"
           src={job.url}
         />
+        {needsApproval ? (
+          <div className="mt-2 flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="default"
+              className="gap-1.5"
+              onClick={onApprove}
+            >
+              <CheckCircle className="size-3.5" weight="bold" />
+              Use this image
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={onReject}
+            >
+              <XCircle className="size-3.5" weight="bold" />
+              Reject
+            </Button>
+          </div>
+        ) : null}
       </ToolCallRow>
     );
   }

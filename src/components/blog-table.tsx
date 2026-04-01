@@ -1,9 +1,11 @@
 "use client";
 import {
   Fragment,
+  useCallback,
   useRef,
   type MutableRefObject,
 } from "react";
+import { useAIInvokeEffectMap } from "@/hooks/use-ai-invoke-effect";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { Badge } from "@/components/ui/badge";
@@ -317,6 +319,16 @@ export function BlogTable({
   onChatWithItem,
 }: BlogTableProps) {
   const lastClickedIndexRef = useRef<number | null>(null);
+  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+  const { triggerById } = useAIInvokeEffectMap();
+
+  const setRowRef = useCallback((id: string, el: HTMLTableRowElement | null) => {
+    if (el) {
+      rowRefs.current.set(id, el);
+    } else {
+      rowRefs.current.delete(id);
+    }
+  }, []);
 
   // Derive selection-related state
   const hasSelection = selectedRows !== undefined && onToggleRow !== undefined;
@@ -433,6 +445,7 @@ export function BlogTable({
                 <ContextMenu key={post.id}>
                   <ContextMenuTrigger asChild>
                     <motion.tr
+                      ref={(el: HTMLTableRowElement | null) => setRowRef(post.id, el)}
                       variants={{
                         hidden: { opacity: 0 },
                         visible: { opacity: 1 },
@@ -562,6 +575,7 @@ export function BlogTable({
                                     className="ml-2 inline-flex shrink-0 items-center justify-center rounded-md p-0.5 opacity-0 transition-opacity group-hover:opacity-100 text-[#888] hover:text-[#fff]"
                                     onClick={(event) => {
                                       event.stopPropagation();
+                                      triggerById(post.id, rowRefs.current.get(post.id), event.clientX, event.clientY);
                                       onChatWithItem(post.id);
                                     }}
                                     title="Chat with item"

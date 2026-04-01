@@ -12,6 +12,7 @@ import {
 } from "@phosphor-icons/react";
 
 import { AsyncImageCard } from "@/components/async-image-card";
+import { BulkScriptConfirmation, type BulkScriptProposal } from "@/components/bulk-script-confirmation";
 import { CmsActionConfirmation } from "@/components/cms-action-confirmation";
 import { EditProposalView } from "@/components/edit-proposal-view";
 import {
@@ -295,6 +296,8 @@ const TOOL_LABELS: Record<string, string> = {
   framer_publish_site: "Publish site",
   framer_upload_asset: "Upload asset",
   save_preference: "Save preference",
+  propose_script: "Run script",
+  retry_script: "Retry script",
 };
 
 function formatToolName(rawToolName: string) {
@@ -377,6 +380,16 @@ const TOOL_SUMMARIES: Record<
     running: "Saving preference…",
     stopped: "Stopped saving preference",
   },
+  propose_script: {
+    done: "Script executed",
+    running: "Running script…",
+    stopped: "Script execution stopped",
+  },
+  retry_script: {
+    done: "Retry completed",
+    running: "Retrying script…",
+    stopped: "Retry stopped",
+  },
 };
 
 function getToolSummary(rawToolName: string, state: "done" | "running" | "stopped") {
@@ -443,6 +456,7 @@ interface AIMessagePartRendererProps {
   lastCmsActionIdx: number;
   metadata: BlogCollectionMetadata;
   onPreviewPost: (post: BlogPostRecord | null) => void;
+  onUndoCmsAction?: (collectionId: string, itemId: string, previousState: Record<string, unknown>) => void;
   part: AIChatMessage["parts"][number];
   partIndex: number;
   rawToolInputs: Record<string, { text: string; toolName?: string | null }>;
@@ -458,6 +472,7 @@ export function AIMessagePartRenderer({
   handleApplied,
   isLastMessage,
   isStreaming,
+  onUndoCmsAction,
   lastCmsActionIdx,
   metadata,
   onPreviewPost,
@@ -606,6 +621,91 @@ export function AIMessagePartRenderer({
             });
           }
         }}
+        onUndo={onUndoCmsAction}
+        output={"output" in part ? part.output : undefined}
+        proposal={input}
+        state={state}
+      />
+    );
+  }
+
+  if (part.type === "tool-propose_script") {
+    const input = "input" in part ? (part.input as BulkScriptProposal) : null;
+    const state =
+      "state" in part ? ((part as any).state as string | undefined) : undefined;
+
+    if (!input?.script || !input?.description) {
+      if (
+        state === "input-streaming" ||
+        state === "partial-call" ||
+        state === "call"
+      ) {
+        return (
+          <ToolCallRow
+            elevated
+            icon={<Wrench className="size-3.5" />}
+            label="Run script"
+            shimmer
+            status="Assembling script…"
+            tone="accent"
+          />
+        );
+      }
+      return null;
+    }
+
+    return (
+      <BulkScriptConfirmation
+        onApprove={() => {
+          if ("approval" in part && (part as any).approval?.id) {
+            addToolApprovalResponse({
+              id: (part as any).approval.id,
+              approved: true,
+            });
+          }
+        }}
+        onReject={() => {
+          if ("approval" in part && (part as any).approval?.id) {
+            addToolApprovalResponse({
+              id: (part as any).approval.id,
+              approved: false,
+            });
+          }
+        }}
+        output={"output" in part ? part.output : undefined}
+        proposal={input}
+        state={state}
+      />
+    );
+  }
+
+  if (part.type === "tool-retry_script") {
+    const input = "input" in part ? (part.input as BulkScriptProposal) : null;
+    const state =
+      "state" in part ? ((part as any).state as string | undefined) : undefined;
+
+    if (!input?.script) {
+      if (
+        state === "input-streaming" ||
+        state === "partial-call" ||
+        state === "call"
+      ) {
+        return (
+          <ToolCallRow
+            elevated
+            icon={<Wrench className="size-3.5" />}
+            label="Retry script"
+            shimmer
+            status="Retrying…"
+            tone="accent"
+          />
+        );
+      }
+      return null;
+    }
+
+    return (
+      <BulkScriptConfirmation
         output={"output" in part ? part.output : undefined}
         proposal={input}
         state={state}
@@ -654,6 +754,7 @@ export function AIMessagePartRenderer({
     const output = hasOutput
       ? (part.output as {
           async?: boolean;
+          batchMode?: boolean;
           error?: string;
           jobId?: string;
           prompt?: string;
@@ -661,6 +762,16 @@ export function AIMessagePartRenderer({
           url?: string;
         })
       : null;
+    const approvalId =
+      "approval" in part && (part as any).approval?.id
+        ? (part as any).approval.id
+        : null;
+    const approvalState: "pending" | "approved" | "rejected" | undefined =
+      approvalId
+        ? hasOutput
+          ? "approved"
+          : "pending"
+        : undefined;
 
     if (hasError) {
       return (
@@ -680,6 +791,18 @@ export function AIMessagePartRenderer({
         <AsyncImageCard
           jobId={output.jobId}
           prompt={output.prompt ?? "AI generated image"}
+          batchMode={output.batchMode}
+          approvalState={approvalState}
+          onApprove={
+            approvalId
+              ? () => addToolApprovalResponse({ id: approvalId, approved: true })
+              : undefined
+          }
+          onReject={
+            approvalId
+              ? () => addToolApprovalResponse({ id: approvalId, approved: false })
+              : undefined
+          }
         />
       );
     }

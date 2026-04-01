@@ -1,9 +1,8 @@
 "use client";
 
 import {
-  Brain,
   CaretDown,
-  CircleNotch,
+  Sparkle,
 } from "@phosphor-icons/react";
 import {
   Collapsible,
@@ -14,6 +13,8 @@ import { cn } from "@/lib/utils";
 import {
   createContext,
   useContext,
+  useEffect,
+  useRef,
   useState,
   type ComponentProps,
   type ReactNode,
@@ -45,20 +46,26 @@ export function ChainOfThought({
   ...props
 }: ChainOfThoughtProps) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const wasStreaming = useRef(streaming);
   const isOpen = controlledOpen ?? internalOpen;
   const setOpen = (v: boolean) => {
     setInternalOpen(v);
     onOpenChange?.(v);
   };
 
+  // Auto-collapse when reasoning finishes streaming
+  useEffect(() => {
+    if (wasStreaming.current && !streaming) {
+      setInternalOpen(false);
+    }
+    wasStreaming.current = streaming;
+  }, [streaming]);
+
   return (
     <Ctx.Provider value={{ open: isOpen, streaming }}>
       <Collapsible open={isOpen} onOpenChange={setOpen} asChild>
         <div
-          className={cn(
-            "overflow-hidden rounded-xl border border-fresco-divider/60 bg-fresco-surface-muted/30",
-            className,
-          )}
+          className={cn("overflow-hidden", className)}
           {...props}
         >
           {children}
@@ -82,28 +89,28 @@ export function ChainOfThoughtHeader({
   return (
     <CollapsibleTrigger
       className={cn(
-        "flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-fresco-surface-muted/40",
+        "flex w-full items-center gap-1.5 py-1 text-left transition-colors",
         className,
       )}
       {...props}
     >
-      <div className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--color-fresco-tint)_10%,transparent)]">
-        {streaming ? (
-          <CircleNotch className="size-3.5 animate-spin text-fresco-tint" />
-        ) : (
-          <Brain className="size-3.5 text-fresco-tint" weight="duotone" />
+      <Sparkle
+        className={cn(
+          "size-3 shrink-0 text-fresco-subtitle/60",
+          streaming && "animate-pulse",
         )}
-      </div>
-      <span className="flex-1 text-[11px] font-medium uppercase tracking-[0.08em] text-fresco-subtitle">
+        weight="fill"
+      />
+      <span className="flex-1 text-[11px] font-medium text-fresco-subtitle/70">
         {streaming ? (
           <Shimmer as="span" duration={1.8} spread={2.4}>
             Thinking…
           </Shimmer>
         ) : (
-          children ?? "Chain of Thought"
+          children ?? "Reasoning"
         )}
       </span>
-      <CaretDown className="size-3.5 shrink-0 text-fresco-subtitle transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
+      <CaretDown className="size-3 shrink-0 text-fresco-subtitle/40 transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
     </CollapsibleTrigger>
   );
 }
@@ -120,14 +127,14 @@ export function ChainOfThoughtContent({
   return (
     <CollapsibleContent
       className={cn(
-        "overflow-hidden border-t border-fresco-divider/40",
+        "overflow-hidden",
         "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-1",
         "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-1",
         className,
       )}
       {...props}
     >
-      <div className="px-3.5 py-3 text-[12px] leading-relaxed text-fresco-description whitespace-pre-wrap">
+      <div className="pl-[18px] pb-1 text-[11.5px] leading-relaxed text-fresco-description/60 whitespace-pre-wrap">
         {children}
       </div>
     </CollapsibleContent>

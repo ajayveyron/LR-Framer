@@ -65,6 +65,9 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
     const [isComposing, setIsComposing] = useState(false);
     // Track whether we're doing an internal DOM sync to avoid echo
     const isSyncingRef = useRef(false);
+    // Stable ref to onChange so the native listener always calls the latest version
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
 
     useImperativeHandle(ref, () => ({
       focus: () => {
@@ -123,9 +126,11 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
         }
         isSyncingRef.current = false;
       }
-    }, [value]);
+    }, [value, chips]);
 
-    const handleInput = useCallback(() => {
+    // Read text from the contentEditable spans and push to onChange.
+    // Used both by the native listener and the React onInput fallback.
+    const syncTextFromDOM = useCallback(() => {
       if (isSyncingRef.current) return;
       const el = editableRef.current;
       if (!el) return;
@@ -136,16 +141,33 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
       const text = `${prefixText}${suffixText}`;
       isSyncingRef.current = true;
       prefixLengthRef.current = prefixText.length;
-      onChange(text);
-      isSyncingRef.current = false;
-    }, [onChange]);
+      try {
+        onChangeRef.current(text);
+      } finally {
+        isSyncingRef.current = false;
+      }
+    }, []);
+
+    // Native `input` event listener on the container div.
+    // React's synthetic onInput on contentEditable spans can silently unbind
+    // across HMR / Fast Refresh cycles. A native listener attached via
+    // addEventListener is immune to this — it survives as long as the DOM
+    // element exists.
+    useEffect(() => {
+      const el = editableRef.current;
+      if (!el) return;
+      const handler = () => syncTextFromDOM();
+      el.addEventListener("input", handler);
+      return () => el.removeEventListener("input", handler);
+    }, [syncTextFromDOM]);
 
     const handleKeyDown: KeyboardEventHandler<HTMLDivElement> = useCallback(
       (e) => {
         if (e.key === "Enter") {
           if (isComposing || e.nativeEvent.isComposing) return;
           if (e.shiftKey) {
-            // Allow newline — but we need to insert a \n manually in the editable span
+            e.preventDefault();
+            document.execCommand("insertLineBreak");
             return;
           }
           e.preventDefault();
@@ -183,7 +205,16 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
         e.preventDefault();
         const text = e.clipboardData?.getData("text/plain") ?? "";
         if (text) {
-          document.execCommand("insertText", false, text);
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            range.insertNode(document.createTextNode(text));
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            editableRef.current?.dispatchEvent(new Event("input", { bubbles: true }));
+          }
         }
       },
       [onPaste],
@@ -198,24 +229,57 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
       suffix?.focus();
     }, [autoFocus]);
 
-    // When chips change, ensure cursor is in the editable span
+    // When chips change, preserve caret position within the active editable span.
+    // Save offset before React re-renders the chip list, then restore it.
+    const savedCaretRef = useRef<{ target: "prefix" | "suffix"; offset: number } | null>(null);
+
+    // Save caret position before chips change triggers a re-render
     useEffect(() => {
       const el = editableRef.current;
       if (!el || !document.activeElement || !el.contains(document.activeElement)) return;
-      const activeEditable =
-        getPrefixEditableSpan(el)?.contains(document.activeElement)
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+
+      const prefix = getPrefixEditableSpan(el);
+      const suffix = getSuffixEditableSpan(el);
+      const focusNode = sel.focusNode;
+      if (prefix && prefix.contains(focusNode)) {
+        savedCaretRef.current = { target: "prefix", offset: sel.focusOffset };
+      } else if (suffix && suffix.contains(focusNode)) {
+        savedCaretRef.current = { target: "suffix", offset: sel.focusOffset };
+      }
+    });
+
+    // Restore caret position after chips change
+    useEffect(() => {
+      const saved = savedCaretRef.current;
+      if (!saved) return;
+      savedCaretRef.current = null;
+
+      const el = editableRef.current;
+      if (!el) return;
+      const editable =
+        saved.target === "prefix"
           ? getPrefixEditableSpan(el)
           : getSuffixEditableSpan(el);
-      if (activeEditable) {
-        const sel = window.getSelection();
-        if (sel && (!sel.focusNode || !activeEditable.contains(sel.focusNode))) {
-          const range = document.createRange();
-          range.selectNodeContents(activeEditable);
-          range.collapse(false);
-          sel.removeAllRanges();
-          sel.addRange(range);
-        }
+      // If the target span no longer exists (e.g. chips removed → no prefix), fall back to suffix
+      const target = editable ?? getSuffixEditableSpan(el);
+      if (!target) return;
+
+      const textNode = target.firstChild;
+      const sel = window.getSelection();
+      if (!sel) return;
+      const range = document.createRange();
+      if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+        const clampedOffset = Math.min(saved.offset, textNode.textContent?.length ?? 0);
+        range.setStart(textNode, clampedOffset);
+        range.collapse(true);
+      } else {
+        range.selectNodeContents(target);
+        range.collapse(false);
       }
+      sel.removeAllRanges();
+      sel.addRange(range);
     }, [chips]);
 
     const showPlaceholder = !value;
@@ -245,14 +309,20 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
     return (
       <div
         ref={editableRef}
+        data-slot="input-group-control"
+        tabIndex={-1}
         className={cn(
-          "relative min-h-16 max-h-48 overflow-y-auto bg-transparent px-3 py-2.5 text-sm leading-relaxed text-fresco-title caret-fresco-title outline-none",
+          "relative flex min-h-16 max-h-48 flex-wrap items-start overflow-y-auto bg-transparent px-3 py-2.5 text-sm leading-relaxed text-fresco-title caret-fresco-title outline-none",
           disabled && "pointer-events-none opacity-50",
           className,
         )}
         onClick={(e) => {
-          // Only focus if clicking the container itself, not a chip button
-          if ((e.target as HTMLElement).closest("button")) return;
+          // Only force-focus when clicking the container padding/empty area.
+          // Don't interfere when clicking inside editable spans (preserves cursor position in text)
+          // or on chip buttons.
+          const target = e.target as HTMLElement;
+          if (target.closest("button")) return;
+          if (target.closest("[contenteditable]")) return;
           focusEditable("suffix");
         }}
       >
@@ -261,12 +331,11 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
             data-chip-prefix-editable="true"
             contentEditable={!disabled}
             suppressContentEditableWarning
-            className="inline min-h-[1.5em] min-w-[2px] whitespace-pre-wrap break-words caret-fresco-title outline-none"
-            onInput={handleInput}
+            className="min-h-[1.5em] min-w-[2px] whitespace-pre-wrap break-words caret-fresco-title outline-none"
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             onCompositionStart={() => setIsComposing(true)}
-            onCompositionEnd={() => setIsComposing(false)}
+            onCompositionEnd={() => requestAnimationFrame(() => setIsComposing(false))}
             role="textbox"
             aria-label="Message input prefix"
             aria-multiline="true"
@@ -307,7 +376,7 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
           data-chip-suffix-editable="true"
           contentEditable={!disabled}
           suppressContentEditableWarning
-          className="inline whitespace-pre-wrap break-words caret-fresco-title outline-none [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-fresco-subtitle [&:empty]:before:pointer-events-none"
+          className="min-h-[1.5em] min-w-[2px] flex-1 whitespace-pre-wrap break-words caret-fresco-title outline-none [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-fresco-subtitle [&:empty]:before:pointer-events-none"
           data-placeholder={
             showPlaceholder
               ? chips.length > 0
@@ -315,11 +384,10 @@ export const ChipInput = forwardRef<ChipInputHandle, ChipInputProps>(
                 : (placeholder ?? "")
               : ""
           }
-          onInput={handleInput}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           onCompositionStart={() => setIsComposing(true)}
-          onCompositionEnd={() => setIsComposing(false)}
+          onCompositionEnd={() => requestAnimationFrame(() => setIsComposing(false))}
           role="textbox"
           aria-label="Message input"
           aria-multiline="true"

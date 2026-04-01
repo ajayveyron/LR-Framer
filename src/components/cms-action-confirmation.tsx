@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowCounterClockwise,
   CheckCircle,
   XCircle,
   SpinnerGap,
@@ -12,6 +13,8 @@ import {
   Trash,
   Rows,
 } from "@phosphor-icons/react";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { ToolCallRow, type ToolTone } from "@/components/ai-elements/tool";
@@ -36,6 +39,65 @@ import type {
 } from "@/lib/cms-types";
 import { cn } from "@/lib/utils";
 
+const UNDO_WINDOW_MS = 7_000;
+
+function UndoButton({
+  onUndo,
+}: {
+  onUndo: () => void;
+}) {
+  const [remaining, setRemaining] = useState(UNDO_WINDOW_MS);
+  const [undone, setUndone] = useState(false);
+  const [undoing, setUndoing] = useState(false);
+  const mountedAt = useRef(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - mountedAt.current;
+      const left = Math.max(0, UNDO_WINDOW_MS - elapsed);
+      setRemaining(left);
+      if (left <= 0) clearInterval(interval);
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleUndo = useCallback(async () => {
+    setUndoing(true);
+    try {
+      onUndo();
+      setUndone(true);
+    } finally {
+      setUndoing(false);
+    }
+  }, [onUndo]);
+
+  if (undone) {
+    return (
+      <div className="flex items-center gap-1.5 text-[11px] text-fresco-success">
+        <ArrowCounterClockwise className="size-3" weight="bold" />
+        <span>Reverted successfully</span>
+      </div>
+    );
+  }
+
+  if (remaining <= 0) return null;
+
+  const seconds = Math.ceil(remaining / 1000);
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="gap-1.5 text-[11px]"
+      disabled={undoing}
+      onClick={handleUndo}
+    >
+      <ArrowCounterClockwise className="size-3" weight="bold" />
+      Undo ({seconds}s)
+    </Button>
+  );
+}
+
 interface CmsActionConfirmationProps {
   proposal: CmsActionProposal;
   state?: string;
@@ -45,6 +107,7 @@ interface CmsActionConfirmationProps {
   onApprove?: () => void;
   onReject?: () => void;
   onPreviewItem?: (post: BlogPostRecord) => void;
+  onUndo?: (collectionId: string, itemId: string, previousState: Record<string, unknown>) => void;
 }
 
 function severityStyles(severity: ActionSeverity) {
@@ -433,6 +496,7 @@ export function CmsActionConfirmation({
   onApprove,
   onReject,
   onPreviewItem,
+  onUndo,
 }: CmsActionConfirmationProps) {
   const state = deriveVisualState(sdkState, output);
   const severity = getActionSeverity(proposal.payload);
@@ -610,6 +674,25 @@ export function CmsActionConfirmation({
             </Button>
           </div>
         )}
+
+        {state === "approved" &&
+          onUndo &&
+          proposal.payload.action === "set_item_attributes" &&
+          outputData?.success !== false && (() => {
+            const out = outputData as {
+              collectionId?: string;
+              itemId?: string;
+              previousState?: Record<string, unknown>;
+            } | undefined;
+            if (!out?.previousState || !out?.collectionId || !out?.itemId) return null;
+            return (
+              <UndoButton
+                onUndo={() =>
+                  onUndo(out.collectionId!, out.itemId!, out.previousState!)
+                }
+              />
+            );
+          })()}
       </div>
     </ToolCallRow>
   );
